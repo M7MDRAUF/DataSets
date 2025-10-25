@@ -1,0 +1,73 @@
+# CineMatch V1.0.0 - Docker Compose Configuration
+# One-command deployment for the entire application
+
+version: '3.8'
+
+services:
+  cinematch:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    
+    container_name: cinematch-demo
+    
+    ports:
+      - "8501:8501"  # Streamlit web interface
+    
+    volumes:
+      # Mount data directory (so you don't need to copy into container)
+      - ./data:/app/data
+      
+      # Mount models directory (persist trained models)
+      - ./models:/app/models
+      
+      # Optional: Mount source code for development (hot reload)
+      # - ./src:/app/src
+      # - ./app:/app/app
+    
+    environment:
+      # Streamlit configuration
+      - STREAMLIT_SERVER_PORT=8501
+      - STREAMLIT_SERVER_ADDRESS=0.0.0.0
+      - STREAMLIT_SERVER_HEADLESS=true
+      - STREAMLIT_THEME_BASE=light
+      
+      # Python configuration
+      - PYTHONUNBUFFERED=1
+    
+    restart: unless-stopped
+    
+    # Resource limits (adjust based on your system)
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 8G
+        reservations:
+          cpus: '2'
+          memory: 4G
+    
+    # Health check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+# Optional: Add a PostgreSQL database for production persistence
+# services:
+#   db:
+#     image: postgres:14
+#     container_name: cinematch-db
+#     environment:
+#       - POSTGRES_DB=cinematch
+#       - POSTGRES_USER=cinematch
+#       - POSTGRES_PASSWORD=cinematch_secure_password
+#     volumes:
+#       - postgres_data:/var/lib/postgresql/data
+#     ports:
+#       - "5432:5432"
+#
+# volumes:
+#   postgres_data:

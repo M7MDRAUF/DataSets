@@ -1,0 +1,93 @@
+# CineMatch - Git Ignore Configuration
+
+# ========================================
+# Python
+# ========================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+.pytest_cache/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Virtual Environments
+venv/
+env/
+ENV/
+.venv
+
+# ========================================
+# Data Files (Too Large for Git)
+# ========================================
+data/ml-32m/*.csv
+data/ml-32m/*.dat
+data/processed/*.pkl
+data/processed/*.parquet
+*.csv
+*.dat
+
+# Keep directory structure
+!data/ml-32m/.gitkeep
+!data/processed/.gitkeep
+
+# ========================================
+# Model Files (Large binaries)
+# ========================================
+models/*.pkl
+models/*.h5
+models/*.pt
+models/*.pth
+!models/.gitkeep
+
+# ========================================
+# IDE & Editor
+# ========================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# ========================================
+# Streamlit
+# ========================================
+.streamlit/secrets.toml
+
+# ========================================
+# Docker
+# ========================================
+.dockerignore
+
+# ========================================
+# Environment Variables
+# ========================================
+.env
+.env.local
+
+# ========================================
+# Logs & Temporary Files
+# ========================================
+*.log
+*.tmp
+temp/
+logs/
+
+# ========================================
+# Jupyter Notebooks
+# ========================================
+.ipynb_checkpoints/
+*.ipynb
+
+# ========================================
+# OS
+# ========================================
+Thumbs.db
+Desktop.ini
