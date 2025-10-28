@@ -1,45 +1,49 @@
 # 🚀 CineMatch - Production Deployment Guide
 
-## Deployment Options
+## ⚠️ Important: Recommended Deployment Platform
 
-### Option 1: Deploy to Vercel (Recommended for Demo)
+**Use Streamlit Cloud** (not Vercel) - Streamlit apps work best on Streamlit's native platform.
 
-**⚠️ Note**: Vercel has limitations for Streamlit apps. For full production, use Streamlit Cloud or Docker.
-
-#### Prerequisites
-- GitHub account
-- Vercel account (free tier available)
-- Pre-trained model file (download separately)
-
-#### Steps:
-
-1. **Fork/Clone this repository to GitHub**
-   ```bash
-   # If starting fresh
-   git init
-   git add .
-   git commit -m "Initial commit for production"
-   git branch -M main
-   git remote add origin https://github.com/YOUR_USERNAME/cinematch.git
-   git push -u origin main
-   ```
-
-2. **Setup Vercel**
-   - Go to https://vercel.com
-   - Click "New Project"
-   - Import your GitHub repository
-   - Configure build settings (auto-detected from `vercel.json`)
-
-3. **Configure Environment Variables** (if needed)
-   - Add any API keys or secrets in Vercel dashboard
-   - Set `STREAMLIT_SERVER_PORT=8501`
-
-4. **Deploy**
-   - Vercel will automatically deploy on push to main branch
+Vercel has limitations with:
+- Long-running Python processes
+- Large dependencies (scikit-surprise, numba)
+- Streamlit's websocket connections
 
 ---
 
-### Option 2: Deploy to Streamlit Cloud (Best for Streamlit Apps)
+## Deployment Options
+
+### Option 1: Deploy to Streamlit Cloud (✅ RECOMMENDED)
+
+#### Prerequisites
+- GitHub account
+- Streamlit Cloud account (free tier available)
+
+#### Steps:
+
+1. **Your repository is already on GitHub**
+   - Repository: https://github.com/M7MDRAUF/DataSets
+   - Branch: `main`
+
+2. **Deploy on Streamlit Cloud**
+   - Go to https://streamlit.io/cloud
+   - Sign in with GitHub
+   - Click "New app"
+   - Select repository: `M7MDRAUF/DataSets`
+   - Set main file: `app/main.py`
+   - Branch: `main`
+   - Click "Deploy"
+
+3. **Configure Secrets** (if needed)
+   - Go to app settings → Secrets
+   - Add any required environment variables
+
+4. **Access your app**
+   - URL will be: `https://YOUR-APP-NAME.streamlit.app`
+
+---
+
+### Option 2: Deploy to Heroku (Alternative)
 
 #### Prerequisites
 - GitHub account
