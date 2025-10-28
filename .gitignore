@@ -24,16 +24,12 @@ ENV/
 .venv
 
 # ========================================
-# Data Files (Excluded for Production)
+# Data Files - INCLUDE ml-32m datasets for Streamlit Cloud
 # ========================================
-# Large CSV files - datasets should be downloaded separately
-data/ml-32m/*.csv
-data/ml-32m/*.dat
-data/ml-32m/README.txt
+# Keep the ml-32m datasets (needed for deployment)
+# Only exclude processed files
 data/processed/*.pkl
 data/processed/*.parquet
-*.csv
-*.dat
 
 # Keep directory structure
 !data/ml-32m/.gitkeep
@@ -118,7 +114,8 @@ Desktop.ini
 # Git
 # ========================================
 .git/
-.gitattributes
+# Allow .gitattributes for Git LFS
+# .gitattributes
 
 # ========================================
 # Vercel
