@@ -17,13 +17,12 @@ warnings.filterwarnings('ignore')
 
 import pandas as pd
 import numpy as np
-from sklearn.decomposition import TruncatedSVD
 from sklearn.model_selection import train_test_split
-from scipy.sparse import csr_matrix
 import joblib
 
-# Import data processing functions
+# Import SimpleSVDRecommender from shared module
 sys.path.append(str(Path(__file__).parent.parent))
+from src.svd_model_sklearn import SimpleSVDRecommender
 from src.data_processing import (
     check_data_integrity,
     load_ratings,
@@ -39,114 +38,6 @@ METADATA_PATH = MODEL_DIR / "model_metadata.json"
 # Hyperparameters
 N_COMPONENTS = 100  # Number of latent factors
 TARGET_RMSE = 0.87
-
-
-class SimpleSVDRecommender:
-    """
-    Simple SVD-based recommender using sklearn.
-    Windows-compatible alternative to scikit-surprise.
-    """
-    
-    def __init__(self, n_components=N_COMPONENTS):
-        self.n_components = n_components
-        self.svd = TruncatedSVD(n_components=n_components, random_state=42)
-        self.user_ids = None
-        self.movie_ids = None
-        self.user_mapper = {}
-        self.movie_mapper = {}
-        self.user_inv_mapper = {}
-        self.movie_inv_mapper = {}
-        self.user_factors = None
-        self.movie_factors = None
-        self.global_mean = 0
-        self.user_bias = {}
-        self.movie_bias = {}
-        
-    def fit(self, ratings_df: pd.DataFrame):
-        """Train the SVD model"""
-        print("\nPreparing data for SVD...")
-        
-        # Create user and movie mappings
-        self.user_ids = ratings_df['userId'].unique()
-        self.movie_ids = ratings_df['movieId'].unique()
-        
-        self.user_mapper = {uid: idx for idx, uid in enumerate(self.user_ids)}
-        self.movie_mapper = {mid: idx for idx, mid in enumerate(self.movie_ids)}
-        self.user_inv_mapper = {idx: uid for uid, idx in self.user_mapper.items()}
-        self.movie_inv_mapper = {idx: mid for mid, idx in self.movie_mapper.items()}
-        
-        # Map IDs to indices
-        ratings_df = ratings_df.copy()
-        ratings_df['user_idx'] = ratings_df['userId'].map(self.user_mapper)
-        ratings_df['movie_idx'] = ratings_df['movieId'].map(self.movie_mapper)
-        
-        # Calculate global mean and biases
-        self.global_mean = ratings_df['rating'].mean()
-        
-        # Calculate user biases
-        user_means = ratings_df.groupby('userId')['rating'].mean()
-        self.user_bias = (user_means - self.global_mean).to_dict()
-        
-        # Calculate movie biases
-        movie_means = ratings_df.groupby('movieId')['rating'].mean()
-        self.movie_bias = (movie_means - self.global_mean).to_dict()
-        
-        # Create sparse matrix
-        print(f"  • Creating sparse matrix: {len(self.user_ids)} users × {len(self.movie_ids)} movies")
-        
-        user_movie_matrix = csr_matrix(
-            (ratings_df['rating'].values,
-             (ratings_df['user_idx'].values, ratings_df['movie_idx'].values)),
-            shape=(len(self.user_ids), len(self.movie_ids))
-        )
-        
-        # Fit SVD
-        print(f"  • Training SVD with {self.n_components} components...")
-        self.user_factors = self.svd.fit_transform(user_movie_matrix)
-        self.movie_factors = self.svd.components_.T
-        
-        print(f"  ✓ SVD training complete")
-        print(f"    - Explained variance: {self.svd.explained_variance_ratio_.sum():.2%}")
-        
-        return self
-    
-    def predict(self, user_id: int, movie_id: int) -> float:
-        """Predict rating for a user-movie pair"""
-        # Check if user and movie exist
-        if user_id not in self.user_mapper:
-            return self.global_mean
-        if movie_id not in self.movie_mapper:
-            return self.global_mean
-        
-        user_idx = self.user_mapper[user_id]
-        movie_idx = self.movie_mapper[movie_id]
-        
-        # Base prediction: global mean + biases
-        prediction = self.global_mean
-        prediction += self.user_bias.get(user_id, 0)
-        prediction += self.movie_bias.get(movie_id, 0)
-        
-        # Add latent factor interaction
-        prediction += np.dot(self.user_factors[user_idx], self.movie_factors[movie_idx])
-        
-        # Clip to valid rating range
-        return np.clip(prediction, 0.5, 5.0)
-    
-    def test(self, test_df: pd.DataFrame) -> float:
-        """Calculate RMSE on test set"""
-        predictions = []
-        actuals = []
-        
-        for _, row in test_df.iterrows():
-            pred = self.predict(row['userId'], row['movieId'])
-            predictions.append(pred)
-            actuals.append(row['rating'])
-        
-        predictions = np.array(predictions)
-        actuals = np.array(actuals)
-        
-        rmse = np.sqrt(np.mean((predictions - actuals) ** 2))
-        return rmse
 
 
 def train_model(ratings_df: pd.DataFrame) -> Tuple[SimpleSVDRecommender, float, float]:

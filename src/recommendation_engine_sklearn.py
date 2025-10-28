@@ -16,9 +16,10 @@ import pandas as pd
 import numpy as np
 import joblib
 
-# Import data loading functions
+# Import data loading functions and model class
 sys.path.append(str(Path(__file__).parent.parent))
 from src.data_processing import load_ratings, load_movies
+from src.svd_model_sklearn import SimpleSVDRecommender
 
 # Model configuration
 MODEL_DIR = Path("models")
