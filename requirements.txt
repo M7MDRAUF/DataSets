@@ -6,7 +6,7 @@
 # ========================================
 pandas>=2.2.0
 numpy>=1.26.0
-scikit-learn>=1.4.0             # For SVD and ML algorithms
+scikit-learn==1.3.0             # PINNED: Match training environment version
 scipy>=1.13.0
 
 # ========================================
