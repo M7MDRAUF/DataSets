@@ -1,0 +1,53 @@
+# Vercel Ignore - Exclude from deployment
+
+# Development files
+venv/
+env/
+.venv/
+__pycache__/
+
+# Documentation (not needed in production)
+ARCHITECTURE.md
+DOCUMENTATION_INDEX.md
+scripts/demo_script.md
+scripts/README.md
+
+# Team/Course files
+TP*.md
+PRD.md
+PROJECT_*.md
+todo.md
+ISSUE_*.md
+
+# Jupyter notebooks
+Jupyter/
+*.ipynb
+.ipynb_checkpoints/
+
+# Large data files (should be fetched at runtime or from CDN)
+data/ml-32m/*.csv
+data/ml-32m/*.dat
+*.csv
+*.dat
+
+# Git files
+.git/
+.gitignore
+.gitattributes
+
+# IDE
+.vscode/
+.idea/
+
+# Tests (optional - uncomment if you don't want to run tests in production)
+# tests/
+# *_test.py
+# test_*.py
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+temp/

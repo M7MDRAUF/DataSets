@@ -1,4 +1,4 @@
-# CineMatch - Git Ignore Configuration
+# CineMatch - Git Ignore Configuration for Production Deployment
 
 # ========================================
 # Python
@@ -24,10 +24,12 @@ ENV/
 .venv
 
 # ========================================
-# Data Files (Too Large for Git)
+# Data Files (Excluded for Production)
 # ========================================
+# Large CSV files - datasets should be downloaded separately
 data/ml-32m/*.csv
 data/ml-32m/*.dat
+data/ml-32m/README.txt
 data/processed/*.pkl
 data/processed/*.parquet
 *.csv
@@ -36,6 +38,31 @@ data/processed/*.parquet
 # Keep directory structure
 !data/ml-32m/.gitkeep
 !data/processed/.gitkeep
+
+# ========================================
+# Jupyter Notebook Files (Development Only)
+# ========================================
+# Exclude entire Jupyter folder and all notebooks
+Jupyter/
+.ipynb_checkpoints/
+*.ipynb
+
+# ========================================
+# Team/Course Documentation (Not for Production)
+# ========================================
+# Exclude team learning contract and progress reports
+TP01-*.md
+TP02-*.md
+TP03-*.md
+TP*.md
+
+# Exclude development/planning docs
+PRD.md
+PROJECT_STATUS.md
+PROJECT_SUMMARY.md
+todo.md
+ISSUE_RESOLVED.md
+QUICKSTART_AFTER_TRAINING.md
 
 # ========================================
 # Model Files (Large binaries)
@@ -71,6 +98,7 @@ models/*.pth
 # ========================================
 .env
 .env.local
+.env.production
 
 # ========================================
 # Logs & Temporary Files
@@ -81,13 +109,18 @@ temp/
 logs/
 
 # ========================================
-# Jupyter Notebooks
-# ========================================
-.ipynb_checkpoints/
-*.ipynb
-
-# ========================================
 # OS
 # ========================================
 Thumbs.db
 Desktop.ini
+
+# ========================================
+# Git
+# ========================================
+.git/
+.gitattributes
+
+# ========================================
+# Vercel
+# ========================================
+.vercel
