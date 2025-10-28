@@ -63,7 +63,8 @@ QUICKSTART_AFTER_TRAINING.md
 # ========================================
 # Model Files (Large binaries)
 # ========================================
-models/*.pkl
+# Models tracked with Git LFS - DO NOT IGNORE
+# models/*.pkl will be tracked by Git LFS in .gitattributes
 models/*.h5
 models/*.pt
 models/*.pth
