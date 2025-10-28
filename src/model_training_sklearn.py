@@ -104,9 +104,9 @@ def save_model(model: SimpleSVDRecommender, train_rmse: float, test_rmse: float,
         'train_rmse': float(train_rmse),
         'test_rmse': float(test_rmse),
         'training_time_seconds': float(training_time),
-        'n_components': model.n_components,
-        'target_rmse': TARGET_RMSE,
-        'success': test_rmse < TARGET_RMSE + 0.1,  # Relaxed for sklearn
+        'n_components': int(model.n_components),
+        'target_rmse': float(TARGET_RMSE),
+        'success': bool(test_rmse < TARGET_RMSE + 0.1),  # Convert numpy bool_ to Python bool
         'model_type': 'SVD (sklearn TruncatedSVD)',
         'trained_on': time.strftime('%Y-%m-%d %H:%M:%S'),
         'note': 'Windows-compatible sklearn-based implementation'
