@@ -1,0 +1,11 @@
+{
+  "train_rmse": 0.7591,
+  "test_rmse": 0.8406,
+  "training_time_seconds": 31.18,
+  "n_components": 100,
+  "target_rmse": 0.87,
+  "success": true,
+  "model_type": "SVD (sklearn TruncatedSVD)",
+  "trained_on": "2025-10-28 00:47:36",
+  "note": "Windows-compatible sklearn-based implementation with sklearn 1.7.2"
+}

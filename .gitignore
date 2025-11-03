@@ -1,0 +1,124 @@
+# CineMatch - Git Ignore Configuration for Production Deployment
+
+# ========================================
+# Python
+# ========================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+.pytest_cache/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Virtual Environments
+venv/
+env/
+ENV/
+.venv
+
+# ========================================
+# Data Files - INCLUDE ml-32m datasets for Streamlit Cloud
+# ========================================
+# Keep the ml-32m datasets (needed for deployment)
+# Only exclude processed files
+data/processed/*.pkl
+data/processed/*.parquet
+
+# Keep directory structure
+!data/ml-32m/.gitkeep
+!data/processed/.gitkeep
+
+# ========================================
+# Jupyter Notebook Files (Development Only)
+# ========================================
+# Exclude entire Jupyter folder and all notebooks
+Jupyter/
+.ipynb_checkpoints/
+*.ipynb
+
+# ========================================
+# Team/Course Documentation (Not for Production)
+# ========================================
+# Exclude team learning contract and progress reports
+TP01-*.md
+TP02-*.md
+TP03-*.md
+TP*.md
+
+# Exclude development/planning docs
+PRD.md
+PROJECT_STATUS.md
+PROJECT_SUMMARY.md
+todo.md
+ISSUE_RESOLVED.md
+QUICKSTART_AFTER_TRAINING.md
+
+# ========================================
+# Model Files (Large binaries)
+# ========================================
+# Models tracked with Git LFS - DO NOT IGNORE
+# models/*.pkl will be tracked by Git LFS in .gitattributes
+models/*.h5
+models/*.pt
+models/*.pth
+!models/.gitkeep
+
+# ========================================
+# IDE & Editor
+# ========================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# ========================================
+# Streamlit
+# ========================================
+.streamlit/secrets.toml
+
+# ========================================
+# Docker
+# ========================================
+.dockerignore
+
+# ========================================
+# Environment Variables
+# ========================================
+.env
+.env.local
+.env.production
+
+# ========================================
+# Logs & Temporary Files
+# ========================================
+*.log
+*.tmp
+temp/
+logs/
+
+# ========================================
+# OS
+# ========================================
+Thumbs.db
+Desktop.ini
+
+# ========================================
+# Git
+# ========================================
+.git/
+# Allow .gitattributes for Git LFS
+# .gitattributes
+
+# ========================================
+# Vercel
+# ========================================
+.vercel
