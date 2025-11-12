@@ -1,11 +1,15 @@
 """
-CineMatch V1.0.0 - Item-Based KNN Recommender
+CineMatch V2.1.0 - Item-Based KNN Recommender
 
 K-Nearest Neighbors recommendation using item-based collaborative filtering.
 Finds movies with similar rating patterns and recommends them to users.
 
+REFACTORED: Now inherits from KNNBaseRecommender using Template Method pattern.
+Eliminates ~125 lines of duplicated code.
+
 Author: CineMatch Development Team
-Date: November 7, 2025
+Date: November 12, 2025
+Version: 2.1.0
 """
 
 import sys
@@ -13,23 +17,25 @@ from pathlib import Path
 from typing import List, Dict, Tuple, Optional, Any
 import pandas as pd
 import numpy as np
-import time
-from scipy.sparse import csr_matrix, csc_matrix
-from sklearn.neighbors import NearestNeighbors
+from scipy.sparse import csr_matrix
 from sklearn.metrics.pairwise import cosine_similarity
 
 # Add parent directory to path for imports
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
-from src.algorithms.base_recommender import BaseRecommender
+from src.algorithms.knn_base import KNNBaseRecommender
 
 
-class ItemKNNRecommender(BaseRecommender):
+class ItemKNNRecommender(KNNBaseRecommender):
     """
     Item-Based K-Nearest Neighbors Recommender.
     
     Finds movies with similar rating patterns and recommends them 
     based on what the user has previously enjoyed.
+    
+    Inherits common KNN logic from KNNBaseRecommender.
+    Implements item-specific matrix creation, similarity precomputation,
+    and filtering based on minimum ratings.
     """
     
     def __init__(self, n_neighbors: int = 30, similarity_metric: str = 'cosine', 
@@ -43,84 +49,35 @@ class ItemKNNRecommender(BaseRecommender):
             min_ratings: Minimum ratings per item to include in similarity (default: 5)
             **kwargs: Additional parameters
         """
-        super().__init__("KNN Item-Based", n_neighbors=n_neighbors, 
-                        similarity_metric=similarity_metric, min_ratings=min_ratings, **kwargs)
-        
-        self.n_neighbors = n_neighbors
-        self.similarity_metric = similarity_metric
-        self.min_ratings = min_ratings
-        self.knn_model = NearestNeighbors(
-            n_neighbors=n_neighbors + 1,  # +1 because it includes the query item
-            metric=similarity_metric,
-            algorithm='brute'  # Better for sparse matrices
+        # Initialize parent with Template Method pattern
+        super().__init__(
+            name="KNN Item-Based",
+            n_neighbors=n_neighbors,
+            similarity_metric=similarity_metric,
+            min_ratings=min_ratings,
+            **kwargs
         )
         
-        # Data structures
-        self.item_user_matrix = None
-        self.user_mapper = {}
-        self.movie_mapper = {}
-        self.movie_inv_mapper = {}
-        self.item_means = None
-        self.global_mean = 0.0
-        self.similarity_matrix = None
-        self.valid_items = set()
+        # Item-specific parameters
+        self.min_ratings = min_ratings
+        
+        # Item-specific data structures
+        self.item_user_matrix = None  # Alias for interaction_matrix
+        self.item_means = None  # Mean ratings per item
+        self.similarity_matrix = None  # Precomputed similarity matrix (optional)
+        self.valid_items = set()  # Items with >= min_ratings
     
-    def fit(self, ratings_df: pd.DataFrame, movies_df: pd.DataFrame) -> None:
-        """Train the Item KNN model on the provided data"""
-        print(f"\n🎬 Training {self.name}...")
-        start_time = time.time()
-        
-        # Store data references
-        self.ratings_df = ratings_df.copy()
-        self.movies_df = movies_df.copy()
-        
-        # Add genres_list column if not present (as tuples for hashability)
-        if 'genres_list' not in self.movies_df.columns:
-            self.movies_df['genres_list'] = self.movies_df['genres'].str.split('|').apply(tuple)
-        
-        print("  • Creating item-user matrix...")
-        self._create_item_user_matrix(ratings_df)
-        
-        print("  • Training KNN model...")
-        self.knn_model.fit(self.item_user_matrix)
-        
-        # Optionally precompute similarity matrix for better performance
-        print("  • Computing item similarity matrix...")
-        self._compute_similarity_matrix()
-        
-        # Calculate metrics
-        training_time = time.time() - start_time
-        self.metrics.training_time = training_time
-        self.is_trained = True
-        
-        # Calculate RMSE on a test sample
-        print("  • Calculating RMSE...")
-        self._calculate_rmse(ratings_df)
-        
-        # Calculate coverage
-        self.metrics.coverage = len(self.valid_items) / len(self.movies_df) * 100
-        
-        # Calculate memory usage (approximate)
-        matrix_size_mb = (self.item_user_matrix.data.nbytes + 
-                         self.item_user_matrix.indices.nbytes + 
-                         self.item_user_matrix.indptr.nbytes) / (1024 * 1024)
-        
-        if self.similarity_matrix is not None:
-            sim_size_mb = self.similarity_matrix.nbytes / (1024 * 1024)
-            matrix_size_mb += sim_size_mb
-        
-        self.metrics.memory_usage_mb = matrix_size_mb
-        
-        print(f"✓ {self.name} trained successfully!")
-        print(f"  • Training time: {training_time:.1f}s")
-        print(f"  • RMSE: {self.metrics.rmse:.4f}")
-        print(f"  • Matrix size: {self.item_user_matrix.shape}")
-        print(f"  • Valid items: {len(self.valid_items)}")
-        print(f"  • Coverage: {self.metrics.coverage:.1f}%")
-        print(f"  • Memory usage: {matrix_size_mb:.1f} MB")
+    def _get_matrix_description(self) -> str:
+        """Return description of interaction matrix for logging"""
+        return "item-user matrix"
     
-    def _create_item_user_matrix(self, ratings_df: pd.DataFrame) -> None:
-        """Create sparse item-user matrix for KNN"""
+    def _create_interaction_matrix(self, ratings_df: pd.DataFrame) -> None:
+        """
+        Create sparse item-user matrix for KNN.
+        
+        This method implements the abstract method from KNNBaseRecommender.
+        Creates an item x user matrix and filters items by minimum rating threshold.
+        """
         # Filter items with minimum ratings
         item_rating_counts = ratings_df['movieId'].value_counts()
         valid_items = item_rating_counts[item_rating_counts >= self.min_ratings].index
@@ -129,17 +86,9 @@ class ItemKNNRecommender(BaseRecommender):
         # Filter ratings to only include valid items
         filtered_ratings = ratings_df[ratings_df['movieId'].isin(valid_items)]
         
-        # Create mappings
-        unique_users = filtered_ratings['userId'].unique()
-        unique_movies = filtered_ratings['movieId'].unique()
-        
-        self.user_mapper = {uid: idx for idx, uid in enumerate(unique_users)}
-        self.movie_mapper = {mid: idx for idx, mid in enumerate(unique_movies)}
-        self.movie_inv_mapper = {idx: mid for mid, idx in self.movie_mapper.items()}
-        
         # Create sparse matrix (items x users)
-        n_movies = len(unique_movies)
-        n_users = len(unique_users)
+        n_movies = len(filtered_ratings['movieId'].unique())
+        n_users = len(filtered_ratings['userId'].unique())
         
         movie_indices = filtered_ratings['movieId'].map(self.movie_mapper).values
         user_indices = filtered_ratings['userId'].map(self.user_mapper).values
@@ -151,6 +100,9 @@ class ItemKNNRecommender(BaseRecommender):
             shape=(n_movies, n_users)
         )
         
+        # Set base class interaction_matrix property
+        self.interaction_matrix = self.item_user_matrix
+        
         # Calculate item means for mean-centered predictions
         self.item_means = np.array(self.item_user_matrix.sum(axis=1) / 
                                  (self.item_user_matrix > 0).sum(axis=1)).flatten()
@@ -158,6 +110,16 @@ class ItemKNNRecommender(BaseRecommender):
         
         # Global mean for fallback
         self.global_mean = filtered_ratings['rating'].mean()
+    
+    def _post_fit_preprocessing(self) -> None:
+        """
+        Post-fit hook method: precompute similarity matrix.
+        
+        This optional hook method from KNNBaseRecommender allows us to
+        precompute the item similarity matrix after KNN fitting for better performance.
+        """
+        print("  • Computing item similarity matrix...")
+        self._compute_similarity_matrix()
     
     def _compute_similarity_matrix(self) -> None:
         """Precompute item similarity matrix for faster predictions"""
@@ -175,24 +137,26 @@ class ItemKNNRecommender(BaseRecommender):
             print("    • Not enough memory for full similarity matrix, using on-demand computation")
             self.similarity_matrix = None
     
-    def _calculate_rmse(self, ratings_df: pd.DataFrame) -> None:
-        """Calculate RMSE on a test sample"""
-        # Only test on items we can actually predict
-        test_items = ratings_df[ratings_df['movieId'].isin(self.valid_items)]
-        test_sample = test_items.sample(min(3000, len(test_items)), random_state=42)
+    def _calculate_coverage(self) -> float:
+        """
+        Override base class method to calculate coverage based on valid items.
         
-        squared_errors = []
-        for _, row in test_sample.iterrows():
-            try:
-                pred = self.predict(row['userId'], row['movieId'])
-                squared_errors.append((pred - row['rating']) ** 2)
-            except:
-                continue
+        For item-based KNN, coverage is the percentage of items that meet
+        the minimum rating threshold and can be recommended.
+        """
+        if len(self.movies_df) == 0:
+            return 0.0
+        return len(self.valid_items) / len(self.movies_df) * 100
+    
+    def _get_additional_memory_usage(self) -> float:
+        """
+        Override base class method to include similarity matrix memory.
         
-        if squared_errors:
-            self.metrics.rmse = np.sqrt(np.mean(squared_errors))
-        else:
-            self.metrics.rmse = float('inf')
+        Returns additional memory usage in MB beyond the base interaction matrix.
+        """
+        if self.similarity_matrix is not None:
+            return self.similarity_matrix.nbytes / (1024 * 1024)
+        return 0.0
     
     def predict(self, user_id: int, movie_id: int) -> float:
         """Predict rating for a specific user-movie pair"""
