@@ -176,6 +176,7 @@ try:
             "SVD": "🎯 SVD (Singular Value Decomposition) - Best overall accuracy",
             "User KNN": "👥 User-Based Collaborative Filtering - Find similar users",
             "Item KNN": "🎬 Item-Based Collaborative Filtering - Find similar movies",
+            "Content-Based": "🔍 Content-Based Filtering - Feature similarity recommendations",
             "Hybrid": "🚀 Hybrid Algorithm - Combines multiple approaches"
         }
         
@@ -223,6 +224,7 @@ try:
             "SVD": {"emoji": "🎯", "color": "#1f77b4", "strength": "Accuracy"},
             "User KNN": {"emoji": "👥", "color": "#ff7f0e", "strength": "Similarity"},
             "Item KNN": {"emoji": "🎬", "color": "#2ca02c", "strength": "Item Relations"},
+            "Content-Based": {"emoji": "🔍", "color": "#9467bd", "strength": "Feature Matching"},
             "Hybrid": {"emoji": "🚀", "color": "#d62728", "strength": "Combined Power"}
         }
         
@@ -248,6 +250,7 @@ try:
                     "SVD": AlgorithmType.SVD,
                     "User KNN": AlgorithmType.USER_KNN,
                     "Item KNN": AlgorithmType.ITEM_KNN,
+                    "Content-Based": AlgorithmType.CONTENT_BASED,
                     "Hybrid": AlgorithmType.HYBRID
                 }
                 

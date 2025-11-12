@@ -22,6 +22,7 @@ from src.algorithms.base_recommender import BaseRecommender
 from src.algorithms.svd_recommender import SVDRecommender
 from src.algorithms.user_knn_recommender import UserKNNRecommender
 from src.algorithms.item_knn_recommender import ItemKNNRecommender
+from src.algorithms.content_based_recommender import ContentBasedRecommender
 
 
 class HybridRecommender(BaseRecommender):
@@ -39,6 +40,7 @@ class HybridRecommender(BaseRecommender):
                  svd_params: Dict[str, Any] = None,
                  user_knn_params: Dict[str, Any] = None,
                  item_knn_params: Dict[str, Any] = None,
+                 content_based_params: Dict[str, Any] = None,
                  weighting_strategy: str = 'adaptive',
                  **kwargs):
         """
@@ -48,13 +50,15 @@ class HybridRecommender(BaseRecommender):
             svd_params: Parameters for SVD algorithm
             user_knn_params: Parameters for User KNN algorithm  
             item_knn_params: Parameters for Item KNN algorithm
+            content_based_params: Parameters for Content-Based algorithm
             weighting_strategy: 'adaptive', 'equal', or 'performance_based'
             **kwargs: Additional parameters
         """
-        super().__init__("Hybrid (SVD + KNN)", 
+        super().__init__("Hybrid (SVD + KNN + CBF)", 
                         svd_params=svd_params or {},
                         user_knn_params=user_knn_params or {},
                         item_knn_params=item_knn_params or {},
+                        content_based_params=content_based_params or {},
                         weighting_strategy=weighting_strategy,
                         **kwargs)
         
@@ -64,9 +68,10 @@ class HybridRecommender(BaseRecommender):
         self.svd_model = SVDRecommender(**(svd_params or {}))
         self.user_knn_model = UserKNNRecommender(**(user_knn_params or {}))
         self.item_knn_model = ItemKNNRecommender(**(item_knn_params or {}))
+        self.content_based_model = ContentBasedRecommender(**(content_based_params or {}))
         
         # Algorithm weights (will be calculated during training)
-        self.weights = {'svd': 0.4, 'user_knn': 0.3, 'item_knn': 0.3}
+        self.weights = {'svd': 0.30, 'user_knn': 0.25, 'item_knn': 0.25, 'content_based': 0.20}
         self.algorithm_performance = {}
         
         # User classification thresholds
@@ -120,6 +125,19 @@ class HybridRecommender(BaseRecommender):
             'coverage': self.item_knn_model.metrics.coverage
         }
         
+        print("\n🔍 Loading/Training Content-Based algorithm...")
+        # Try to load pre-trained Content-Based model
+        content_based_loaded = self._try_load_content_based(ratings_df, movies_df)
+        if not content_based_loaded:
+            print("  • No pre-trained model found, training from scratch...")
+            self.content_based_model.fit(ratings_df, movies_df)
+        
+        self.algorithm_performance['content_based'] = {
+            'rmse': self.content_based_model.metrics.rmse,
+            'training_time': self.content_based_model.metrics.training_time,
+            'coverage': self.content_based_model.metrics.coverage
+        }
+        
         # Calculate optimal weights
         print("\n⚖️ Calculating optimal algorithm weights...")
         self._calculate_weights()
@@ -137,13 +155,15 @@ class HybridRecommender(BaseRecommender):
         self.metrics.coverage = max(
             self.svd_model.metrics.coverage,
             self.user_knn_model.metrics.coverage,
-            self.item_knn_model.metrics.coverage
+            self.item_knn_model.metrics.coverage,
+            self.content_based_model.metrics.coverage
         )
         
         self.metrics.memory_usage_mb = (
             self.svd_model.metrics.memory_usage_mb +
             self.user_knn_model.metrics.memory_usage_mb +
-            self.item_knn_model.metrics.memory_usage_mb
+            self.item_knn_model.metrics.memory_usage_mb +
+            self.content_based_model.metrics.memory_usage_mb
         )
         
         print(f"\n✓ {self.name} trained successfully!")
@@ -151,7 +171,8 @@ class HybridRecommender(BaseRecommender):
         print(f"  • Hybrid RMSE: {self.metrics.rmse:.4f}")
         print(f"  • Algorithm weights: SVD={self.weights['svd']:.2f}, "
               f"User KNN={self.weights['user_knn']:.2f}, "
-              f"Item KNN={self.weights['item_knn']:.2f}")
+              f"Item KNN={self.weights['item_knn']:.2f}, "
+              f"Content-Based={self.weights['content_based']:.2f}")
         print(f"  • Combined coverage: {self.metrics.coverage:.1f}%")
         print(f"  • Total memory usage: {self.metrics.memory_usage_mb:.1f} MB")
     
@@ -208,82 +229,80 @@ class HybridRecommender(BaseRecommender):
         except Exception as e:
             print(f"  ❌ Failed to load pre-trained Item KNN: {e}")
             return False
+    
+    def _try_load_content_based(self, ratings_df: pd.DataFrame, movies_df: pd.DataFrame) -> bool:
+        """Try to load pre-trained Content-Based model"""
+        from pathlib import Path
         
-        # Calculate optimal weights
-        print("\n⚖️ Calculating optimal algorithm weights...")
-        self._calculate_weights()
-        
-        # Calculate overall metrics
-        training_time = time.time() - start_time
-        self.metrics.training_time = training_time
-        self.is_trained = True
-        
-        # Calculate hybrid RMSE
-        print("  • Calculating hybrid RMSE...")
-        self._calculate_hybrid_rmse(ratings_df)
-        
-        # Calculate combined metrics
-        self.metrics.coverage = max(
-            self.svd_model.metrics.coverage,
-            self.user_knn_model.metrics.coverage,
-            self.item_knn_model.metrics.coverage
-        )
-        
-        self.metrics.memory_usage_mb = (
-            self.svd_model.metrics.memory_usage_mb +
-            self.user_knn_model.metrics.memory_usage_mb +
-            self.item_knn_model.metrics.memory_usage_mb
-        )
-        
-        print(f"\n✓ {self.name} trained successfully!")
-        print(f"  • Total training time: {training_time:.1f}s")
-        print(f"  • Hybrid RMSE: {self.metrics.rmse:.4f}")
-        print(f"  • Algorithm weights: SVD={self.weights['svd']:.2f}, "
-              f"User KNN={self.weights['user_knn']:.2f}, "
-              f"Item KNN={self.weights['item_knn']:.2f}")
-        print(f"  • Combined coverage: {self.metrics.coverage:.1f}%")
-        print(f"  • Total memory usage: {self.metrics.memory_usage_mb:.1f} MB")
+        model_path = Path("models/content_based_model.pkl")
+        if not model_path.exists():
+            return False
+            
+        try:
+            print("  • Loading pre-trained Content-Based model...")
+            start_time = time.time()
+            self.content_based_model.load_model(model_path)
+            
+            # Provide data context
+            self.content_based_model.ratings_df = ratings_df.copy()
+            self.content_based_model.movies_df = movies_df.copy()
+            if 'genres_list' not in self.content_based_model.movies_df.columns:
+                self.content_based_model.movies_df['genres_list'] = self.content_based_model.movies_df['genres'].str.split('|')
+            
+            load_time = time.time() - start_time
+            print(f"  ✓ Pre-trained Content-Based loaded in {load_time:.2f}s")
+            return True
+            
+        except Exception as e:
+            print(f"  ❌ Failed to load pre-trained Content-Based: {e}")
+            return False
     
     def _calculate_weights(self) -> None:
         """Calculate optimal weights based on algorithm performance"""
         if self.weighting_strategy == 'equal':
-            self.weights = {'svd': 1/3, 'user_knn': 1/3, 'item_knn': 1/3}
+            self.weights = {'svd': 0.25, 'user_knn': 0.25, 'item_knn': 0.25, 'content_based': 0.25}
         elif self.weighting_strategy == 'performance_based':
             # Weight inversely proportional to RMSE (lower RMSE = higher weight)
             rmse_svd = self.algorithm_performance['svd']['rmse']
             rmse_user = self.algorithm_performance['user_knn']['rmse']
             rmse_item = self.algorithm_performance['item_knn']['rmse']
+            rmse_content = self.algorithm_performance['content_based']['rmse']
             
             # Inverse RMSE for weights (avoid division by zero)
             inv_rmse_svd = 1 / max(rmse_svd, 0.001)
             inv_rmse_user = 1 / max(rmse_user, 0.001)
             inv_rmse_item = 1 / max(rmse_item, 0.001)
+            inv_rmse_content = 1 / max(rmse_content, 0.001)
             
-            total_inv_rmse = inv_rmse_svd + inv_rmse_user + inv_rmse_item
+            total_inv_rmse = inv_rmse_svd + inv_rmse_user + inv_rmse_item + inv_rmse_content
             
             self.weights = {
                 'svd': inv_rmse_svd / total_inv_rmse,
                 'user_knn': inv_rmse_user / total_inv_rmse,
-                'item_knn': inv_rmse_item / total_inv_rmse
+                'item_knn': inv_rmse_item / total_inv_rmse,
+                'content_based': inv_rmse_content / total_inv_rmse
             }
         else:  # adaptive (default)
             # Balanced approach considering RMSE, coverage, and algorithm strengths
-            svd_score = (1 / max(self.algorithm_performance['svd']['rmse'], 0.001)) * 1.2  # SVD bonus for matrix factorization
+            svd_score = (1 / max(self.algorithm_performance['svd']['rmse'], 0.001)) * 1.3  # SVD bonus for matrix factorization
             user_score = (1 / max(self.algorithm_performance['user_knn']['rmse'], 0.001)) * 1.0
             item_score = (1 / max(self.algorithm_performance['item_knn']['rmse'], 0.001)) * 1.1  # Item bonus for stability
+            content_score = (1 / max(self.algorithm_performance['content_based']['rmse'], 0.001)) * 0.9  # Content for cold-start
             
-            total_score = svd_score + user_score + item_score
+            total_score = svd_score + user_score + item_score + content_score
             
             self.weights = {
                 'svd': svd_score / total_score,
                 'user_knn': user_score / total_score,
-                'item_knn': item_score / total_score
+                'item_knn': item_score / total_score,
+                'content_based': content_score / total_score
             }
         
         print(f"    • Calculated weights: {self.weights}")
         print(f"    • Individual RMSEs: SVD={self.algorithm_performance['svd']['rmse']:.4f}, "
               f"User KNN={self.algorithm_performance['user_knn']['rmse']:.4f}, "
-              f"Item KNN={self.algorithm_performance['item_knn']['rmse']:.4f}")
+              f"Item KNN={self.algorithm_performance['item_knn']['rmse']:.4f}, "
+              f"Content-Based={self.algorithm_performance['content_based']['rmse']:.4f}")
     
     def _calculate_hybrid_rmse(self, ratings_df: pd.DataFrame) -> None:
         """Calculate RMSE for the hybrid predictions (ultra-fast version for presentation)"""
@@ -294,19 +313,22 @@ class HybridRecommender(BaseRecommender):
         svd_rmse = self.algorithm_performance['svd']['rmse']
         user_knn_rmse = self.algorithm_performance['user_knn']['rmse']  
         item_knn_rmse = self.algorithm_performance['item_knn']['rmse']
+        content_based_rmse = self.algorithm_performance['content_based']['rmse']
         
         # Calculate weighted average RMSE (mathematical approximation)
         estimated_rmse = (
             self.weights['svd'] * svd_rmse +
             self.weights['user_knn'] * user_knn_rmse +
-            self.weights['item_knn'] * item_knn_rmse
+            self.weights['item_knn'] * item_knn_rmse +
+            self.weights['content_based'] * content_based_rmse
         )
         
         self.metrics.rmse = estimated_rmse
         print(f"    ✓ Estimated Hybrid RMSE: {self.metrics.rmse:.4f}")
         print(f"      (Weighted average: SVD={svd_rmse:.4f} × {self.weights['svd']:.2f} + "
               f"User KNN={user_knn_rmse:.4f} × {self.weights['user_knn']:.2f} + "
-              f"Item KNN={item_knn_rmse:.4f} × {self.weights['item_knn']:.2f})")
+              f"Item KNN={item_knn_rmse:.4f} × {self.weights['item_knn']:.2f} + "
+              f"Content-Based={content_based_rmse:.4f} × {self.weights['content_based']:.2f})")
     
     def predict(self, user_id: int, movie_id: int) -> float:
         """Predict rating using weighted combination of all algorithms"""
@@ -339,6 +361,11 @@ class HybridRecommender(BaseRecommender):
             predictions['item_knn'] = self.item_knn_model.predict(user_id, movie_id)
         except:
             predictions['item_knn'] = None
+        
+        try:
+            predictions['content_based'] = self.content_based_model.predict(user_id, movie_id)
+        except:
+            predictions['content_based'] = None
         
         # Filter valid predictions and normalize weights
         valid_predictions = {k: v for k, v in predictions.items() if v is not None}

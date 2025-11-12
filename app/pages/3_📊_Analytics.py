@@ -188,7 +188,7 @@ try:
                     benchmark_results = []
                     
                     # Test each algorithm
-                    for algo_type in [AlgorithmType.SVD, AlgorithmType.USER_KNN, AlgorithmType.ITEM_KNN, AlgorithmType.HYBRID]:
+                    for algo_type in [AlgorithmType.SVD, AlgorithmType.USER_KNN, AlgorithmType.ITEM_KNN, AlgorithmType.CONTENT_BASED, AlgorithmType.HYBRID]:
                         try:
                             # Switch to algorithm and get metrics
                             algorithm = manager.switch_algorithm(algo_type)
@@ -593,6 +593,7 @@ try:
                                         algo_map = {
                                             "Item KNN": AlgorithmType.ITEM_KNN,
                                             "SVD": AlgorithmType.SVD,
+                                            "Content-Based": AlgorithmType.CONTENT_BASED,
                                             "Hybrid": AlgorithmType.HYBRID
                                         }
                                         

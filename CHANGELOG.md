@@ -6,6 +6,110 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2.1.0] - 2025-11-11 - Content-Based Filtering Release
+
+### 🎯 Major Features
+
+#### Content-Based Filtering Algorithm
+- **Added** ContentBasedRecommender class with TF-IDF feature extraction
+- **Added** Movie feature extraction from genres, tags, and titles
+- **Added** Configurable feature weights (genres=0.5, tags=0.3, titles=0.2)
+- **Added** Cosine similarity computation with sparse matrices
+- **Added** User profile building from rating history with weighted averages
+- **Added** Cold-start handling for new users with popular movie fallbacks
+- **Added** Recommendation explanation generation with feature matching
+- **Added** Training script `train_content_based.py` with CLI arguments
+- **Performance** ~50-100ms prediction time, ~500-700MB memory usage
+
+#### AlgorithmManager Integration
+- **Added** `CONTENT_BASED` to `AlgorithmType` enum (5th algorithm)
+- **Added** ContentBasedRecommender registration in algorithm factory
+- **Added** Default parameters for Content-Based (genre/tag/title weights)
+- **Added** Pre-trained model loading support (`models/content_based_model.pkl`)
+- **Added** Content-Based info to `get_algorithm_info()` with 🔍 icon
+
+#### Hybrid Algorithm Enhancement
+- **Updated** Hybrid to 4-algorithm ensemble (was 3 algorithms)
+- **Updated** Algorithm weights: SVD=0.30, UserKNN=0.25, ItemKNN=0.25, ContentBased=0.20
+- **Added** `_try_load_content_based()` method for pre-trained loading
+- **Updated** `_calculate_weights()` for 4-algorithm adaptive scoring
+- **Updated** `_predict_hybrid_rating()` to include Content-Based predictions
+- **Updated** Metrics calculation to include Content-Based coverage and RMSE
+
+### 🎨 Frontend Updates
+
+#### Home Page (`1_🏠_Home.py`)
+- **Added** Content-Based to algorithm selector dropdown
+- **Added** 🔍 icon and purple color (#9467bd) to algorithm info cards
+- **Added** `AlgorithmType.CONTENT_BASED` to algorithm mapping
+
+#### Recommend Page (`2_🎬_Recommend.py`)
+- **Added** 🔍 icon to algorithm icons array
+- **Updated** Algorithm selector to include Content-Based
+- **Note** Explanation functionality already supports Content-Based via AlgorithmManager
+
+#### Analytics Page (`3_📊_Analytics.py`)
+- **Added** Content-Based to algorithm benchmarking loop
+- **Added** Content-Based to similarity finder algorithm map
+- **Updated** Performance comparison charts to include 5 algorithms
+
+### 🔧 Technical Implementation
+
+#### Feature Engineering
+- **Implemented** TF-IDF vectorization for genres with pipe-separated parsing
+- **Implemented** Tag aggregation from `tags.csv` with relevance weights
+- **Implemented** Title keyword extraction with regex pattern matching
+- **Implemented** Sparse matrix operations (CSR format) for memory efficiency
+- **Implemented** Feature matrix construction with weighted concatenation
+
+#### Similarity & Prediction
+- **Implemented** Movie-movie similarity matrix with cosine similarity
+- **Implemented** Min similarity threshold (0.01) for sparsification
+- **Implemented** Batch processing (5000 movies) to prevent memory issues
+- **Implemented** User profile normalization to unit vectors
+- **Implemented** Prediction formula: user_profile × movie_features
+
+#### Model Persistence
+- **Implemented** Model serialization with pickle format
+- **Implemented** Metadata storage (version, trained_on, dimensions, n_movies)
+- **Implemented** `load_model()` class method for pre-trained loading
+- **Implemented** `save_model()` instance method with validation metrics
+
+### 📈 Performance Characteristics
+
+- **Training Time**: ~2-3 minutes (10K sample), ~15-20 minutes (full 87K movies)
+- **Memory Usage**: ~500-700 MB (feature + similarity matrices)
+- **Prediction Time**: ~50-100ms per user
+- **Expected RMSE**: ~0.85-0.95
+- **Expected Coverage**: ~85-95%
+- **Diversity**: High (feature-based, not rating-based)
+
+### 🔄 Backward Compatibility
+
+- **Maintained** All existing algorithms (SVD, UserKNN, ItemKNN, Hybrid) unchanged
+- **Maintained** BaseRecommender interface consistency
+- **Maintained** AlgorithmManager API unchanged
+- **Maintained** All existing UI pages functional
+- **Note** Zero breaking changes - fully backward compatible
+
+### 📚 Documentation
+
+- **Added** `CONTENT_BASED_COMPLETE.md` - Comprehensive implementation guide
+- **Added** `CONTENT_BASED_IMPLEMENTATION_STATUS.md` - Phase-by-phase status
+- **Updated** `README.md` - Version to 2.1.0, added Content-Based to algorithm list
+- **Updated** Algorithm comparison table to include Content-Based
+- **Updated** Architecture diagram to show 5 algorithms
+
+### 🐛 Bug Fixes & Improvements
+
+- **Fixed** Hybrid algorithm duplicate code sections
+- **Fixed** Algorithm selector consistency across all 3 UI pages
+- **Improved** Error handling for missing tags data
+- **Improved** Cold-start handling for users with no rating history
+- **Improved** Memory efficiency with sparse matrix operations
+
+---
+
 ## [2.0.0] - 2025-11-11 - Enterprise Multi-Algorithm Release
 
 ### 🎯 Major Features

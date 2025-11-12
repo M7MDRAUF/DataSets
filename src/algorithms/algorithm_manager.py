@@ -24,6 +24,7 @@ from src.algorithms.base_recommender import BaseRecommender
 from src.algorithms.svd_recommender import SVDRecommender
 from src.algorithms.user_knn_recommender import UserKNNRecommender
 from src.algorithms.item_knn_recommender import ItemKNNRecommender
+from src.algorithms.content_based_recommender import ContentBasedRecommender
 from src.algorithms.hybrid_recommender import HybridRecommender
 
 
@@ -32,6 +33,7 @@ class AlgorithmType(Enum):
     SVD = "SVD Matrix Factorization"
     USER_KNN = "KNN User-Based"
     ITEM_KNN = "KNN Item-Based"
+    CONTENT_BASED = "Content-Based Filtering"
     HYBRID = "Hybrid (Best of All)"
 
 
@@ -54,16 +56,29 @@ class AlgorithmManager:
             AlgorithmType.SVD: SVDRecommender,
             AlgorithmType.USER_KNN: UserKNNRecommender,
             AlgorithmType.ITEM_KNN: ItemKNNRecommender,
+            AlgorithmType.CONTENT_BASED: ContentBasedRecommender,
             AlgorithmType.HYBRID: HybridRecommender
         }
         self._default_params: Dict[AlgorithmType, Dict[str, Any]] = {
             AlgorithmType.SVD: {'n_components': 100},
             AlgorithmType.USER_KNN: {'n_neighbors': 50, 'similarity_metric': 'cosine'},
             AlgorithmType.ITEM_KNN: {'n_neighbors': 30, 'similarity_metric': 'cosine', 'min_ratings': 5},
+            AlgorithmType.CONTENT_BASED: {
+                'genre_weight': 0.5, 
+                'tag_weight': 0.3, 
+                'title_weight': 0.2,
+                'min_similarity': 0.01
+            },
             AlgorithmType.HYBRID: {
                 'svd_params': {'n_components': 100},
                 'user_knn_params': {'n_neighbors': 50, 'similarity_metric': 'cosine'},
                 'item_knn_params': {'n_neighbors': 30, 'similarity_metric': 'cosine', 'min_ratings': 5},
+                'content_based_params': {
+                    'genre_weight': 0.5, 
+                    'tag_weight': 0.3, 
+                    'title_weight': 0.2,
+                    'min_similarity': 0.01
+                },
                 'weighting_strategy': 'adaptive'
             }
         }
@@ -155,17 +170,20 @@ class AlgorithmManager:
         Returns:
             True if model was loaded successfully, False otherwise
         """
-        # Only try to load for KNN algorithms
-        if algorithm_type not in [AlgorithmType.USER_KNN, AlgorithmType.ITEM_KNN]:
+        # Only try to load for KNN and Content-Based algorithms
+        if algorithm_type not in [AlgorithmType.USER_KNN, AlgorithmType.ITEM_KNN, AlgorithmType.CONTENT_BASED]:
             return False
         
         # Define model paths
         model_paths = {
             AlgorithmType.USER_KNN: Path("models/user_knn_model.pkl"),
-            AlgorithmType.ITEM_KNN: Path("models/item_knn_model.pkl")
+            AlgorithmType.ITEM_KNN: Path("models/item_knn_model.pkl"),
+            AlgorithmType.CONTENT_BASED: Path("models/content_based_model.pkl")
         }
         
-        model_path = model_paths[algorithm_type]
+        model_path = model_paths.get(algorithm_type)
+        if not model_path:
+            return False
         
         if not model_path.exists():
             print(f"   • No pre-trained model found at {model_path}")
@@ -279,6 +297,16 @@ class AlgorithmManager:
                 'speed': 'Fast',
                 'interpretability': 'High',
                 'icon': '🎬'
+            },
+            AlgorithmType.CONTENT_BASED: {
+                'name': 'Content-Based Filtering',
+                'description': 'Analyzes movie features (genres, tags, titles) and recommends movies similar to what you enjoyed. Perfect for cold-start scenarios.',
+                'strengths': ['No cold-start problem', 'Feature-based recommendations', 'Highly interpretable', 'Tag and genre aware', 'Works for new users'],
+                'ideal_for': ['New users', 'Genre-specific discovery', 'Feature-based exploration', 'Cold-start scenarios', 'Explainable recommendations'],
+                'complexity': 'Medium',
+                'speed': 'Fast',
+                'interpretability': 'Very High',
+                'icon': '🔍'
             },
             AlgorithmType.HYBRID: {
                 'name': 'Hybrid (Best of All)',

@@ -199,7 +199,7 @@ with st.sidebar:
     # Algorithm selector
     available_algorithms = manager.get_available_algorithms()
     algorithm_names = [algo.value for algo in available_algorithms]
-    algorithm_icons = ["🔮", "👥", "🎬", "🚀"]  # SVD, User KNN, Item KNN, Hybrid
+    algorithm_icons = ["🔮", "👥", "🎬", "�", "�🚀"]  # SVD, User KNN, Item KNN, Content-Based, Hybrid
     
     # Create algorithm options with icons
     algorithm_options = [f"{icon} {name}" for icon, name in zip(algorithm_icons, algorithm_names)]
