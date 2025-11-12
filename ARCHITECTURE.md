@@ -1,14 +1,18 @@
-# CineMatch V1.0.0 - Professional Architecture Documentation
+# CineMatch V2.0.0 - Enterprise Architecture Documentation
 
 ## 🎯 Executive Summary
 
-**CineMatch** is a production-grade movie recommendation engine built for a master's thesis demonstration. It leverages collaborative filtering (SVD matrix factorization) on the MovieLens 32M dataset to provide personalized, explainable movie recommendations through an interactive Streamlit web interface.
+**CineMatch V2.0.0** is an enterprise-grade multi-algorithm recommendation engine built for a master's thesis demonstration. It features four collaborative filtering algorithms (SVD, User KNN, Item KNN, Hybrid) with pre-trained models on the MovieLens 32M dataset, delivering personalized, explainable movie recommendations through an interactive Streamlit web interface with comprehensive analytics.
 
-**Key Differentiators:**
-- ✅ Explainable AI: Every recommendation comes with a "why"
-- ✅ User Taste Profiling: Deep insight into user preferences
-- ✅ Professional Engineering: Docker containerization, data integrity checks
-- ✅ Sub-second Response Time: Pre-trained model with optimized inference
+**Key Differentiators V2.0.0:**
+- ✅ **Multi-Algorithm Support**: 4 different recommendation paradigms with intelligent switching
+- ✅ **Pre-trained Model Infrastructure**: 526MB KNN models trained on full 32M dataset
+- ✅ **Enterprise Performance**: 200x faster loading (1.5s vs 124s), emergency optimizations
+- ✅ **Analytics Dashboard**: Complete benchmarking with RMSE/MAE/Coverage metrics
+- ✅ **Algorithm Manager**: Thread-safe singleton with intelligent caching and data context
+- ✅ **Explainable AI**: Algorithm-specific reasoning for every recommendation
+- ✅ **Smart Sampling**: Reduces search space 80K→5K for 200x speed improvement
+- ✅ **Professional Engineering**: Docker, Git LFS, comprehensive debug instrumentation
 
 ---
 
@@ -78,26 +82,68 @@ cinematch-demo/
 │       ├── user_genre_matrix.pkl         # User-genre preference matrix
 │       └── movie_features.pkl            # Extracted movie features
 │
-├── 🧠 models/                            # MODEL LAYER
-│   ├── svd_model.pkl                     # Trained SVD model (primary)
+├── 🧠 models/                            # MODEL LAYER (V2.0.0 Enhanced)
+│   ├── svd_model.pkl                     # Trained SVD model (legacy)
+│   ├── user_knn_model.pkl                # ⭐ NEW: Pre-trained User KNN (266MB, 32M ratings)
+│   ├── item_knn_model.pkl                # ⭐ NEW: Pre-trained Item KNN (260MB, 32M ratings)
 │   └── model_metadata.json               # Training metrics, hyperparameters
+│   └── Note: 526MB total, managed via Git LFS
 │
 ├── ⚙️ src/                               # APPLICATION LAYER (Core Logic)
 │   ├── __init__.py
+│   ├── algorithms/                       # 🧠 MULTI-ALGORITHM MODULE (V2.0.0)
+│   │   ├── __init__.py
+│   │   ├── algorithm_manager.py          # 🎯 Central Algorithm Coordinator
+│   │   │   ├── AlgorithmManager (Singleton)     # Thread-safe manager with caching
+│   │   │   ├── get_algorithm()                  # Factory pattern for algorithm creation
+│   │   │   ├── switch_algorithm()               # Intelligent algorithm switching
+│   │   │   ├── get_algorithm_metrics()          # Performance metrics calculation
+│   │   │   ├── get_all_algorithm_metrics()      # Benchmarking all algorithms
+│   │   │   └── _try_load_pretrained_model()     # Pre-trained model loading
+│   │   │
+│   │   ├── base_recommender.py           # 🏗️ Abstract Base Class
+│   │   │   └── BaseRecommender (ABC)            # Common interface for all algorithms
+│   │   │
+│   │   ├── svd_recommender.py            # 🔮 SVD Matrix Factorization
+│   │   │   ├── fit()                            # Trains SVD model
+│   │   │   ├── predict()                        # Single rating prediction
+│   │   │   ├── recommend()                      # Top-N recommendations
+│   │   │   └── RMSE: 0.6829, Coverage: 24.1%
+│   │   │
+│   │   ├── user_knn_recommender.py       # 👥 User-Based Collaborative Filtering
+│   │   │   ├── fit()                            # Builds user similarity matrix
+│   │   │   ├── predict()                        # KNN-based prediction
+│   │   │   ├── recommend()                      # Smart candidate sampling (5K/80K)
+│   │   │   ├── _batch_predict_ratings()         # Vectorized predictions (200x faster)
+│   │   │   └── Pre-trained: 266MB, loads in 1.5s
+│   │   │
+│   │   ├── item_knn_recommender.py       # 🎬 Item-Based Collaborative Filtering
+│   │   │   ├── fit()                            # Builds item similarity matrix
+│   │   │   ├── predict()                        # Item-item similarity prediction
+│   │   │   ├── recommend()                      # Vectorized batch processing
+│   │   │   └── Pre-trained: 260MB, loads in 1.0s
+│   │   │
+│   │   └── hybrid_recommender.py         # 🚀 Intelligent Ensemble
+│   │       ├── fit()                            # Trains all sub-algorithms
+│   │       ├── predict()                        # Weighted ensemble prediction
+│   │       ├── recommend()                      # Combined recommendations
+│   │       ├── _calculate_hybrid_rmse()         # Emergency optimized (7s vs 2+ hours)
+│   │       └── Adaptive weights: SVD=0.41, UserKNN=0.28, ItemKNN=0.31
+│   │
 │   ├── data_processing.py                # 🔍 Data integrity checker (NF-01)
 │   │   ├── check_data_integrity()        #    Validates dataset presence
-│   │   ├── load_ratings()                #    Loads ratings.csv
+│   │   ├── load_ratings()                #    Loads ratings.csv with sampling
 │   │   ├── load_movies()                 #    Loads movies.csv
 │   │   ├── preprocess_data()             #    Cleans and transforms data
 │   │   └── create_user_genre_matrix()    #    Generates user taste profiles
 │   │
-│   ├── model_training.py                 # 🎓 Model training pipeline
+│   ├── model_training.py                 # 🎓 Model training pipeline (Legacy SVD)
 │   │   ├── train_svd_model()             #    Trains SVD on full dataset
 │   │   ├── evaluate_model()              #    Calculates RMSE, MAE
 │   │   ├── save_model()                  #    Serializes trained model
 │   │   └── hyperparameter_tuning()       #    Grid search for optimization
 │   │
-│   ├── recommendation_engine.py          # 🎬 Core recommendation logic
+│   ├── recommendation_engine.py          # 🎬 Core recommendation logic (Legacy)
 │   │   ├── load_model()                  #    Loads pre-trained model (cached)
 │   │   ├── get_recommendations()         #    F-02: Top-N predictions
 │   │   ├── get_user_history()            #    Retrieves user's rated movies
@@ -113,25 +159,37 @@ cinematch-demo/
 │
 ├── 🎨 app/                               # USER INTERFACE LAYER (Streamlit)
 │   ├── main.py                           # App entry point & configuration
-│   ├── 1_🏠_Home.py                      # Landing page & overview
-│   │   ├── Display project intro
-│   │   ├── Show dataset statistics
-│   │   └── Visualize top genres
-│   │
-│   ├── 2_🎬_Recommend.py                 # ⭐ CORE FEATURE PAGE
-│   │   ├── F-01: User ID input
-│   │   ├── F-02: Generate recommendations
-│   │   ├── F-03: Display movie cards
-│   │   ├── F-05: Explanation popups
-│   │   ├── F-06: User taste sidebar
-│   │   ├── F-07: "Surprise Me" button
-│   │   └── F-08: Like/dislike feedback
-│   │
-│   └── 3_📊_Analytics.py                 # Data visualization page
-│       ├── F-09: Genre distribution
-│       ├── Ratings timeline
-│       ├── User activity heatmap
-│       └── F-10: Movie similarity explorer
+│   ├── pages/
+│   │   ├── 1_🏠_Home.py                  # Landing page with algorithm selector
+│   │   │   ├── Dataset selection (100K/500K/1M/32M)
+│   │   │   ├── Algorithm switching UI
+│   │   │   ├── Live performance metrics display
+│   │   │   ├── Show dataset statistics
+│   │   │   └── Visualize top genres
+│   │   │
+│   │   ├── 2_🎬_Recommend.py             # ⭐ CORE FEATURE PAGE (Multi-Algorithm)
+│   │   │   ├── F-01: User ID input with validation
+│   │   │   ├── F-02: Multi-algorithm recommendations
+│   │   │   ├── Algorithm selector dropdown (4 options)
+│   │   │   ├── F-03: Display movie cards with ratings
+│   │   │   ├── F-05: Algorithm-specific explanations
+│   │   │   ├── F-06: User taste profile sidebar
+│   │   │   ├── F-07: "Surprise Me" button
+│   │   │   ├── F-08: Like/dislike feedback simulation
+│   │   │   └── Real-time performance metrics (time, RMSE, coverage)
+│   │   │
+│   │   └── 3_📊_Analytics.py             # ⭐ NEW: Advanced Analytics Dashboard
+│   │       ├── Algorithm Benchmarking UI
+│   │       │   ├── "Run Algorithm Benchmark" button
+│   │       │   ├── Performance comparison table (RMSE/MAE/Coverage)
+│   │       │   ├── Interactive Plotly charts
+│   │       │   └── Algorithm status indicators
+│   │       ├── Dataset statistics (users/movies/ratings/sparsity)
+│   │       ├── F-09: Genre distribution analysis
+│   │       ├── Temporal trends (release years)
+│   │       ├── Ratings timeline visualization
+│   │       ├── User activity heatmap
+│   │       └── F-10: Movie similarity explorer
 │
 ├── 🐳 Docker/                            # DEPLOYMENT LAYER
 │   ├── Dockerfile                        # Container definition

@@ -1,13 +1,16 @@
-# 🚀 CineMatch - Production Deployment Guide
+# 🚀 CineMatch V2.0.0 - Production Deployment Guide
 
 ## ⚠️ Important: Recommended Deployment Platform
 
 **Use Streamlit Cloud** (not Vercel) - Streamlit apps work best on Streamlit's native platform.
 
+**V2.0.0 Note**: Pre-trained KNN models (526MB) are managed via Git LFS. Ensure your deployment platform supports Git LFS or upload models separately.
+
 Vercel has limitations with:
 - Long-running Python processes
-- Large dependencies (scikit-surprise, numba)
+- Large dependencies (scikit-surprise, numba, scipy)
 - Streamlit's websocket connections
+- Git LFS (large model files)
 
 ---
 
