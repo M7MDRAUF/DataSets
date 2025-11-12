@@ -50,12 +50,14 @@ st.markdown("""
     }
     
     .movie-card {
-        border: 1px solid #ddd;
+        background: linear-gradient(135deg, #000000 0%, #c3cfe2 100%);
         border-radius: 10px;
-        padding: 1rem;
-        margin: 0.5rem 0;
-        background-color: #f9f9f9;
+        padding: 1.5rem;
+        margin: 1rem 0;
+        border-left: 5px solid #E50914;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
         transition: transform 0.2s;
+        color: white;
     }
     
     .movie-card:hover {

@@ -1,5 +1,5 @@
-# CineMatch V1.0.0 - Docker Configuration
-# Production-ready container for movie recommendation engine
+# CineMatch V2.0 - Docker Configuration  
+# Production-ready container for multi-algorithm recommendation engine
 
 FROM python:3.11-slim
 
@@ -13,6 +13,7 @@ RUN apt-get update && apt-get install -y \
     gfortran \
     gcc \
     g++ \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first for better caching
@@ -24,9 +25,13 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY src/ ./src/
 COPY app/ ./app/
+COPY *.py ./
 
 # Create directories for data and models
 RUN mkdir -p data/ml-32m data/processed models
+
+# Set Python path to include src
+ENV PYTHONPATH=/app
 
 # Copy data and models if they exist (optional - can be mounted as volumes)
 # COPY data/ ./data/
@@ -35,9 +40,9 @@ RUN mkdir -p data/ml-32m data/processed models
 # Expose Streamlit port
 EXPOSE 8501
 
-# Health check
+# Health check for V2.0 enhanced interface
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import requests; requests.get('http://localhost:8501/_stcore/health')" || exit 1
+    CMD curl -f http://localhost:8501/_stcore/health || exit 1
 
 # Set environment variables for Streamlit
 ENV STREAMLIT_SERVER_PORT=8501
@@ -46,5 +51,5 @@ ENV STREAMLIT_SERVER_HEADLESS=true
 ENV STREAMLIT_SERVER_ENABLE_CORS=false
 ENV STREAMLIT_SERVER_ENABLE_XSRF_PROTECTION=true
 
-# Run Streamlit app
-CMD ["streamlit", "run", "app/main.py", "--server.port=8501", "--server.address=0.0.0.0"]
+# Run CineMatch V2.0 Multi-Algorithm Enhanced Interface
+CMD ["streamlit", "run", "app/pages/2_🎬_Recommend_V2.py", "--server.port=8501", "--server.address=0.0.0.0"]
