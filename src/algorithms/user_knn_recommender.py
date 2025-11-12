@@ -396,12 +396,12 @@ class UserKNNRecommender(BaseRecommender):
         if len(valid_candidates) > 2000:
             # PERFORMANCE FIX: Use cached movie stats instead of filtering 32M rows
             # This prevents system slowdown from expensive .isin() operation
-            if not hasattr(self, '_all_movie_stats'):
-                self._all_movie_stats = self.ratings_df.groupby('movieId').size()
+            if not hasattr(self, '_movie_rating_counts'):
+                self._movie_rating_counts = self.ratings_df.groupby('movieId').size()
             
             # Filter cached stats (fast) instead of raw ratings (slow)
             # Use .loc to ensure we get a Series, not DataFrame
-            available_stats = self._all_movie_stats.loc[self._all_movie_stats.index.isin(valid_candidates)]
+            available_stats = self._movie_rating_counts.loc[self._movie_rating_counts.index.isin(valid_candidates)]
             
             # Sort by popularity and take top 2000
             top_candidates = available_stats.nlargest(2000).index.tolist()
