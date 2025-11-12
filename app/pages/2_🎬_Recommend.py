@@ -329,45 +329,49 @@ if get_recs_button or 'current_recommendations' in st.session_state:
         rec_col, profile_col = st.columns([2.5, 1])
         
         with rec_col:
-            # Display recommendations
+            # V2.1 Enhanced Movie Display Grid
             for idx, row in recommendations.iterrows():
                 movie_id = row['movieId']
                 title = row['title']
                 genres = row['genres']
                 predicted_rating = float(row['predicted_rating'])
                 
-                # Movie card with simplified layout
-                st.markdown(f"""
-                <div class="movie-card">
-                    <h3 style="color: white; margin: 0.5rem 0;">#{idx+1}. {title}</h3>
-                    <p style="color: #ccc;"><strong>Genres:</strong> {format_genres(genres)}</p>
-                    <p style="color: #ddd;"><strong>Predicted Rating:</strong> {create_rating_stars(predicted_rating)}</p>
-                </div>
-                """, unsafe_allow_html=True)
+                # Parse genres
+                genres_list = genres.split('|') if '|' in genres else [genres]
                 
-                # Simplified buttons layout (no nested columns)
+                # Get explanation if available
+                explanation = None
+                if st.session_state.get(f'show_explain_{movie_id}'):
+                    explanation = manager.get_recommendation_explanation(
+                        selected_algorithm, user_id, movie_id
+                    )
+                
+                # Render enhanced movie card
+                render_movie_card_enhanced(
+                    title=title,
+                    genres=genres_list,
+                    predicted_rating=predicted_rating,
+                    rank=idx + 1,
+                    explanation=explanation,
+                    compact=False
+                )
+                
+                # Explanation toggle and feedback
                 col_left, col_right = st.columns(2)
-                
                 with col_left:
-                    # Explanation button
-                    if st.button(f"💡 Why this movie?", key=f"explain_{movie_id}"):
-                        explanation = manager.get_recommendation_explanation(
-                            selected_algorithm, user_id, movie_id
-                        )
-                        st.markdown(f"""
-                        <div class="explanation-box">
-                            <strong>Why this recommendation?</strong><br>
-                            {explanation}
-                        </div>
-                        """, unsafe_allow_html=True)
+                    if st.button(f"💡 Why recommended?", key=f"explain_btn_{movie_id}"):
+                        st.session_state[f'show_explain_{movie_id}'] = not st.session_state.get(f'show_explain_{movie_id}', False)
+                        st.rerun()
                 
                 with col_right:
-                    # Feedback buttons in single row
-                    feedback_text = "Feedback: "
-                    if st.button("👍 Like", key=f"like_{movie_id}"):
-                        st.success("Thanks for the feedback! 👍")
-                    if st.button("👎 Not interested", key=f"dislike_{movie_id}"):
-                        st.info("Feedback noted! 👎")
+                    # Feedback buttons
+                    col_like, col_dislike = st.columns(2)
+                    with col_like:
+                        if st.button("👍", key=f"like_{movie_id}"):
+                            st.success("👍")
+                    with col_dislike:
+                        if st.button("👎", key=f"dislike_{movie_id}"):
+                            st.info("👎")
                 
                 st.markdown("---")
         

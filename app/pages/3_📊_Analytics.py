@@ -1,11 +1,11 @@
 """
-CineMatch V2.0.0 - Analytics Page
+CineMatch V2.1 - Analytics Page
 
 Advanced analytics with multi-algorithm performance comparison and insights.
-Enhanced with V2.0 algorithm manager integration for comprehensive analysis.
+Enhanced with V2.1 Netflix-themed UI and interactive visualizations.
 
 Author: CineMatch Team
-Date: November 7, 2025
+Date: November 11, 2025
 """
 
 import streamlit as st
@@ -23,74 +23,31 @@ from src.data_processing import load_movies, load_ratings
 from src.algorithms.algorithm_manager import get_algorithm_manager, AlgorithmType
 from src.utils import extract_year_from_title, create_genre_color_map
 
+# V2.1 Enhanced Components
+from app.styles.custom_css import get_custom_css
+from app.components.loading_animation import render_loading_animation
+from app.components.metric_cards import render_metric_grid
+from app.components.genre_visualization import render_genre_distribution
+
 
 # Page config
 st.set_page_config(
-    page_title="CineMatch V2.0 - Analytics",
+    page_title="CineMatch V2.1 - Analytics",
     page_icon="📊",
     layout="wide"
 )
 
-# Custom CSS for V2.0 styling
-st.markdown("""
-<style>
-.algorithm-card {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    padding: 1rem;
-    border-radius: 10px;
-    color: white;
-    margin: 0.5rem 0;
-    border-left: 4px solid #E50914;
-}
-
-.performance-card {
-    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-    padding: 1rem;
-    border-radius: 10px;
-    color: white;
-    margin: 0.5rem 0;
-}
-
-.movie-card {
-    background: linear-gradient(135deg, #000000 0%, #c3cfe2 100%);
-    padding: 1rem;
-    border-radius: 10px;
-    color: white;
-    margin: 0.5rem 0;
-    border: 1px solid #ddd;
-    transition: transform 0.2s;
-}
-
-.movie-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-}
-
-.metric-container {
-    background: #f8f9fa;
-    padding: 1rem;
-    border-radius: 8px;
-    border-left: 4px solid #007bff;
-    margin: 0.5rem 0;
-}
-
-.comparison-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-    gap: 1rem;
-    margin: 1rem 0;
-}
-</style>
-""", unsafe_allow_html=True)
+# V2.1 Enhanced CSS Theme
+st.markdown(get_custom_css(), unsafe_allow_html=True)
 
 # Header
 st.markdown("""
-    <div style="text-align: center; padding: 2rem 0;">
-        <h1>📊 CineMatch V2.0 - Advanced Analytics</h1>
-        <p style="font-size: 1.2rem; color: #666;">
-            Multi-algorithm performance analysis and dataset insights
-        </p>
-    </div>
+<div style="text-align: center; padding: 2rem 1rem;">
+    <h1 style="color: white; font-size: 3rem; margin-bottom: 0.5rem;">📊 Advanced Analytics</h1>
+    <p style="color: #CCC; font-size: 1.2rem;">
+        Performance Insights • Dataset Exploration • Algorithm Comparison
+    </p>
+</div>
 """, unsafe_allow_html=True)
 st.markdown("---")
 
