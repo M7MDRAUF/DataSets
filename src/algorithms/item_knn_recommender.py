@@ -426,12 +426,15 @@ class ItemKNNRecommender(BaseRecommender):
         
         # Limit candidates for performance
         if len(valid_candidates) > 2000:
-            # Prioritize popular movies
-            candidate_ratings = self.ratings_df[
-                self.ratings_df['movieId'].isin(valid_candidates)
-            ].groupby('movieId').size()
+            # PERFORMANCE FIX: Use cached movie stats instead of filtering 32M rows
+            # This prevents system crash/timeout from expensive .isin() operation
+            if not hasattr(self, '_all_movie_stats'):
+                self._all_movie_stats = self.ratings_df.groupby('movieId').size()
             
-            top_candidates = candidate_ratings.nlargest(2000).index.tolist()
+            # Filter cached stats (fast) instead of raw ratings (slow)
+            available_stats = self._all_movie_stats[self._all_movie_stats.index.isin(valid_candidates)]
+            
+            top_candidates = available_stats.nlargest(2000).index.tolist()
             valid_candidates = [mid for mid in valid_candidates if mid in top_candidates]
             candidate_indices = [self.movie_mapper[mid] for mid in valid_candidates]
             
