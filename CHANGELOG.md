@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## [2.1.0] - 2025-11-11 - Content-Based Filtering Release
+## [2.1.0] - 2025-11-11 - Netflix UI & Content-Based Filtering Release
 
 ### 🎯 Major Features
 
@@ -36,17 +36,93 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **Updated** `_predict_hybrid_rating()` to include Content-Based predictions
 - **Updated** Metrics calculation to include Content-Based coverage and RMSE
 
-### 🎨 Frontend Updates
+### 🎨 Frontend Updates - Netflix-Themed UI Enhancement
+
+#### Component Library (NEW!)
+- **Created** `app/components/movie_card.py` - Enhanced movie cards with genre gradients
+- **Created** `app/components/loading_animation.py` - Lottie animation loader
+- **Created** `app/components/metric_cards.py` - Beautiful metric displays
+- **Created** `app/components/algorithm_selector.py` - Visual algorithm picker
+- **Created** `app/components/genre_visualization.py` - Genre charts and distributions
+- **Created** `app/utils/data_viz.py` - 10+ data visualization helpers
+- **Created** `app/styles/custom_css.py` - Complete CSS theme system (500+ lines)
+
+#### Visual Assets (NEW!)
+- **Created** `app/assets/animations/loading.json` - Spinning circle (Netflix red)
+- **Created** `app/assets/animations/recommendation.json` - Film reel rotation
+- **Created** `app/assets/animations/training.json` - Gear animation
+- **Created** `.streamlit/config.toml` - Netflix theme configuration
+- **Created** `.streamlit/secrets.toml.example` - Config template
 
 #### Home Page (`1_🏠_Home.py`)
-- **Added** Content-Based to algorithm selector dropdown
+- **Enhanced** Hero section with animated gradient background
+- **Enhanced** Dataset statistics with colored metric cards
+- **Added** Popular Movies section (top 12 with enhanced cards)
+- **Added** Top Genres summary with medal system (🥇🥈🥉)
+- **Enhanced** Recommendation display with genre-gradient cards
+- **Added** Loading animations during data processing
+- **Updated** Content-Based to algorithm selector dropdown
 - **Added** 🔍 icon and purple color (#9467bd) to algorithm info cards
-- **Added** `AlgorithmType.CONTENT_BASED` to algorithm mapping
 
 #### Recommend Page (`2_🎬_Recommend.py`)
-- **Added** 🔍 icon to algorithm icons array
-- **Updated** Algorithm selector to include Content-Based
-- **Note** Explanation functionality already supports Content-Based via AlgorithmManager
+- **Enhanced** Header with Netflix-style typography
+- **Enhanced** Algorithm selector with visual menu (option-menu)
+- **Enhanced** Movie display grid with genre-gradient cards
+- **Added** Interactive explanation toggles with session_state
+- **Simplified** Feedback buttons (👍👎) with better layout
+- **Added** Loading animations for training and generation
+- **Updated** 🔍 icon to algorithm icons array
+- **Enhanced** Color scheme throughout page
+
+#### Analytics Page (`3_📊_Analytics.py`)
+- **Enhanced** Header with professional styling
+- **Added** Component imports for future enhancements
+- **Updated** CSS with Netflix theme
+- **Added** Content-Based to algorithm benchmarking loop
+- **Updated** Performance comparison charts to include 5 algorithms
+
+### 🎨 Design System (NEW!)
+
+#### Netflix Theme Colors
+- **Primary**: #E50914 (Netflix Red) for accents and buttons
+- **Background**: #141414 (Dark Black) for main background
+- **Secondary BG**: #222222 (Dark Gray) for cards
+- **Card BG**: #333333 (Medium Gray) for movie cards
+- **Text**: #FFFFFF (White) for primary text
+- **Text Secondary**: #CCC for descriptions
+
+#### Genre Color System
+- **21 unique colors** for all MovieLens genres
+- **Dynamic gradients** based on movie genres
+- **Colored badges** with emojis for visual interest
+- **Consistent** across all components
+
+#### Typography
+- **Headings**: Large, bold Netflix-style (3rem → 1.5rem responsive)
+- **Body**: Clean, readable #DDD color
+- **Emojis**: Strategic use for visual interest
+
+#### Responsive Design
+- **Desktop**: 3-column grids (1200px+)
+- **Tablet**: 2-column grids (768-1199px)
+- **Mobile**: 1-column stacked layout (<768px)
+- **Small Mobile**: Optimized text sizes (<480px)
+
+### 📦 Dependencies (NEW!)
+- **streamlit**: 1.28.1 → 1.51.0 (upgraded)
+- **streamlit-extras**: 0.4.0 (new) - Enhanced metrics and styling
+- **streamlit-lottie**: 0.0.5 (new) - Animation support
+- **streamlit-option-menu**: 0.3.13 (new) - Visual menus
+- **streamlit-aggrid**: 0.3.4 (new) - Interactive data tables
+
+### 📚 Documentation (NEW!)
+- **Created** `UI_GUIDE.md` - Comprehensive UI documentation (500+ lines)
+  - Component library with code examples
+  - Customization guide (colors, genres, styles)
+  - Performance benchmarks
+  - Troubleshooting section
+  - Responsive design details
+- **Updated** `DOCKER.md` - V2.1 features and deployment info
 
 #### Analytics Page (`3_📊_Analytics.py`)
 - **Added** Content-Based to algorithm benchmarking loop

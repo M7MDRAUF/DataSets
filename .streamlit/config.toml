@@ -1,4 +1,17 @@
+# CineMatch V2.1 - Streamlit Configuration
+# Professional blue color scheme with all bug fixes
+
+[theme]
+primaryColor = "#1D546C"        # Accent Blue
+backgroundColor = "#0C2B4E"      # Primary Dark
+secondaryBackgroundColor = "#1A3D64"  # Secondary Dark
+textColor = "#F4F4F4"           # Light Color
+font = "sans serif"
+
 [server]
+port = 8501
+headless = true
+
 # Increase max message size to handle large data transfers (in MB)
 maxMessageSize = 500
 
@@ -12,19 +25,12 @@ enableWebsocketCompression = true
 enableCORS = true
 enableXsrfProtection = true
 
-# Allow long-running scripts (headless mode)
-headless = true
-
 # File watcher type - poll is more reliable in Docker
 fileWatcherType = "poll"
 
 [browser]
-# Disable usage stats collection
 gatherUsageStats = false
 
 [client]
-# Show error details
 showErrorDetails = true
-
-# Toolbar mode
 toolbarMode = "minimal"

@@ -1,13 +1,11 @@
 """
-CineMatch V2.1 - Enhanced Recommend Page
+CineMatch V1.0.0 - Enhanced Recommend Page
 
 Core feature: Multi-algorithm movie recommendations with intelligent switching.
-Now supports SVD, User KNN, Item KNN, Content-Based, and Hybrid algorithms.
-
-V2.1 Enhancements: Netflix-themed UI, enhanced movie cards, visual algorithm selector
+Now supports SVD, User KNN, Item KNN, and Hybrid algorithms with professional UI.
 
 Author: CineMatch Development Team
-Date: November 11, 2025
+Date: November 7, 2025
 """
 
 import streamlit as st
@@ -26,35 +24,85 @@ from src.utils import (
 )
 from src.data_processing import load_ratings, load_movies
 
-# V2.1 Enhanced Components
-from app.styles.custom_css import get_custom_css
-from app.components.loading_animation import render_loading_animation
-from app.components.metric_cards import render_algorithm_metrics
-from app.components.movie_card import render_movie_card_enhanced
-from app.components.algorithm_selector import render_algorithm_selector, render_algorithm_info
-
 
 # Page config
 st.set_page_config(
-    page_title="CineMatch V2.1 - Recommendations",
+    page_title="CineMatch - Multi-Algorithm Recommendations",
     page_icon="🎬",
     layout="wide"
 )
 
-# V2.1 Enhanced CSS Theme
-st.markdown(get_custom_css(), unsafe_allow_html=True)
+# Custom CSS for enhanced UI
+st.markdown("""
+<style>
+.algorithm-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    padding: 1rem;
+    border-radius: 10px;
+    color: white;
+    margin: 0.5rem 0;
+    border-left: 4px solid #E50914;
+}
+
+.metrics-container {
+    background: #f8f9fa;
+    padding: 1rem;
+    border-radius: 8px;
+    border: 1px solid #dee2e6;
+    margin: 1rem 0;
+}
+
+.algorithm-selector {
+    background: #ffffff;
+    border: 2px solid #E50914;
+    border-radius: 10px;
+    padding: 1rem;
+    margin: 1rem 0;
+}
+
+.movie-card {
+    background: linear-gradient(135deg, #000000 0%, #c3cfe2 100%);
+    border-radius: 10px;
+    padding: 1.5rem;
+    margin: 1rem 0;
+    border-left: 5px solid #E50914;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    color: white;
+}
+
+.recommendation-header {
+    background: linear-gradient(90deg, #E50914, #8B0000);
+    color: white;
+    padding: 1rem;
+    border-radius: 10px;
+    text-align: center;
+    margin: 1rem 0;
+}
+
+.explanation-box {
+    background: #e8f5e8;
+    border-left: 4px solid #28a745;
+    padding: 1rem;
+    margin: 1rem 0;
+    border-radius: 0 8px 8px 0;
+}
+
+.performance-metric {
+    text-align: center;
+    padding: 0.5rem;
+    border-radius: 8px;
+    margin: 0.25rem;
+}
+</style>
+""", unsafe_allow_html=True)
 
 # Header
 st.markdown("""
-<div style="text-align: center; padding: 2rem 1rem;">
-    <h1 style="color: white; font-size: 3rem; margin-bottom: 0.5rem;">🎬 Personalized Recommendations</h1>
-    <p style="color: #CCC; font-size: 1.2rem;">
-        Powered by Advanced AI • Multi-Algorithm Engine • Explainable Results
-    </p>
+<div class="recommendation-header">
+    <h1>🎬 CineMatch - Advanced Recommendations</h1>
+    <p>Choose your preferred AI algorithm or let our Hybrid system decide for you</p>
 </div>
 """, unsafe_allow_html=True)
-
-st.markdown("---")
 
 # Performance Configuration
 with st.expander("⚙️ Performance Settings", expanded=False):
@@ -110,18 +158,10 @@ def load_data(sample_size):
     return ratings_df, movies_df
 
 try:
-    # V2.1 Enhanced loading with animation
-    loading_placeholder = st.empty()
-    with loading_placeholder.container():
-        render_loading_animation('loading', 'Loading MovieLens dataset...', key='recommend_data_load')
+    with st.spinner(f"🚀 Loading MovieLens dataset... ({dataset_size[0]} mode)"):
+        ratings_df, movies_df = load_data(selected_sample_size)
     
-    ratings_df, movies_df = load_data(selected_sample_size)
-    loading_placeholder.empty()
-    
-    # Initialize algorithm manager
-    manager = get_algorithm_manager()
-    manager.initialize_data(ratings_df, movies_df)
-    
+    # Show dataset statistics
     st.success(f"✅ System ready! Loaded {len(ratings_df):,} ratings and {len(movies_df):,} movies")
     
     # Display performance expectation
@@ -133,6 +173,14 @@ try:
         st.info("🎯 **High Quality Mode**: Excellent accuracy with reasonable speed")
     else:
         st.warning("🐌 **Full Dataset Mode**: Maximum accuracy but slow training times")
+    
+    # Initialize algorithm manager
+    manager = get_algorithm_manager()
+    
+    # Always reinitialize with current dataset (fixes dataset size mismatch)
+    manager.initialize_data(ratings_df, movies_df)
+    
+    st.success(f"✅ System ready! Loaded {len(ratings_df):,} ratings and {len(movies_df):,} movies")
     
 except Exception as e:
     st.error(f"❌ Error loading data: {e}")
@@ -239,16 +287,33 @@ with col1:
         )
 
 with col2:
-    # Algorithm Status Indicator
-    st.markdown("### 📊 Algorithm Status")
-    
-    # Check if algorithm is cached/trained
+    # Algorithm Performance Metrics (live)
     if selected_algorithm in manager.get_cached_algorithms():
-        st.success("✅ Algorithm Ready")
-        st.caption("Metrics will appear below after generating recommendations")
-    else:
-        st.info("⏳ Algorithm Not Loaded")
-        st.caption("Will train when you click 'Get Recommendations'")
+        current_algo = manager.get_algorithm(selected_algorithm)
+        
+        st.markdown("### ⚡ Algorithm Performance")
+        
+        # Single column metrics display (no nesting)
+        st.metric(
+            "RMSE", 
+            f"{current_algo.metrics.rmse:.4f}",
+            help="Lower is better (Root Mean Square Error)"
+        )
+        st.metric(
+            "Coverage", 
+            f"{current_algo.metrics.coverage:.1f}%",
+            help="Percentage of movies that can be recommended"
+        )
+        st.metric(
+            "Training Time", 
+            f"{current_algo.metrics.training_time:.1f}s",
+            help="Time taken to train the algorithm"
+        )
+        st.metric(
+            "Memory Usage", 
+            f"{current_algo.metrics.memory_usage_mb:.1f}MB",
+            help="Memory footprint of the algorithm"
+        )
 
 # Advanced Options (if toggled)
 if show_advanced:
@@ -270,8 +335,8 @@ if show_advanced:
 st.markdown("---")
 
 # Recommendation Generation
-# Only train/generate if button was clicked, but always display if results exist
-if get_recs_button:
+if get_recs_button or 'current_recommendations' in st.session_state:
+    
     # Validate user ID
     user_exists = user_id in ratings_df['userId'].values
     
@@ -279,48 +344,9 @@ if get_recs_button:
         st.warning(f"⚠️ User {user_id} not found in dataset. Generating recommendations for new user profile.")
     
     try:
-        # Special handling for Hybrid algorithm (long training time)
-        if selected_algorithm == AlgorithmType.HYBRID:
-            # Use a simple container instead of st.status to avoid UI complexity
-            st.info("🚀 Training Hybrid Algorithm... This will take 3-5 minutes. Please be patient!")
-            
-            # Create a progress placeholder
-            progress_placeholder = st.empty()
-            progress_placeholder.write("📊 Step 1/5: Initializing...")
-            
-            try:
-                # CRITICAL: Pass suppress_ui=True to prevent nested st.spinner() calls
-                progress_placeholder.write("📊 Step 2/5: Training SVD (60s)...")
-                
-                algorithm = manager.switch_algorithm(selected_algorithm, suppress_ui=True)
-                
-                progress_placeholder.empty()
-                st.success("✅ Hybrid model ready!")
-                
-            except MemoryError as mem_err:
-                progress_placeholder.empty()
-                st.error("❌ Out of memory! Try using a smaller dataset or individual algorithms.")
-                st.stop()
-            except Exception as algo_err:
-                progress_placeholder.empty()
-                st.error(f"❌ Training failed: {str(algo_err)}")
-                import traceback
-                st.code(traceback.format_exc())
-                st.stop()
-        else:
-            # Regular algorithms - use standard spinner
-            with st.spinner(f"🤖 Loading {selected_algorithm.value} algorithm..."):
-                algorithm = manager.switch_algorithm(selected_algorithm)
-        
-        # Store the trained algorithm in session state for metrics display
-        st.session_state.trained_algorithm = algorithm
-        st.session_state[f'algo_metrics_{selected_algorithm.value}'] = {
-            'rmse': algorithm.metrics.rmse,
-            'coverage': algorithm.metrics.coverage,
-            'training_time': algorithm.metrics.training_time,
-            'memory_usage_mb': algorithm.metrics.memory_usage_mb,
-            'prediction_time': algorithm.metrics.prediction_time
-        }
+        # Get the selected algorithm
+        with st.spinner(f"🤖 Loading {selected_algorithm.value} algorithm..."):
+            algorithm = manager.switch_algorithm(selected_algorithm)
         
         # Generate recommendations
         with st.spinner("🎯 Generating personalized recommendations..."):
@@ -347,97 +373,49 @@ if get_recs_button:
         </div>
         """, unsafe_allow_html=True)
         
-        # Show LIVE metrics directly from the algorithm object
-        st.markdown("### 📊 Algorithm Performance Metrics")
-        
-        # Debug: Print metrics to terminal
-        print(f"🔍 DEBUG Metrics Display:")
-        print(f"  Algorithm: {algorithm.name}")
-        print(f"  Is Trained: {algorithm.is_trained}")
-        print(f"  RMSE: {algorithm.metrics.rmse}")
-        print(f"  Coverage: {algorithm.metrics.coverage}")
-        print(f"  Training Time: {algorithm.metrics.training_time}")
-        print(f"  Memory: {algorithm.metrics.memory_usage_mb}")
-        
-        metrics_col1, metrics_col2, metrics_col3, metrics_col4 = st.columns(4)
-        
-        with metrics_col1:
-            st.metric(
-                "RMSE", 
-                f"{algorithm.metrics.rmse:.4f}" if algorithm.metrics.rmse > 0 else "N/A",
-                help="Root Mean Square Error (lower is better)"
-            )
-        
-        with metrics_col2:
-            st.metric(
-                "Coverage", 
-                f"{algorithm.metrics.coverage:.1f}%" if algorithm.metrics.coverage > 0 else "N/A",
-                help="% of movies that can be recommended"
-            )
-        
-        with metrics_col3:
-            st.metric(
-                "Training Time", 
-                f"{algorithm.metrics.training_time:.1f}s" if algorithm.metrics.training_time > 0 else "N/A",
-                help="Time taken to train/load"
-            )
-        
-        with metrics_col4:
-            st.metric(
-                "Memory Usage", 
-                f"{algorithm.metrics.memory_usage_mb:.1f}MB" if algorithm.metrics.memory_usage_mb > 0 else "N/A",
-                help="Memory footprint"
-            )
-        
-        st.markdown("---")
-        
         # Layout: Recommendations + User Profile
         rec_col, profile_col = st.columns([2.5, 1])
         
         with rec_col:
-            # V2.1 Enhanced Movie Display Grid
+            # Display recommendations
             for idx, row in recommendations.iterrows():
                 movie_id = row['movieId']
                 title = row['title']
                 genres = row['genres']
                 predicted_rating = float(row['predicted_rating'])
                 
-                # Parse genres
-                genres_list = genres.split('|') if '|' in genres else [genres]
+                # Movie card with simplified layout
+                st.markdown(f"""
+                <div class="movie-card">
+                    <h3 style="color: white; margin: 0.5rem 0;">#{idx+1}. {title}</h3>
+                    <p style="color: #ccc;"><strong>Genres:</strong> {format_genres(genres)}</p>
+                    <p style="color: #ddd;"><strong>Predicted Rating:</strong> {create_rating_stars(predicted_rating)}</p>
+                </div>
+                """, unsafe_allow_html=True)
                 
-                # Get explanation if available
-                explanation = None
-                if st.session_state.get(f'show_explain_{movie_id}'):
-                    explanation = manager.get_recommendation_explanation(
-                        selected_algorithm, user_id, movie_id
-                    )
-                
-                # Render enhanced movie card
-                render_movie_card_enhanced(
-                    title=title,
-                    genres=genres_list,
-                    predicted_rating=predicted_rating,
-                    rank=idx + 1,
-                    explanation=explanation,
-                    compact=False
-                )
-                
-                # Explanation toggle and feedback
+                # Simplified buttons layout (no nested columns)
                 col_left, col_right = st.columns(2)
+                
                 with col_left:
-                    if st.button(f"💡 Why recommended?", key=f"explain_btn_{movie_id}"):
-                        st.session_state[f'show_explain_{movie_id}'] = not st.session_state.get(f'show_explain_{movie_id}', False)
-                        st.rerun()
+                    # Explanation button
+                    if st.button(f"💡 Why this movie?", key=f"explain_{movie_id}"):
+                        explanation = manager.get_recommendation_explanation(
+                            selected_algorithm, user_id, movie_id
+                        )
+                        st.markdown(f"""
+                        <div class="explanation-box">
+                            <strong>Why this recommendation?</strong><br>
+                            {explanation}
+                        </div>
+                        """, unsafe_allow_html=True)
                 
                 with col_right:
-                    # Feedback buttons
-                    col_like, col_dislike = st.columns(2)
-                    with col_like:
-                        if st.button("👍", key=f"like_{movie_id}"):
-                            st.success("👍")
-                    with col_dislike:
-                        if st.button("👎", key=f"dislike_{movie_id}"):
-                            st.info("👎")
+                    # Feedback buttons in single row
+                    feedback_text = "Feedback: "
+                    if st.button("👍 Like", key=f"like_{movie_id}"):
+                        st.success("Thanks for the feedback! 👍")
+                    if st.button("👎 Not interested", key=f"dislike_{movie_id}"):
+                        st.info("Feedback noted! 👎")
                 
                 st.markdown("---")
         
@@ -475,10 +453,13 @@ if get_recs_button:
                 st.markdown("### 🆕 New User")
                 st.info("As a new user, recommendations are based on popular movies and content-based filtering.")
         
+        # Algorithm comparison suggestion
+        if selected_algorithm != AlgorithmType.HYBRID:
+            st.markdown("---")
+            st.info(f"💡 **Try the Hybrid algorithm** for potentially better recommendations that combine multiple approaches!")
+    
     except Exception as e:
         st.error(f"❌ Error generating recommendations: {e}")
-        import traceback
-        st.code(traceback.format_exc())
         
         # Enhanced error recovery options
         st.markdown("### 🛠️ Recovery Options")
@@ -511,130 +492,6 @@ if get_recs_button:
         - Switch to **Fast Demo** dataset for better compatibility
         - Use **SVD algorithm** - it's most reliable for new users
         """)
-
-# Display recommendations if they exist in session state (outside button block)
-if 'current_recommendations' in st.session_state and st.session_state.current_recommendations is not None:
-    try:
-        recommendations = st.session_state.current_recommendations
-        user_history = st.session_state.get('user_history', pd.DataFrame())
-        current_user_id = st.session_state.get('current_user_id', user_id)
-        current_algorithm = st.session_state.get('current_algorithm', selected_algorithm)
-        
-        # Get algorithm object
-        if 'trained_algorithm' in st.session_state:
-            algorithm = st.session_state.trained_algorithm
-        else:
-            algorithm = manager.get_algorithm(current_algorithm)
-        
-        # Main recommendations display
-        st.markdown(f"""
-        <div class="recommendation-header">
-            <h2>🎬 Recommendations for User {current_user_id}</h2>
-            <p>Generated by {algorithm.name} • Based on {len(user_history)} ratings</p>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        # Show LIVE metrics
-        st.markdown("### 📊 Algorithm Performance Metrics")
-        metrics_col1, metrics_col2, metrics_col3, metrics_col4 = st.columns(4)
-        
-        with metrics_col1:
-            st.metric("RMSE", f"{algorithm.metrics.rmse:.4f}" if algorithm.metrics.rmse > 0 else "N/A")
-        with metrics_col2:
-            st.metric("Coverage", f"{algorithm.metrics.coverage:.1f}%" if algorithm.metrics.coverage > 0 else "N/A")
-        with metrics_col3:
-            st.metric("Training Time", f"{algorithm.metrics.training_time:.1f}s" if algorithm.metrics.training_time > 0 else "N/A")
-        with metrics_col4:
-            st.metric("Memory", f"{algorithm.metrics.memory_usage_mb:.1f} MB" if algorithm.metrics.memory_usage_mb > 0 else "N/A")
-        
-        st.markdown("---")
-        
-        # Layout: Recommendations + User Profile
-        rec_col, profile_col = st.columns([2.5, 1])
-        
-        with rec_col:
-            # Display recommendations
-            for idx, row in recommendations.iterrows():
-                movie_id = row['movieId']
-                title = row['title']
-                genres = row['genres']
-                predicted_rating = float(row['predicted_rating'])
-                
-                # Movie card with simplified layout
-                st.markdown(f"""
-                <div class="movie-card">
-                    <h3 style="color: white; margin: 0.5rem 0;">#{idx+1}. {title}</h3>
-                    <p style="color: #ccc;"><strong>Genres:</strong> {format_genres(genres)}</p>
-                    <p style="color: #ddd;"><strong>Predicted Rating:</strong> {create_rating_stars(predicted_rating)}</p>
-                </div>
-                """, unsafe_allow_html=True)
-                
-                # Simplified buttons layout (no nested columns)
-                col_left, col_right = st.columns(2)
-                
-                with col_left:
-                    # Explanation button
-                    if st.button(f"💡 Why this movie?", key=f"session_explain_{movie_id}_{idx}"):
-                        explanation = manager.get_recommendation_explanation(
-                            current_algorithm, current_user_id, movie_id
-                        )
-                        st.markdown(f"""
-                        <div class="explanation-box">
-                            <strong>Why this recommendation?</strong><br>
-                            {explanation}
-                        </div>
-                        """, unsafe_allow_html=True)
-                
-                with col_right:
-                    # Feedback buttons in single row
-                    if st.button("👍 Like", key=f"session_like_{movie_id}_{idx}"):
-                        st.success("Thanks for the feedback! 👍")
-                    if st.button("👎 Not interested", key=f"session_dislike_{movie_id}_{idx}"):
-                        st.info("Feedback noted! 👎")
-                
-                st.markdown("---")
-        
-        with profile_col:
-            # User taste profile (if user exists)
-            if len(user_history) > 0:
-                st.markdown("### 👤 Your Profile")
-                
-                # Basic stats
-                avg_rating = user_history['rating'].mean()
-                st.metric("Total Ratings", len(user_history))
-                st.metric("Average Rating", f"{avg_rating:.1f} ⭐")
-                
-                # Top genres
-                st.markdown("#### � Top Genres")
-                # Get genre distribution
-                genre_counts = {}
-                for _, movie_row in user_history.iterrows():
-                    movie_info = movies_df[movies_df['movieId'] == movie_row['movieId']]
-                    if len(movie_info) > 0:
-                        genres_str = movie_info.iloc[0]['genres'].split('|')
-                        for genre in genres_str:
-                            genre_counts[genre] = genre_counts.get(genre, 0) + 1
-                
-                # Show top 5 genres
-                top_genres = sorted(genre_counts.items(), key=lambda x: x[1], reverse=True)[:5]
-                total_ratings_count = len(user_history)
-                
-                for genre, count in top_genres:
-                    percentage = (count / total_ratings_count) * 100
-                    emoji = get_genre_emoji(genre)
-                    st.markdown(f"{emoji} **{genre}**: {percentage:.1f}%")
-                
-            else:
-                st.markdown("### 🆕 New User")
-                st.info("As a new user, recommendations are based on popular movies and content-based filtering.")
-        
-        # Algorithm comparison suggestion
-        if current_algorithm != AlgorithmType.HYBRID:
-            st.markdown("---")
-            st.info(f"💡 **Try the Hybrid algorithm** for potentially better recommendations!")
-            
-    except Exception as display_err:
-        st.error(f"Error displaying recommendations: {display_err}")
 
 else:
     # Instructions when no recommendations yet

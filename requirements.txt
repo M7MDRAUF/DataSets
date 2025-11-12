@@ -13,6 +13,10 @@ scipy>=1.13.0
 # Web Framework & UI
 # ========================================
 streamlit>=1.32.0               # Interactive web interface
+streamlit-extras>=0.4.0         # Enhanced UI components (metric cards, colored headers)
+streamlit-lottie>=0.0.5         # Lottie animations for loading states
+streamlit-option-menu>=0.3.13   # Beautiful navigation menus
+streamlit-aggrid>=0.3.4         # Interactive data tables with filtering
 
 # ========================================
 # Data Visualization

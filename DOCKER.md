@@ -1,6 +1,6 @@
-# 🐳 CineMatch V2.0 Docker Deployment
+# 🐳 CineMatch V2.1 Docker Deployment
 
-Quick and easy Docker deployment for the enhanced multi-algorithm recommendation system.
+Quick and easy Docker deployment for the Netflix-themed UI with multi-algorithm recommendation system.
 
 ## 🚀 One-Command Deployment
 
@@ -42,13 +42,20 @@ The V2.0 system includes all 4 recommendation algorithms:
 | Item KNN  | 1.0218| Slow   | 4.1%     | 51 MB   | Content-based |
 | **Hybrid**| **0.5585**| Slower | **100%** | 52 MB   | **All users** ⭐|
 
-## 🎯 V2.0 Features
+## 🎯 V2.1 Features (NEW!)
 
-✨ **Algorithm Selector** - Switch between algorithms in real-time  
-📈 **Live Metrics** - See RMSE, training time, memory usage  
-🎨 **Professional UI** - Netflix-style interface  
-🧠 **Explainable AI** - Understand why movies were recommended  
-⚙️ **Advanced Options** - Tune algorithm parameters  
+🎨 **Netflix-Themed UI** - Dark theme with #E50914 red accents  
+🎬 **Enhanced Movie Cards** - Genre-based gradient backgrounds, rating visuals  
+� **Enhanced Metrics** - Beautiful metric cards with icons and colors  
+🎭 **Genre Visualizations** - Top genres, distribution charts, colored badges  
+⚡ **Loading Animations** - Smooth Lottie animations for better UX  
+✨ **Algorithm Selector** - Visual menu with icons and descriptions  
+📈 **Dataset Stats** - Interactive statistics with animated counters  
+🔥 **Popular Movies** - Grid layout with enhanced cards  
+🧠 **Explainable AI** - Improved explanation display with visuals  
+⚙️ **Advanced Options** - Tune algorithm parameters
+
+**Zero External APIs** - Everything runs from local MovieLens dataset!  
 
 ## 🛠️ Management Commands
 
