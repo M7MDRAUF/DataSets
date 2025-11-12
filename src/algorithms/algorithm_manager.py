@@ -1,40 +1,35 @@
 """
-CineMatch V1.0.0 - Algorithm Manager
+CineMatch V2.0.0 - Algorithm Manager
 
 Central management system for all recommendation algorithms.
 Handles instantiation, switching, lifecycle management, and intelligent caching.
 
+Phase 3 Refactoring: Decomposed into specialized components
+- AlgorithmFactory: Creates and manages algorithm instances
+- LifecycleManager: Handles loading, caching, switching
+- PerformanceMonitor: Tracks and compares metrics
+
 Author: CineMatch Development Team
-Date: November 7, 2025
+Date: November 12, 2025
 """
 
 import sys
 from pathlib import Path
-from typing import Dict, Optional, Any, Type, List
-import streamlit as st
+from typing import Dict, Optional, Any, List
 import pandas as pd
-import time
-import threading
-from enum import Enum
 
 # Add parent directory to path for imports
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
 from src.algorithms.base_recommender import BaseRecommender
-from src.algorithms.svd_recommender import SVDRecommender
-from src.algorithms.user_knn_recommender import UserKNNRecommender
-from src.algorithms.item_knn_recommender import ItemKNNRecommender
-from src.algorithms.content_based_recommender import ContentBasedRecommender
-from src.algorithms.hybrid_recommender import HybridRecommender
 
-
-class AlgorithmType(Enum):
-    """Enumeration of available recommendation algorithms"""
-    SVD = "SVD Matrix Factorization"
-    USER_KNN = "KNN User-Based"
-    ITEM_KNN = "KNN Item-Based"
-    CONTENT_BASED = "Content-Based Filtering"
-    HYBRID = "Hybrid (Best of All)"
+# Phase 3: Import decomposed components
+from src.algorithms.manager_components import (
+    AlgorithmFactory,
+    LifecycleManager,
+    PerformanceMonitor
+)
+from src.algorithms.manager_components.algorithm_factory import AlgorithmType
 
 
 class AlgorithmManager:
@@ -50,41 +45,15 @@ class AlgorithmManager:
     """
     
     def __init__(self):
-        """Initialize the Algorithm Manager"""
-        self._algorithms: Dict[AlgorithmType, BaseRecommender] = {}
-        self._algorithm_classes: Dict[AlgorithmType, Type[BaseRecommender]] = {
-            AlgorithmType.SVD: SVDRecommender,
-            AlgorithmType.USER_KNN: UserKNNRecommender,
-            AlgorithmType.ITEM_KNN: ItemKNNRecommender,
-            AlgorithmType.CONTENT_BASED: ContentBasedRecommender,
-            AlgorithmType.HYBRID: HybridRecommender
-        }
-        self._default_params: Dict[AlgorithmType, Dict[str, Any]] = {
-            AlgorithmType.SVD: {'n_components': 100},
-            AlgorithmType.USER_KNN: {'n_neighbors': 50, 'similarity_metric': 'cosine'},
-            AlgorithmType.ITEM_KNN: {'n_neighbors': 30, 'similarity_metric': 'cosine', 'min_ratings': 5},
-            AlgorithmType.CONTENT_BASED: {
-                'genre_weight': 0.5, 
-                'tag_weight': 0.3, 
-                'title_weight': 0.2,
-                'min_similarity': 0.01
-            },
-            AlgorithmType.HYBRID: {
-                'svd_params': {'n_components': 100},
-                'user_knn_params': {'n_neighbors': 50, 'similarity_metric': 'cosine'},
-                'item_knn_params': {'n_neighbors': 30, 'similarity_metric': 'cosine', 'min_ratings': 5},
-                'content_based_params': {
-                    'genre_weight': 0.5, 
-                    'tag_weight': 0.3, 
-                    'title_weight': 0.2,
-                    'min_similarity': 0.01
-                },
-                'weighting_strategy': 'adaptive'
-            }
-        }
-        self._lock = threading.Lock()
-        self._training_data: Optional[tuple] = None
-        self._is_initialized = False
+        """
+        Initialize the Algorithm Manager.
+        
+        Phase 3: Delegated to specialized components for better separation of concerns.
+        """
+        # Initialize the three specialized components
+        self.factory = AlgorithmFactory()
+        self.lifecycle = LifecycleManager(self.factory)
+        self.performance = PerformanceMonitor(self.factory)
     
     @staticmethod
     def get_instance() -> 'AlgorithmManager':
@@ -94,9 +63,12 @@ class AlgorithmManager:
         return st.session_state.algorithm_manager
     
     def initialize_data(self, ratings_df: pd.DataFrame, movies_df: pd.DataFrame) -> None:
-        """Initialize with training data (call once when app starts)"""
-        self._training_data = (ratings_df.copy(), movies_df.copy())
-        self._is_initialized = True
+        """
+        Initialize with training data.
+        
+        Phase 3: Delegated to LifecycleManager.
+        """
+        self.lifecycle.initialize_data(ratings_df, movies_df)
         print("🎯 Algorithm Manager initialized with data")
     
     def get_algorithm(self, algorithm_type: AlgorithmType, 
@@ -294,8 +266,12 @@ class AlgorithmManager:
         return algorithm
     
     def get_available_algorithms(self) -> List[AlgorithmType]:
-        """Get list of all available algorithm types"""
-        return list(AlgorithmType)
+        """
+        Get list of all available algorithm types.
+        
+        Phase 3: Delegated to AlgorithmFactory.
+        """
+        return self.factory.get_available_algorithms()
     
     def get_algorithm_info(self, algorithm_type: AlgorithmType) -> Dict[str, Any]:
         """
@@ -385,8 +361,12 @@ class AlgorithmManager:
         return pd.DataFrame(performance_data)
     
     def get_cached_algorithms(self) -> List[AlgorithmType]:
-        """Get list of currently cached (trained) algorithms"""
-        return [algo_type for algo_type, algo in self._algorithms.items() if algo.is_trained]
+        """
+        Get list of currently cached (trained) algorithms.
+        
+        Phase 3: Delegated to LifecycleManager.
+        """
+        return self.lifecycle.get_cached_algorithms()
     
     def clear_cache(self, algorithm_type: Optional[AlgorithmType] = None) -> None:
         """
