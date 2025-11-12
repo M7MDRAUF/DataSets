@@ -808,7 +808,10 @@ class ContentBasedRecommender(BaseRecommender):
         
         print(f"   ✓ Model loaded successfully in {load_time:.2f}s")
         print(f"   ✓ Feature dimensions: {self.combined_features.shape}")
-        print(f"   ✓ Similarity matrix: {self.similarity_matrix.shape}")
+        if self.similarity_matrix is not None:
+            print(f"   ✓ Similarity matrix: {self.similarity_matrix.shape}")
+        else:
+            print(f"   ✓ Similarity computation: On-demand (memory-optimized)")
     
     def save_model(self, model_path: Path) -> None:
         """
@@ -839,7 +842,8 @@ class ContentBasedRecommender(BaseRecommender):
                 'version': '2.1.0',
                 'n_movies': len(self.movie_mapper),
                 'feature_dimensions': self.combined_features.shape,
-                'similarity_matrix_shape': self.similarity_matrix.shape,
+                'similarity_matrix_shape': self.similarity_matrix.shape if self.similarity_matrix is not None else None,
+                'on_demand_computation': self.similarity_matrix is None,
                 'params': self.params
             }
         }
