@@ -453,9 +453,17 @@ class HybridRecommender(BaseRecommender):
                 print("  • New user detected - using SVD + Item KNN + Content-Based approach")
                 # For new users, use SVD, Item KNN, and Content-Based (cold-start friendly)
                 try:
+                    import time as perf_time
+                    t0 = perf_time.time()
                     svd_recs = self.svd_model.get_recommendations(user_id, n, exclude_rated)
+                    t1 = perf_time.time()
                     item_recs = self.item_knn_model.get_recommendations(user_id, n, exclude_rated)
+                    t2 = perf_time.time()
                     content_based_recs = self.content_based_model.get_recommendations(user_id, n, exclude_rated)
+                    t3 = perf_time.time()
+                    
+                    print(f"    ✓ Algorithm timings: SVD={t1-t0:.2f}s, ItemKNN={t2-t1:.2f}s, CBF={t3-t2:.2f}s")
+                    print(f"    ✓ Recommendations collected: SVD={len(svd_recs)}, ItemKNN={len(item_recs)}, CBF={len(content_based_recs)}")
                     
                     # Add weights for aggregation
                     svd_recs = svd_recs.copy()
@@ -478,9 +486,17 @@ class HybridRecommender(BaseRecommender):
                 print("  • Sparse user profile - emphasizing User KNN + SVD + Content-Based")
                 try:
                     # For sparse users, get recommendations from User KNN, SVD, and Content-Based
+                    import time as perf_time
+                    t0 = perf_time.time()
                     user_knn_recs = self.user_knn_model.get_recommendations(user_id, n, exclude_rated)
+                    t1 = perf_time.time()
                     svd_recs = self.svd_model.get_recommendations(user_id, n, exclude_rated)
+                    t2 = perf_time.time()
                     content_based_recs = self.content_based_model.get_recommendations(user_id, n, exclude_rated)
+                    t3 = perf_time.time()
+                    
+                    print(f"    ✓ Algorithm timings: UserKNN={t1-t0:.2f}s, SVD={t2-t1:.2f}s, CBF={t3-t2:.2f}s")
+                    print(f"    ✓ Recommendations collected: UserKNN={len(user_knn_recs)}, SVD={len(svd_recs)}, CBF={len(content_based_recs)}")
                     
                     # Add weights for aggregation (emphasize user similarity for sparse profiles)
                     user_knn_recs = user_knn_recs.copy()
@@ -502,11 +518,22 @@ class HybridRecommender(BaseRecommender):
                 print("  • Dense user profile - using full hybrid approach")
                 try:
                     # For dense users, use all 4 algorithms
-                    print("  • Aggregating 30 recommendations from multiple algorithms")
+                    print(f"  • Using weights: SVD={self.weights['svd']:.2f}, UserKNN={self.weights['user_knn']:.2f}, ItemKNN={self.weights['item_knn']:.2f}, CBF={self.weights['content_based']:.2f}")
+                    
+                    import time as perf_time
+                    t0 = perf_time.time()
                     svd_recs = self.svd_model.get_recommendations(user_id, n, exclude_rated)
+                    t1 = perf_time.time()
                     user_knn_recs = self.user_knn_model.get_recommendations(user_id, n, exclude_rated)
+                    t2 = perf_time.time()
                     item_knn_recs = self.item_knn_model.get_recommendations(user_id, n, exclude_rated)
+                    t3 = perf_time.time()
                     content_based_recs = self.content_based_model.get_recommendations(user_id, n, exclude_rated)
+                    t4 = perf_time.time()
+                    
+                    print(f"    ✓ Algorithm timings: SVD={t1-t0:.2f}s, UserKNN={t2-t1:.2f}s, ItemKNN={t3-t2:.2f}s, CBF={t4-t3:.2f}s")
+                    print(f"    ✓ Recommendations collected: SVD={len(svd_recs)}, UserKNN={len(user_knn_recs)}, ItemKNN={len(item_knn_recs)}, CBF={len(content_based_recs)}")
+                    print(f"  • Aggregating {len(svd_recs)+len(user_knn_recs)+len(item_knn_recs)+len(content_based_recs)} recommendations from 4 algorithms")
                     
                     # Add weights for aggregation
                     svd_recs = svd_recs.copy()
