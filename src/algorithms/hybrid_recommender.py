@@ -450,15 +450,24 @@ class HybridRecommender(BaseRecommender):
             print(f"  • User profile: {num_ratings} ratings")
             
             if num_ratings == 0:
-                print("  • New user detected - using popularity-based approach")
-                # For new users, use SVD and Item KNN primarily
+                print("  • New user detected - using SVD + Item KNN + Content-Based approach")
+                # For new users, use SVD, Item KNN, and Content-Based (cold-start friendly)
                 try:
-                    svd_recs = self.svd_model.get_recommendations(user_id, n*2, exclude_rated)
-                    item_recs = self.item_knn_model.get_recommendations(user_id, n*2, exclude_rated)
+                    svd_recs = self.svd_model.get_recommendations(user_id, n, exclude_rated)
+                    item_recs = self.item_knn_model.get_recommendations(user_id, n, exclude_rated)
+                    content_based_recs = self.content_based_model.get_recommendations(user_id, n, exclude_rated)
                     
-                    # Combine and deduplicate
-                    all_recs = pd.concat([svd_recs, item_recs]).drop_duplicates(subset=['movieId'])
-                    top_recs = all_recs.head(n)
+                    # Add weights for aggregation
+                    svd_recs = svd_recs.copy()
+                    item_recs = item_recs.copy()
+                    content_based_recs = content_based_recs.copy()
+                    svd_recs['weight'] = 0.4
+                    item_recs['weight'] = 0.3
+                    content_based_recs['weight'] = 0.3  # Content-Based helps with cold start
+                    
+                    # Aggregate instead of simple concat
+                    all_recs = pd.concat([svd_recs, item_recs, content_based_recs])
+                    top_recs = self._aggregate_recommendations(all_recs, n)
                     
                 except Exception as e:
                     print(f"  ❌ Error in new user approach: {e}")
@@ -466,19 +475,22 @@ class HybridRecommender(BaseRecommender):
                     top_recs = self.svd_model.get_recommendations(user_id, n, exclude_rated)
                 
             elif num_ratings < self.sparse_user_threshold:
-                print("  • Sparse user profile - emphasizing User KNN + SVD")
+                print("  • Sparse user profile - emphasizing User KNN + SVD + Content-Based")
                 try:
-                    # For sparse users, get recommendations from User KNN and SVD
+                    # For sparse users, get recommendations from User KNN, SVD, and Content-Based
                     user_knn_recs = self.user_knn_model.get_recommendations(user_id, n, exclude_rated)
                     svd_recs = self.svd_model.get_recommendations(user_id, n, exclude_rated)
+                    content_based_recs = self.content_based_model.get_recommendations(user_id, n, exclude_rated)
                     
-                    # Add weights for aggregation
+                    # Add weights for aggregation (emphasize user similarity for sparse profiles)
                     user_knn_recs = user_knn_recs.copy()
                     svd_recs = svd_recs.copy()
-                    user_knn_recs['weight'] = 0.6
-                    svd_recs['weight'] = 0.4
+                    content_based_recs = content_based_recs.copy()
+                    user_knn_recs['weight'] = 0.5
+                    svd_recs['weight'] = 0.3
+                    content_based_recs['weight'] = 0.2
                     
-                    all_recs = pd.concat([user_knn_recs, svd_recs])
+                    all_recs = pd.concat([user_knn_recs, svd_recs, content_based_recs])
                     top_recs = self._aggregate_recommendations(all_recs, n)
                     
                 except Exception as e:
@@ -489,21 +501,25 @@ class HybridRecommender(BaseRecommender):
             else:
                 print("  • Dense user profile - using full hybrid approach")
                 try:
-                    # For dense users, use all algorithms
+                    # For dense users, use all 4 algorithms
+                    print("  • Aggregating 30 recommendations from multiple algorithms")
                     svd_recs = self.svd_model.get_recommendations(user_id, n, exclude_rated)
                     user_knn_recs = self.user_knn_model.get_recommendations(user_id, n, exclude_rated)
                     item_knn_recs = self.item_knn_model.get_recommendations(user_id, n, exclude_rated)
+                    content_based_recs = self.content_based_model.get_recommendations(user_id, n, exclude_rated)
                     
                     # Add weights for aggregation
                     svd_recs = svd_recs.copy()
                     user_knn_recs = user_knn_recs.copy()
                     item_knn_recs = item_knn_recs.copy()
+                    content_based_recs = content_based_recs.copy()
                     
                     svd_recs['weight'] = self.weights['svd']
                     user_knn_recs['weight'] = self.weights['user_knn']
                     item_knn_recs['weight'] = self.weights['item_knn']
+                    content_based_recs['weight'] = self.weights['content_based']
                     
-                    all_recs = pd.concat([svd_recs, user_knn_recs, item_knn_recs])
+                    all_recs = pd.concat([svd_recs, user_knn_recs, item_knn_recs, content_based_recs])
                     top_recs = self._aggregate_recommendations(all_recs, n)
                     
                 except Exception as e:
