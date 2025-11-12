@@ -77,6 +77,8 @@ class AlgorithmManager:
         """
         Get a trained algorithm instance with lazy loading.
         
+        Phase 3A: Fully delegated to LifecycleManager.
+        
         Args:
             algorithm_type: Type of algorithm to get
             custom_params: Optional custom parameters (overrides defaults)
@@ -85,163 +87,23 @@ class AlgorithmManager:
         Returns:
             Trained BaseRecommender instance
         """
-        if not self._is_initialized:
-            raise ValueError("AlgorithmManager not initialized. Call initialize_data() first.")
-        
-        with self._lock:
-            # Check if algorithm is already cached and trained
-            if algorithm_type in self._algorithms:
-                algorithm = self._algorithms[algorithm_type]
-                if algorithm.is_trained:
-                    print(f"✓ Using cached {algorithm.name}")
-                    return algorithm
-            
-            # Need to create and train algorithm
-            print(f"🔄 Loading {algorithm_type.value}...")
-            
-            # Merge default and custom parameters
-            params = self._default_params[algorithm_type].copy()
-            if custom_params:
-                params.update(custom_params)
-            
-            # Instantiate algorithm
-            algorithm_class = self._algorithm_classes[algorithm_type]
-            algorithm = algorithm_class(**params)
-            
-            # Try to load pre-trained model first (for KNN models)
-            if self._try_load_pretrained_model(algorithm, algorithm_type):
-                # Pre-trained model loaded successfully
-                self._algorithms[algorithm_type] = algorithm
-                return algorithm
-            
-            # Train algorithm if no pre-trained model available
-            ratings_df, movies_df = self._training_data
-            
-            # Show progress in Streamlit (only if not suppressed)
-            if suppress_ui:
-                # Train without UI updates (used when called from Hybrid algorithm)
-                start_time = time.time()
-                algorithm.fit(ratings_df, movies_df)
-                training_time = time.time() - start_time
-                self._algorithms[algorithm_type] = algorithm
-                print(f"✓ {algorithm.name} trained in {training_time:.1f}s")
-            else:
-                # Normal training with UI feedback
-                with st.spinner(f'Training {algorithm.name}... This may take a moment.'):
-                    start_time = time.time()
-                    algorithm.fit(ratings_df, movies_df)
-                    training_time = time.time() - start_time
-                    
-                    # Cache the trained algorithm
-                    self._algorithms[algorithm_type] = algorithm
-                    
-                    print(f"✓ {algorithm.name} trained in {training_time:.1f}s")
-                    
-                    # Show success message
-                    st.success(f"✅ {algorithm.name} ready! (Trained in {training_time:.1f}s)")
-                
-            return algorithm
-    
-    def _try_load_pretrained_model(self, algorithm: BaseRecommender, algorithm_type: AlgorithmType) -> bool:
-        """
-        Try to load a pre-trained model for KNN, Content-Based, and Hybrid algorithms.
-        
-        Args:
-            algorithm: The algorithm instance to load into
-            algorithm_type: The type of algorithm
-            
-        Returns:
-            True if model was loaded successfully, False otherwise
-        """
-        # Only try to load for KNN, Content-Based, and Hybrid algorithms
-        if algorithm_type not in [AlgorithmType.USER_KNN, AlgorithmType.ITEM_KNN, AlgorithmType.CONTENT_BASED, AlgorithmType.HYBRID]:
-            return False
-        
-        # Define model paths
-        model_paths = {
-            AlgorithmType.USER_KNN: Path("models/user_knn_model.pkl"),
-            AlgorithmType.ITEM_KNN: Path("models/item_knn_model.pkl"),
-            AlgorithmType.CONTENT_BASED: Path("models/content_based_model.pkl"),
-            AlgorithmType.HYBRID: Path("models/hybrid_model.pkl")
-        }
-        
-        model_path = model_paths.get(algorithm_type)
-        if not model_path:
-            return False
-        
-        if not model_path.exists():
-            print(f"   • No pre-trained model found at {model_path}")
-            return False
-        
-        try:
-            print(f"   • Loading pre-trained model from {model_path}")
-            start_time = time.time()
-            algorithm.load_model(model_path)
-            load_time = time.time() - start_time
-            
-            # IMPORTANT: Provide data context to the loaded model
-            # Pre-trained models need access to current data for some operations
-            ratings_df, movies_df = self._training_data
-            algorithm.ratings_df = ratings_df.copy()
-            algorithm.movies_df = movies_df.copy()
-            # Add genres_list if not present
-            if 'genres_list' not in algorithm.movies_df.columns:
-                algorithm.movies_df['genres_list'] = algorithm.movies_df['genres'].str.split('|')
-            print(f"   • Data context provided to loaded model")
-            
-            # CRITICAL FIX: For Hybrid algorithm, also provide data context to sub-algorithms
-            # Sub-algorithms need ratings_df/movies_df for fallback methods like _get_popular_movies()
-            if algorithm_type == AlgorithmType.HYBRID:
-                print(f"   • Providing data context to Hybrid sub-algorithms...")
-                algorithm.svd_model.ratings_df = ratings_df.copy()
-                algorithm.svd_model.movies_df = movies_df.copy()
-                algorithm.user_knn_model.ratings_df = ratings_df.copy()
-                algorithm.user_knn_model.movies_df = movies_df.copy()
-                algorithm.item_knn_model.ratings_df = ratings_df.copy()
-                algorithm.item_knn_model.movies_df = movies_df.copy()
-                algorithm.content_based_model.ratings_df = ratings_df.copy()
-                algorithm.content_based_model.movies_df = movies_df.copy()
-                # Add genres_list to sub-algorithms
-                if 'genres_list' not in algorithm.svd_model.movies_df.columns:
-                    algorithm.svd_model.movies_df['genres_list'] = algorithm.svd_model.movies_df['genres'].str.split('|')
-                if 'genres_list' not in algorithm.user_knn_model.movies_df.columns:
-                    algorithm.user_knn_model.movies_df['genres_list'] = algorithm.user_knn_model.movies_df['genres'].str.split('|')
-                if 'genres_list' not in algorithm.item_knn_model.movies_df.columns:
-                    algorithm.item_knn_model.movies_df['genres_list'] = algorithm.item_knn_model.movies_df['genres'].str.split('|')
-                if 'genres_list' not in algorithm.content_based_model.movies_df.columns:
-                    algorithm.content_based_model.movies_df['genres_list'] = algorithm.content_based_model.movies_df['genres'].str.split('|')
-                print(f"   ✓ Data context provided to all 4 sub-algorithms")
-            
-            # Verify the model is properly loaded and trained
-            if algorithm.is_trained:
-                print(f"   ✓ Pre-trained {algorithm.name} loaded in {load_time:.2f}s")
-                st.success(f"🚀 {algorithm.name} loaded from pre-trained model! ({load_time:.2f}s)")
-                return True
-            else:
-                print(f"   ⚠ Pre-trained model loaded but not marked as trained")
-                return False
-                
-        except Exception as e:
-            print(f"   ❌ Failed to load pre-trained model: {e}")
-            print(f"   → Will train from scratch instead")
-            return False
+        return self.lifecycle.get_algorithm(algorithm_type, custom_params, suppress_ui)
     
     def get_current_algorithm(self) -> Optional[BaseRecommender]:
-        """Get the currently selected algorithm from Streamlit session state"""
-        if 'selected_algorithm' not in st.session_state:
-            return None
+        """
+        Get the currently active algorithm.
         
-        algorithm_type = st.session_state.selected_algorithm
-        if algorithm_type in self._algorithms:
-            return self._algorithms[algorithm_type]
-        
-        return None
+        Phase 3C: Delegated to LifecycleManager.
+        """
+        return self.lifecycle.get_current_algorithm()
     
     def switch_algorithm(self, algorithm_type: AlgorithmType, 
                         custom_params: Optional[Dict[str, Any]] = None,
                         suppress_ui: bool = False) -> BaseRecommender:
         """
         Switch to a different algorithm with smooth transition.
+        
+        Phase 3C: Delegated to LifecycleManager.
         
         Args:
             algorithm_type: Algorithm to switch to
@@ -251,19 +113,7 @@ class AlgorithmManager:
         Returns:
             The new algorithm instance
         """
-        print(f"🔄 Switching to {algorithm_type.value}")
-        
-        # Get the algorithm (will load if not cached)
-        # Don't write to session_state during training as it causes reruns!
-        algorithm = self.get_algorithm(algorithm_type, custom_params, suppress_ui=suppress_ui)
-        
-        # Only update session state if not suppressing UI (avoid rerun during training)
-        if not suppress_ui:
-            st.session_state.selected_algorithm = algorithm_type
-            if 'algorithm_switched' not in st.session_state:
-                st.session_state.algorithm_switched = True
-        
-        return algorithm
+        return self.lifecycle.switch_algorithm(algorithm_type, custom_params, suppress_ui)
     
     def get_available_algorithms(self) -> List[AlgorithmType]:
         """
@@ -277,88 +127,23 @@ class AlgorithmManager:
         """
         Get detailed information about an algorithm without loading it.
         
+        Phase 3D: Delegated to AlgorithmFactory.
+        
         Returns:
             Dictionary with algorithm description, capabilities, etc.
         """
-        info_map = {
-            AlgorithmType.SVD: {
-                'name': 'SVD Matrix Factorization',
-                'description': 'Uses Singular Value Decomposition to discover hidden patterns in user ratings. Excellent for finding complex relationships between users and movies.',
-                'strengths': ['High accuracy', 'Handles sparse data well', 'Discovers latent factors', 'Good for diverse recommendations'],
-                'ideal_for': ['Users with varied taste', 'Discovering hidden gems', 'Academic research', 'High-accuracy needs'],
-                'complexity': 'High',
-                'speed': 'Medium',
-                'interpretability': 'Medium',
-                'icon': '🔮'
-            },
-            AlgorithmType.USER_KNN: {
-                'name': 'KNN User-Based',
-                'description': 'Finds users with similar taste and recommends movies those users loved. Simple and intuitive approach.',
-                'strengths': ['Highly interpretable', 'Good for sparse users', 'Handles new items well', 'Community-based recommendations'],
-                'ideal_for': ['New users', 'Sparse rating profiles', 'Social recommendations', 'Explainable results'],
-                'complexity': 'Low',
-                'speed': 'Fast',
-                'interpretability': 'Very High',
-                'icon': '👥'
-            },
-            AlgorithmType.ITEM_KNN: {
-                'name': 'KNN Item-Based',
-                'description': 'Analyzes movies with similar rating patterns and recommends items similar to what you enjoyed.',
-                'strengths': ['Stable recommendations', 'Good for frequent users', 'Pre-computed similarities', 'Genre-aware'],
-                'ideal_for': ['Users with many ratings', 'Discovering similar movies', 'Stable preferences', 'Genre exploration'],
-                'complexity': 'Medium',
-                'speed': 'Fast',
-                'interpretability': 'High',
-                'icon': '🎬'
-            },
-            AlgorithmType.CONTENT_BASED: {
-                'name': 'Content-Based Filtering',
-                'description': 'Analyzes movie features (genres, tags, titles) and recommends movies similar to what you enjoyed. Perfect for cold-start scenarios.',
-                'strengths': ['No cold-start problem', 'Feature-based recommendations', 'Highly interpretable', 'Tag and genre aware', 'Works for new users'],
-                'ideal_for': ['New users', 'Genre-specific discovery', 'Feature-based exploration', 'Cold-start scenarios', 'Explainable recommendations'],
-                'complexity': 'Medium',
-                'speed': 'Fast',
-                'interpretability': 'Very High',
-                'icon': '🔍'
-            },
-            AlgorithmType.HYBRID: {
-                'name': 'Hybrid (Best of All)',
-                'description': 'Intelligently combines all algorithms with dynamic weighting based on your profile and context.',
-                'strengths': ['Best overall accuracy', 'Adapts to user type', 'Robust performance', 'Combines multiple paradigms'],
-                'ideal_for': ['Production systems', 'Best accuracy', 'All user types', 'Research comparison'],
-                'complexity': 'Very High',
-                'speed': 'Medium',
-                'interpretability': 'Medium',
-                'icon': '🚀'
-            }
-        }
-        
-        return info_map.get(algorithm_type, {})
+        return self.factory.get_algorithm_info(algorithm_type)
     
     def get_performance_comparison(self) -> pd.DataFrame:
         """
         Get performance comparison of all trained algorithms.
         
+        Phase 3E: Delegated to PerformanceMonitor.
+        
         Returns:
             DataFrame with performance metrics
         """
-        performance_data = []
-        
-        for algorithm_type, algorithm in self._algorithms.items():
-            if algorithm.is_trained:
-                info = self.get_algorithm_info(algorithm_type)
-                performance_data.append({
-                    'Algorithm': algorithm.name,
-                    'RMSE': f"{algorithm.metrics.rmse:.4f}",
-                    'Training Time': f"{algorithm.metrics.training_time:.1f}s",
-                    'Coverage': f"{algorithm.metrics.coverage:.1f}%",
-                    'Memory Usage': f"{algorithm.metrics.memory_usage_mb:.1f} MB",
-                    'Prediction Speed': f"{algorithm.metrics.prediction_time:.4f}s",
-                    'Icon': info.get('icon', '🎯'),
-                    'Interpretability': info.get('interpretability', 'Medium')
-                })
-        
-        return pd.DataFrame(performance_data)
+        return self.performance.get_performance_comparison(self.lifecycle._algorithms)
     
     def get_cached_algorithms(self) -> List[AlgorithmType]:
         """
@@ -372,37 +157,32 @@ class AlgorithmManager:
         """
         Clear algorithm cache (useful for memory management).
         
+        Phase 3C: Delegated to LifecycleManager.
+        
         Args:
             algorithm_type: Specific algorithm to clear, or None to clear all
         """
-        with self._lock:
-            if algorithm_type is None:
-                # Clear all algorithms
-                self._algorithms.clear()
-                print("🗑️ Cleared all algorithm cache")
-            elif algorithm_type in self._algorithms:
-                # Clear specific algorithm
-                del self._algorithms[algorithm_type]
-                print(f"🗑️ Cleared {algorithm_type.value} from cache")
+        self.lifecycle.clear_cache(algorithm_type)
     
     def preload_algorithm(self, algorithm_type: AlgorithmType, 
                          custom_params: Optional[Dict[str, Any]] = None) -> None:
         """
         Preload an algorithm in the background for faster switching.
         
+        Phase 3C: Delegated to LifecycleManager.
+        
         Args:
             algorithm_type: Algorithm to preload
             custom_params: Optional custom parameters
         """
-        if algorithm_type not in self._algorithms:
-            print(f"🔄 Preloading {algorithm_type.value} in background...")
-            # This will cache the algorithm for future use
-            self.get_algorithm(algorithm_type, custom_params)
+        self.lifecycle.preload_algorithm(algorithm_type, custom_params)
     
     def get_recommendation_explanation(self, algorithm_type: AlgorithmType,
                                     user_id: int, movie_id: int) -> str:
         """
         Get human-readable explanation for why a movie was recommended.
+        
+        Phase 3D: Delegated to AlgorithmFactory (with algorithm context lookup).
         
         Args:
             algorithm_type: Algorithm that made the recommendation
@@ -412,158 +192,48 @@ class AlgorithmManager:
         Returns:
             Human-readable explanation string
         """
-        if algorithm_type not in self._algorithms:
+        # Get the algorithm and its context
+        algorithm = self.lifecycle.get_current_algorithm()
+        if not algorithm:
             return "Algorithm not loaded."
         
-        algorithm = self._algorithms[algorithm_type]
         context = algorithm.get_explanation_context(user_id, movie_id)
         
-        if not context:
-            return "Unable to generate explanation."
-        
-        # Generate explanation based on algorithm type and context
-        if algorithm_type == AlgorithmType.SVD:
-            return self._explain_svd(context)
-        elif algorithm_type == AlgorithmType.USER_KNN:
-            return self._explain_user_knn(context)
-        elif algorithm_type == AlgorithmType.ITEM_KNN:
-            return self._explain_item_knn(context)
-        elif algorithm_type == AlgorithmType.HYBRID:
-            return self._explain_hybrid(context)
-        
-        return "Explanation not available."
-    
-    def _explain_svd(self, context: Dict[str, Any]) -> str:
-        """Generate SVD-specific explanation"""
-        pred = context.get('prediction', 0)
-        return (f"SVD predicts you'll rate this movie **{pred:.1f}/5.0** based on "
-               f"latent patterns discovered in your rating history and similar users' preferences.")
-    
-    def _explain_user_knn(self, context: Dict[str, Any]) -> str:
-        """Generate User KNN-specific explanation"""
-        similar_users = context.get('similar_users_count', 0)
-        pred = context.get('prediction', 0)
-        
-        if similar_users > 0:
-            return (f"**{similar_users} users** with similar taste loved this movie! "
-                   f"Predicted rating: **{pred:.1f}/5.0**")
-        else:
-            return f"Based on users with similar preferences. Predicted rating: **{pred:.1f}/5.0**"
-    
-    def _explain_item_knn(self, context: Dict[str, Any]) -> str:
-        """Generate Item KNN-specific explanation"""
-        similar_movies = context.get('similar_movies_count', 0)
-        pred = context.get('prediction', 0)
-        
-        if similar_movies > 0:
-            return (f"Because you enjoyed **{similar_movies} similar movies**. "
-                   f"Predicted rating: **{pred:.1f}/5.0**")
-        else:
-            return f"Based on movies with similar rating patterns. Predicted rating: **{pred:.1f}/5.0**"
-    
-    def _explain_hybrid(self, context: Dict[str, Any]) -> str:
-        """Generate Hybrid-specific explanation"""
-        primary = context.get('primary_algorithm', 'multiple algorithms')
-        pred = context.get('prediction', 0)
-        weights = context.get('algorithm_weights', {})
-        
-        return (f"Hybrid prediction (**{pred:.1f}/5.0**) combining multiple algorithms. "
-               f"Primary method: **{primary}**. Algorithm weights: "
-               f"SVD {weights.get('svd', 0):.2f}, User KNN {weights.get('user_knn', 0):.2f}, "
-               f"Item KNN {weights.get('item_knn', 0):.2f}")
+        # Delegate explanation generation to factory
+        return self.factory.get_recommendation_explanation(algorithm_type, context)
 
     def get_algorithm_metrics(self, algorithm_type: AlgorithmType) -> Dict[str, Any]:
-        """Get performance metrics for a specific algorithm with caching"""
-        # PERFORMANCE FIX: Cache metrics to avoid expensive re-calculation
-        cache_key = f"_metrics_cache_{algorithm_type.value}"
-        if hasattr(self, cache_key):
-            cached_metrics = getattr(self, cache_key)
-            print(f"✓ Using cached metrics for {algorithm_type.value}")
-            return cached_metrics
+        """
+        Get performance metrics for a specific algorithm with caching.
         
+        Phase 3E: Delegated to PerformanceMonitor.
+        
+        Args:
+            algorithm_type: Type of algorithm to get metrics for
+            
+        Returns:
+            Dictionary with performance metrics
+        """
         # Get or train the algorithm
         algorithm = self.get_algorithm(algorithm_type)
         
-        if not algorithm.is_trained:
-            return {
-                "algorithm": algorithm_type.value,
-                "status": "Not trained",
-                "metrics": {}
-            }
-        
-        # Get basic algorithm info
-        info = self.get_algorithm_info(algorithm_type)
-        
-        # Create a sample of test data for metrics calculation
-        if self._training_data is not None and len(self._training_data[0]) > 1000:
-            ratings_df = self._training_data[0]
-            # Use a small sample for quick metrics calculation
-            sample_size = min(1000, len(ratings_df) // 10)
-            test_sample = ratings_df.sample(n=sample_size, random_state=42)
-            
-            predictions = []
-            actuals = []
-            
-            print(f"🔍 Debug: Testing {len(test_sample)} samples for {algorithm_type.value}")
-            
-            for i, (_, row) in enumerate(test_sample.iterrows()):
-                try:
-                    pred = algorithm.predict(row['userId'], row['movieId'])
-                    if pred is not None and pred > 0:
-                        predictions.append(pred)
-                        actuals.append(row['rating'])
-                except Exception as e:
-                    # Skip failed predictions
-                    if i < 5:  # Only print first 5 errors to avoid spam
-                        print(f"    ❌ Prediction failed for user {row['userId']}, movie {row['movieId']}: {e}")
-                    continue
-            
-            print(f"    ✓ Got {len(predictions)} valid predictions out of {len(test_sample)} samples")
-            
-            # Calculate metrics if we have predictions
-            metrics = {}
-            if predictions and len(predictions) > 1:  # Reduced threshold from 10 to 1
-                import numpy as np
-                from sklearn.metrics import mean_squared_error, mean_absolute_error
-                
-                rmse = np.sqrt(mean_squared_error(actuals, predictions))
-                mae = mean_absolute_error(actuals, predictions)
-                
-                metrics = {
-                    "rmse": round(rmse, 3),
-                    "mae": round(mae, 3),
-                    "sample_size": len(predictions),
-                    "coverage": round(len(predictions) / len(test_sample) * 100, 1)
-                }
-            else:
-                print(f"    ❌ Insufficient predictions: got {len(predictions)}, need at least 2")
-                metrics = {
-                    "error": f"Insufficient valid predictions for metrics calculation (got {len(predictions)})",
-                    "predictions_count": len(predictions),
-                    "sample_size": len(test_sample)
-                }
-        else:
-            metrics = {
-                "error": "Insufficient data for metrics calculation"
-            }
-        
-        result = {
-            "algorithm": algorithm_type.value,
-            "status": "Trained",
-            "training_time": info.get("training_time", "Unknown"),
-            "model_size": info.get("model_size", "Unknown"),
-            "metrics": metrics,
-            "last_updated": info.get("last_updated", "Unknown")
-        }
-        
-        # PERFORMANCE FIX: Cache the result to avoid expensive re-calculation
-        cache_key = f"_metrics_cache_{algorithm_type.value}"
-        setattr(self, cache_key, result)
-        
-        return result
+        # Delegate to PerformanceMonitor
+        return self.performance.get_algorithm_metrics(
+            algorithm,
+            algorithm_type,
+            training_data=self.lifecycle._training_data,
+            use_cache=True
+        )
 
     def get_all_algorithm_metrics(self) -> Dict[str, Dict[str, Any]]:
-        """Get performance metrics for all available algorithms"""
+        """
+        Get performance metrics for all available algorithms.
+        
+        Phase 3E: Simplified iteration over available algorithms.
+        
+        Returns:
+            Dictionary mapping algorithm names to their metrics
+        """
         all_metrics = {}
         
         for algorithm_type in self.get_available_algorithms():
