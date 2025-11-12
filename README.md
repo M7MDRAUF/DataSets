@@ -813,16 +813,6 @@ This project is created for academic purposes (Master's Thesis).
 
 ---
 
-## Contact
-
-**Author**: [Your Name]  
-**Email**: [Your Email]  
-**University**: [Your University]  
-**Program**: Master's in [Your Program]  
-**Year**: 2025
-
----
-
 ## References
 
 1. Koren, Y., Bell, R., & Volinsky, C. (2009). Matrix factorization techniques for recommender systems. *Computer*, 42(8), 30-37.
