@@ -74,9 +74,9 @@ class ItemKNNRecommender(BaseRecommender):
         self.ratings_df = ratings_df.copy()
         self.movies_df = movies_df.copy()
         
-        # Add genres_list column if not present
+        # Add genres_list column if not present (as tuples for hashability)
         if 'genres_list' not in self.movies_df.columns:
-            self.movies_df['genres_list'] = self.movies_df['genres'].str.split('|')
+            self.movies_df['genres_list'] = self.movies_df['genres'].str.split('|').apply(tuple)
         
         print("  • Creating item-user matrix...")
         self._create_item_user_matrix(ratings_df)
@@ -318,6 +318,7 @@ class ItemKNNRecommender(BaseRecommender):
                 # Use popularity-based sampling + random sampling for efficiency
                 print(f"  • Large candidate set ({len(candidate_movies)}), using smart sampling...")
                 candidate_movies = self._smart_sample_candidates(candidate_movies, max_candidates=5000)
+                print(f"  ✓ Sampled down to {len(candidate_movies)} candidates")
             
             print(f"  • Evaluating {len(candidate_movies)} candidate movies...")
             
@@ -348,22 +349,30 @@ class ItemKNNRecommender(BaseRecommender):
             self._end_prediction_timer()
     
     def _smart_sample_candidates(self, candidate_movies: set, max_candidates: int = 5000) -> set:
-        """Smart sampling of candidate movies for efficiency"""
-        # Get popularity scores for sampling
-        movie_popularity = self.ratings_df[
-            self.ratings_df['movieId'].isin(candidate_movies)
-        ].groupby('movieId').agg({
-            'rating': ['count', 'mean']
-        })
-        movie_popularity.columns = ['count', 'mean_rating']
-        movie_popularity['popularity'] = movie_popularity['count'] * movie_popularity['mean_rating']
+        """Smart sampling of candidate movies for efficiency - OPTIMIZED"""
+        # PERFORMANCE FIX: Use pre-computed popularity to avoid slow .isin() on 32M rows
+        
+        # Use cached movie stats to avoid recomputing
+        if not hasattr(self, '_all_movie_stats'):
+            self._all_movie_stats = self.ratings_df.groupby('movieId').agg({
+                'rating': ['count', 'mean']
+            })
+            self._all_movie_stats.columns = ['count', 'mean_rating']
+            self._all_movie_stats['popularity'] = self._all_movie_stats['count'] * self._all_movie_stats['mean_rating']
+        
+        # Filter to candidate movies (filtering pre-computed stats is fast)
+        available_movies = self._all_movie_stats[self._all_movie_stats.index.isin(candidate_movies)]
+        
+        # If we have few movies with stats, just return them all
+        if len(available_movies) <= max_candidates:
+            return candidate_movies
         
         # Sample: 70% popular movies + 30% random for diversity
         popular_count = int(max_candidates * 0.7)
         random_count = max_candidates - popular_count
         
         # Get most popular movies
-        top_popular = movie_popularity.nlargest(min(popular_count, len(movie_popularity)), 'popularity').index.tolist()
+        top_popular = available_movies.nlargest(min(popular_count, len(available_movies)), 'popularity').index.tolist()
         
         # Get random sample from remaining
         remaining_movies = list(candidate_movies - set(top_popular))

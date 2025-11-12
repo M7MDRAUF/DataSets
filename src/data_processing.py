@@ -168,8 +168,9 @@ def load_movies() -> pd.DataFrame:
     
     df = pd.read_csv(movies_path, dtype={'movieId': 'int32'})
     
-    # Parse genres (pipe-separated) into list
-    df['genres_list'] = df['genres'].str.split('|')
+    # Parse genres (pipe-separated) into tuple for hashability (Streamlit caching)
+    # CRITICAL: Tuples are immutable and hashable, enabling efficient DataFrame caching
+    df['genres_list'] = df['genres'].str.split('|').apply(tuple)
     
     print(f"  ✓ Loaded {len(df):,} movies")
     return df
