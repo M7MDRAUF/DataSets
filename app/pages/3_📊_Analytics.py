@@ -173,7 +173,6 @@ try:
     
     # TAB 1: Algorithm Performance Analysis (NEW V2.0 Feature)
     with tab1:
-        st.markdown("## 🤖 Multi-Algorithm Performance Analysis")
         st.markdown("Compare and analyze different recommendation algorithms")
         
         # Algorithm performance comparison
@@ -289,8 +288,6 @@ try:
     
     # TAB 2: Genre Analysis
     with tab2:
-        st.markdown("## 🎭 Genre Distribution & Patterns")
-        
         col1, col2 = st.columns(2)
         
         with col1:
@@ -375,8 +372,6 @@ try:
     
     # TAB 3: Temporal Trends
     with tab3:
-        st.markdown("## 📅 Movie Release Trends Over Time")
-        
         # Extract years from titles
         movies_df_temp = movies_df.copy()
         movies_df_temp['year'] = movies_df_temp['title'].apply(extract_year_from_title)
@@ -459,8 +454,6 @@ try:
     
     # TAB 4: Popularity Metrics
     with tab4:
-        st.markdown("## 🔥 Movie Popularity Analysis")
-        
         # Calculate movie statistics
         movie_stats = ratings_df.groupby('movieId').agg({
             'rating': ['mean', 'count', 'std']
@@ -546,8 +539,7 @@ try:
     
     # TAB 5: Movie Similarity Explorer
     with tab5:
-        st.markdown("## 🔍 V2.0 Movie Similarity Explorer")
-        st.markdown("### Discover similar movies using advanced AI algorithms")
+        st.markdown("Discover similar movies using advanced AI algorithms")
         
         # Algorithm selection for similarity
         col1, col2 = st.columns([2, 1])

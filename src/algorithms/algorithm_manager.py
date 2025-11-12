@@ -100,13 +100,15 @@ class AlgorithmManager:
         print("🎯 Algorithm Manager initialized with data")
     
     def get_algorithm(self, algorithm_type: AlgorithmType, 
-                     custom_params: Optional[Dict[str, Any]] = None) -> BaseRecommender:
+                     custom_params: Optional[Dict[str, Any]] = None,
+                     suppress_ui: bool = False) -> BaseRecommender:
         """
         Get a trained algorithm instance with lazy loading.
         
         Args:
             algorithm_type: Type of algorithm to get
             custom_params: Optional custom parameters (overrides defaults)
+            suppress_ui: If True, suppress st.spinner and st.success UI elements
             
         Returns:
             Trained BaseRecommender instance
@@ -143,25 +145,34 @@ class AlgorithmManager:
             # Train algorithm if no pre-trained model available
             ratings_df, movies_df = self._training_data
             
-            # Show progress in Streamlit
-            with st.spinner(f'Training {algorithm.name}... This may take a moment.'):
+            # Show progress in Streamlit (only if not suppressed)
+            if suppress_ui:
+                # Train without UI updates (used when called from Hybrid algorithm)
                 start_time = time.time()
                 algorithm.fit(ratings_df, movies_df)
                 training_time = time.time() - start_time
-                
-                # Cache the trained algorithm
                 self._algorithms[algorithm_type] = algorithm
-                
                 print(f"✓ {algorithm.name} trained in {training_time:.1f}s")
-                
-                # Show success message
-                st.success(f"✅ {algorithm.name} ready! (Trained in {training_time:.1f}s)")
+            else:
+                # Normal training with UI feedback
+                with st.spinner(f'Training {algorithm.name}... This may take a moment.'):
+                    start_time = time.time()
+                    algorithm.fit(ratings_df, movies_df)
+                    training_time = time.time() - start_time
+                    
+                    # Cache the trained algorithm
+                    self._algorithms[algorithm_type] = algorithm
+                    
+                    print(f"✓ {algorithm.name} trained in {training_time:.1f}s")
+                    
+                    # Show success message
+                    st.success(f"✅ {algorithm.name} ready! (Trained in {training_time:.1f}s)")
                 
             return algorithm
     
     def _try_load_pretrained_model(self, algorithm: BaseRecommender, algorithm_type: AlgorithmType) -> bool:
         """
-        Try to load a pre-trained model for KNN algorithms.
+        Try to load a pre-trained model for KNN, Content-Based, and Hybrid algorithms.
         
         Args:
             algorithm: The algorithm instance to load into
@@ -170,15 +181,16 @@ class AlgorithmManager:
         Returns:
             True if model was loaded successfully, False otherwise
         """
-        # Only try to load for KNN and Content-Based algorithms
-        if algorithm_type not in [AlgorithmType.USER_KNN, AlgorithmType.ITEM_KNN, AlgorithmType.CONTENT_BASED]:
+        # Only try to load for KNN, Content-Based, and Hybrid algorithms
+        if algorithm_type not in [AlgorithmType.USER_KNN, AlgorithmType.ITEM_KNN, AlgorithmType.CONTENT_BASED, AlgorithmType.HYBRID]:
             return False
         
         # Define model paths
         model_paths = {
             AlgorithmType.USER_KNN: Path("models/user_knn_model.pkl"),
             AlgorithmType.ITEM_KNN: Path("models/item_knn_model.pkl"),
-            AlgorithmType.CONTENT_BASED: Path("models/content_based_model.pkl")
+            AlgorithmType.CONTENT_BASED: Path("models/content_based_model.pkl"),
+            AlgorithmType.HYBRID: Path("models/hybrid_model.pkl")
         }
         
         model_path = model_paths.get(algorithm_type)
@@ -204,6 +216,29 @@ class AlgorithmManager:
             if 'genres_list' not in algorithm.movies_df.columns:
                 algorithm.movies_df['genres_list'] = algorithm.movies_df['genres'].str.split('|')
             print(f"   • Data context provided to loaded model")
+            
+            # CRITICAL FIX: For Hybrid algorithm, also provide data context to sub-algorithms
+            # Sub-algorithms need ratings_df/movies_df for fallback methods like _get_popular_movies()
+            if algorithm_type == AlgorithmType.HYBRID:
+                print(f"   • Providing data context to Hybrid sub-algorithms...")
+                algorithm.svd_model.ratings_df = ratings_df.copy()
+                algorithm.svd_model.movies_df = movies_df.copy()
+                algorithm.user_knn_model.ratings_df = ratings_df.copy()
+                algorithm.user_knn_model.movies_df = movies_df.copy()
+                algorithm.item_knn_model.ratings_df = ratings_df.copy()
+                algorithm.item_knn_model.movies_df = movies_df.copy()
+                algorithm.content_based_model.ratings_df = ratings_df.copy()
+                algorithm.content_based_model.movies_df = movies_df.copy()
+                # Add genres_list to sub-algorithms
+                if 'genres_list' not in algorithm.svd_model.movies_df.columns:
+                    algorithm.svd_model.movies_df['genres_list'] = algorithm.svd_model.movies_df['genres'].str.split('|')
+                if 'genres_list' not in algorithm.user_knn_model.movies_df.columns:
+                    algorithm.user_knn_model.movies_df['genres_list'] = algorithm.user_knn_model.movies_df['genres'].str.split('|')
+                if 'genres_list' not in algorithm.item_knn_model.movies_df.columns:
+                    algorithm.item_knn_model.movies_df['genres_list'] = algorithm.item_knn_model.movies_df['genres'].str.split('|')
+                if 'genres_list' not in algorithm.content_based_model.movies_df.columns:
+                    algorithm.content_based_model.movies_df['genres_list'] = algorithm.content_based_model.movies_df['genres'].str.split('|')
+                print(f"   ✓ Data context provided to all 4 sub-algorithms")
             
             # Verify the model is properly loaded and trained
             if algorithm.is_trained:
@@ -231,28 +266,30 @@ class AlgorithmManager:
         return None
     
     def switch_algorithm(self, algorithm_type: AlgorithmType, 
-                        custom_params: Optional[Dict[str, Any]] = None) -> BaseRecommender:
+                        custom_params: Optional[Dict[str, Any]] = None,
+                        suppress_ui: bool = False) -> BaseRecommender:
         """
         Switch to a different algorithm with smooth transition.
         
         Args:
             algorithm_type: Algorithm to switch to
             custom_params: Optional custom parameters
+            suppress_ui: If True, suppress UI updates (for nested contexts)
             
         Returns:
             The new algorithm instance
         """
         print(f"🔄 Switching to {algorithm_type.value}")
         
-        # Store selection in session state
-        st.session_state.selected_algorithm = algorithm_type
-        
         # Get the algorithm (will load if not cached)
-        algorithm = self.get_algorithm(algorithm_type, custom_params)
+        # Don't write to session_state during training as it causes reruns!
+        algorithm = self.get_algorithm(algorithm_type, custom_params, suppress_ui=suppress_ui)
         
-        # Update UI state
-        if 'algorithm_switched' not in st.session_state:
-            st.session_state.algorithm_switched = True
+        # Only update session state if not suppressing UI (avoid rerun during training)
+        if not suppress_ui:
+            st.session_state.selected_algorithm = algorithm_type
+            if 'algorithm_switched' not in st.session_state:
+                st.session_state.algorithm_switched = True
         
         return algorithm
     

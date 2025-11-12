@@ -28,6 +28,11 @@ from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.preprocessing import normalize
 import re
 
+# Module-level identity function (picklable, unlike lambdas)
+def identity_function(x):
+    """Identity function for TfidfVectorizer - returns input unchanged."""
+    return x
+
 warnings.filterwarnings('ignore')
 
 # Add parent directory to path for imports
@@ -84,11 +89,11 @@ class ContentBasedRecommender(BaseRecommender):
         self.title_weight = title_weight
         self.min_similarity = min_similarity
         
-        # Feature extractors
+        # Feature extractors (use identity_function instead of lambda for picklability)
         self.genre_vectorizer = TfidfVectorizer(
-            tokenizer=lambda x: x,
+            tokenizer=identity_function,
             lowercase=False,
-            preprocessor=lambda x: x
+            preprocessor=identity_function
         )
         self.tag_vectorizer = TfidfVectorizer(
             max_features=500,
@@ -942,8 +947,22 @@ class ContentBasedRecommender(BaseRecommender):
         if metrics_data:
             self.metrics.rmse = metrics_data.get('rmse', 0.0)
             self.metrics.training_time = metrics_data.get('training_time', 0.0)
-            self.metrics.coverage = metrics_data.get('coverage', 0.0)
+            self.metrics.coverage = metrics_data.get('coverage', 100.0)  # Default to 100% for content-based
             self.metrics.memory_usage_mb = metrics_data.get('memory_mb', 0.0)
+        else:
+            # If no metrics saved, calculate them now
+            self.metrics.coverage = 100.0
+            if self.combined_features is not None:
+                # Calculate memory usage
+                total_bytes = 0
+                total_bytes += self.combined_features.data.nbytes
+                total_bytes += self.combined_features.indices.nbytes
+                total_bytes += self.combined_features.indptr.nbytes
+                if self.similarity_matrix is not None:
+                    total_bytes += self.similarity_matrix.data.nbytes
+                    total_bytes += self.similarity_matrix.indices.nbytes
+                    total_bytes += self.similarity_matrix.indptr.nbytes
+                self.metrics.memory_usage_mb = total_bytes / (1024 * 1024)
         
         self.is_trained = True
     
@@ -964,10 +983,11 @@ class ContentBasedRecommender(BaseRecommender):
         
         # Recreate genre_vectorizer from saved vocabulary
         if '_genre_vocab' in state:
+            # Use the module-level functions instead of lambdas (they're picklable)
             self.genre_vectorizer = TfidfVectorizer(
-                tokenizer=lambda x: x,
+                tokenizer=identity_function,
                 lowercase=False,
-                preprocessor=lambda x: x
+                preprocessor=identity_function
             )
             self.genre_vectorizer.vocabulary_ = state['_genre_vocab']
             if state.get('_genre_idf') is not None:
@@ -976,3 +996,6 @@ class ContentBasedRecommender(BaseRecommender):
             del self._genre_vocab
             if hasattr(self, '_genre_idf'):
                 del self._genre_idf
+        
+        # Mark as trained (critical for Hybrid loading)
+        self.is_trained = True

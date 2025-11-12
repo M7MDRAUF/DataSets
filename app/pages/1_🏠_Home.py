@@ -261,51 +261,11 @@ try:
                 # Generate recommendations
                 recommendations = algorithm.get_recommendations(user_id, n=num_recommendations, exclude_rated=True)
                 
-                st.success(f"✅ Generated {len(recommendations)} recommendations using {selected_algorithm}!")
-                
-                # Display recommendations
-                st.markdown(f"### 🎬 Recommendations for User {user_id}")
-                st.markdown(f"*Powered by {selected_algorithm} algorithm*")
-                
-                # Show recommendations in a nice grid
-                cols = st.columns(2)
-                for idx, (_, movie) in enumerate(recommendations.iterrows()):
-                    col = cols[idx % 2]
-                    
-                    with col:
-                        st.markdown(f"""
-                        <div class="movie-card">
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                                <span style="font-weight: bold; font-size: 1.1rem;">#{idx + 1}</span>
-                                <span style="color: #ffd700; font-size: 1.2rem;">⭐ {movie.get('predicted_rating', 'N/A')}</span>
-                            </div>
-                            <h4 style="margin: 0.5rem 0; color: white;">{movie['title']}</h4>
-                            <p style="color: #ccc; font-size: 0.9rem; margin: 0.25rem 0;">
-                                <strong>Genres:</strong> {movie['genres']}
-                            </p>
-                            {f'<p style="color: #ddd; font-size: 0.8rem; margin-top: 0.5rem;"><strong>Why recommended:</strong> {movie.get("explanation", "Based on your preferences")}</p>' if movie.get("explanation") else ''}
-                        </div>
-                        """, unsafe_allow_html=True)
-                
-                # Show algorithm performance metrics if available
-                if hasattr(manager, 'get_algorithm_metrics'):
-                    try:
-                        metrics = manager.get_algorithm_metrics(algorithm_type)
-                        if metrics:
-                            st.markdown("### 📊 Algorithm Performance")
-                            
-                            perf_cols = st.columns(4)
-                            with perf_cols[0]:
-                                st.metric("RMSE", f"{metrics.rmse:.4f}" if hasattr(metrics, 'rmse') else "N/A")
-                            with perf_cols[1]:
-                                st.metric("MAE", f"{metrics.mae:.4f}" if hasattr(metrics, 'mae') else "N/A")
-                            with perf_cols[2]:
-                                st.metric("Training Time", f"{metrics.training_time:.2f}s" if hasattr(metrics, 'training_time') else "N/A")
-                            with perf_cols[3]:
-                                st.metric("Prediction Time", f"{metrics.prediction_time:.4f}s" if hasattr(metrics, 'prediction_time') else "N/A")
-                    except Exception as e:
-                        st.debug(f"Metrics display error: {e}")
-                
+                # Store in session state to persist across reruns
+                st.session_state.home_recommendations = recommendations
+                st.session_state.home_algorithm = selected_algorithm
+                st.session_state.home_algorithm_obj = algorithm
+                st.session_state.home_user_id = user_id
         except Exception as e:
             st.error(f"❌ Error generating recommendations: {str(e)}")
             st.info("""
@@ -314,6 +274,78 @@ try:
             2. Ensure the dataset is properly loaded
             3. Check if the user ID exists in the dataset
             """)
+            # Clear any partial state
+            if 'home_recommendations' in st.session_state:
+                del st.session_state.home_recommendations
+    
+    # Display recommendations if available in session state
+    if 'home_recommendations' in st.session_state and st.session_state.home_recommendations is not None:
+        recommendations = st.session_state.home_recommendations
+        selected_algorithm = st.session_state.home_algorithm
+        algorithm = st.session_state.home_algorithm_obj
+        user_id = st.session_state.home_user_id
+        
+        try:
+            st.success(f"✅ Generated {len(recommendations)} recommendations using {selected_algorithm}!")
+            
+            # Display recommendations
+            st.markdown(f"### 🎬 Recommendations for User {user_id}")
+            st.markdown(f"*Powered by {selected_algorithm} algorithm*")
+            
+            # Show recommendations in a nice grid
+            cols = st.columns(2)
+            for idx, (_, movie) in enumerate(recommendations.iterrows()):
+                col = cols[idx % 2]
+                
+                with col:
+                    st.markdown(f"""
+                    <div class="movie-card">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                            <span style="font-weight: bold; font-size: 1.1rem;">#{idx + 1}</span>
+                            <span style="color: #ffd700; font-size: 1.2rem;">⭐ {movie.get('predicted_rating', 'N/A')}</span>
+                        </div>
+                        <h4 style="margin: 0.5rem 0; color: white;">{movie['title']}</h4>
+                        <p style="color: #ccc; font-size: 0.9rem; margin: 0.25rem 0;">
+                            <strong>Genres:</strong> {movie['genres']}
+                        </p>
+                        {f'<p style="color: #ddd; font-size: 0.8rem; margin-top: 0.5rem;"><strong>Why recommended:</strong> {movie.get("explanation", "Based on your preferences")}</p>' if movie.get("explanation") else ''}
+                    </div>
+                    """, unsafe_allow_html=True)
+            
+            # Show algorithm performance metrics - read directly from algorithm object
+            st.markdown("### 📊 Algorithm Performance")
+            
+            # Debug logging
+            print(f"🔍 DEBUG Home Page Metrics Display:")
+            print(f"  Algorithm: {selected_algorithm}")
+            if hasattr(algorithm, 'is_trained'):
+                print(f"  Is Trained: {algorithm.is_trained}")
+            print(f"  Has Metrics: {hasattr(algorithm, 'metrics')}")
+            if hasattr(algorithm, 'metrics'):
+                print(f"  RMSE: {algorithm.metrics.rmse}")
+                print(f"  Training Time: {algorithm.metrics.training_time}")
+                print(f"  Coverage: {algorithm.metrics.coverage}")
+                print(f"  Memory: {algorithm.metrics.memory_usage_mb}")
+            
+            perf_cols = st.columns(4)
+            with perf_cols[0]:
+                rmse_val = algorithm.metrics.rmse if hasattr(algorithm, 'metrics') and algorithm.metrics.rmse > 0 else None
+                st.metric("RMSE", f"{rmse_val:.4f}" if rmse_val else "N/A")
+            with perf_cols[1]:
+                coverage_val = algorithm.metrics.coverage if hasattr(algorithm, 'metrics') and algorithm.metrics.coverage > 0 else None
+                st.metric("Coverage", f"{coverage_val:.1f}%" if coverage_val else "N/A")
+            with perf_cols[2]:
+                train_time = algorithm.metrics.training_time if hasattr(algorithm, 'metrics') and algorithm.metrics.training_time > 0 else None
+                st.metric("Training Time", f"{train_time:.2f}s" if train_time else "N/A")
+            with perf_cols[3]:
+                memory_val = algorithm.metrics.memory_usage_mb if hasattr(algorithm, 'metrics') and algorithm.metrics.memory_usage_mb > 0 else None
+                st.metric("Memory Usage", f"{memory_val:.1f} MB" if memory_val else "N/A")
+                    
+        except Exception as e:
+            st.error(f"❌ Error displaying recommendations: {str(e)}")
+            # Clear session state on error
+            if 'home_recommendations' in st.session_state:
+                del st.session_state.home_recommendations
     
     st.markdown("---")
     

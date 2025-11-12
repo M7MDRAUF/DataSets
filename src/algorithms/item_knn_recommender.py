@@ -689,7 +689,13 @@ class ItemKNNRecommender(BaseRecommender):
             'item_means': self.item_means,
             'global_mean': self.global_mean,
             'similarity_matrix': self.similarity_matrix,
-            'valid_items': self.valid_items
+            'valid_items': self.valid_items,
+            'metrics': {
+                'rmse': self.metrics.rmse,
+                'training_time': self.metrics.training_time,
+                'coverage': self.metrics.coverage,
+                'memory_usage_mb': self.metrics.memory_usage_mb
+            }
         }
     
     def _set_model_state(self, state: Dict[str, Any]) -> None:
@@ -706,6 +712,18 @@ class ItemKNNRecommender(BaseRecommender):
         self.similarity_matrix = state.get('similarity_matrix')
         self.valid_items = state['valid_items']
         
+        # Restore metrics if available
+        if 'metrics' in state:
+            metrics_data = state['metrics']
+            self.metrics.rmse = metrics_data.get('rmse', 0.0)
+            self.metrics.training_time = metrics_data.get('training_time', 0.0)
+            self.metrics.coverage = metrics_data.get('coverage', 0.0)
+            self.metrics.memory_usage_mb = metrics_data.get('memory_usage_mb', 0.0)
+        else:
+            # Calculate coverage from loaded model if metrics not saved
+            if self.valid_items and self.movies_df is not None:
+                self.metrics.coverage = (len(self.valid_items) / len(self.movies_df)) * 100
+        
         # Recreate KNN model
         self.knn_model = NearestNeighbors(
             n_neighbors=self.n_neighbors + 1,
@@ -714,6 +732,9 @@ class ItemKNNRecommender(BaseRecommender):
         )
         if self.item_user_matrix is not None:
             self.knn_model.fit(self.item_user_matrix)
+        
+        # Mark as trained (critical for Hybrid loading)
+        self.is_trained = True
     
     def get_explanation_context(self, user_id: int, movie_id: int) -> Dict[str, Any]:
         """

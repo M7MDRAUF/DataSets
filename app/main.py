@@ -1,10 +1,10 @@
 """
-CineMatch V1.0.0 - Main Application Entry Point
+CineMatch V2.0 - Main Application Entry Point
 
-Streamlit multi-page application for movie recommendations.
+Streamlit multi-page application for movie recommendations with multi-algorithm support.
 
 Author: CineMatch Team
-Date: October 24, 2025
+Date: November 11, 2025
 """
 
 import streamlit as st
@@ -19,12 +19,12 @@ from src.data_processing import check_data_integrity
 
 # Page configuration
 st.set_page_config(
-    page_title="CineMatch - Intelligent Movie Recommendations",
+    page_title="CineMatch V2.0 - Multi-Algorithm Recommendations",
     page_icon="🎬",
     layout="wide",
     initial_sidebar_state="expanded",
     menu_items={
-        'About': "CineMatch V1.0.0 - Intelligent Movie Recommendation Engine\n\nBuilt with collaborative filtering (SVD) on MovieLens 32M dataset."
+        'About': "CineMatch V2.0 - Multi-Algorithm Movie Recommendation Engine\n\nBuilt with 5 advanced algorithms: SVD, User-KNN, Item-KNN, Content-Based, and Hybrid on MovieLens 32M dataset."
     }
 )
 
@@ -99,31 +99,36 @@ st.sidebar.markdown("""
 ### 📖 Navigation
 
 - **🏠 Home**: Project overview & statistics
-- **🎬 Recommend**: Get personalized recommendations  
+- **🎬 Recommend**: Multi-algorithm recommendations  
 - **📊 Analytics**: Explore dataset insights
 
 ### ℹ️ About
 
-CineMatch uses collaborative filtering (SVD matrix factorization) to provide personalized movie recommendations with explainable AI.
+CineMatch V2.0 offers **5 advanced algorithms** to provide personalized movie recommendations with explainable AI.
 
-**Version**: 1.0.0  
+**Version**: 2.0  
 **Dataset**: MovieLens 32M  
-**Algorithm**: SVD (Surprise)
+**Algorithms**: 
+- 🔮 SVD Matrix Factorization
+- 👥 User-Based KNN
+- 🎬 Item-Based KNN
+- 📝 Content-Based Filtering
+- 🚀 Hybrid (Best of All)
 """)
 
 # Main header
-st.markdown('<h1 class="main-header">🎬 CineMatch</h1>', unsafe_allow_html=True)
-st.markdown('<p class="sub-header">Intelligent Movie Recommendation Engine powered by Collaborative Filtering</p>', unsafe_allow_html=True)
+st.markdown('<h1 class="main-header">🎬 CineMatch V2.0</h1>', unsafe_allow_html=True)
+st.markdown('<p class="sub-header">Multi-Algorithm Movie Recommendation Engine with AI-Powered Intelligence</p>', unsafe_allow_html=True)
 
 # Welcome message
 st.markdown("""
 ---
 
-Welcome to **CineMatch**, a production-grade movie recommendation system built for a master's thesis demonstration.
+Welcome to **CineMatch V2.0**, a production-grade multi-algorithm movie recommendation system built for a master's thesis demonstration.
 
 Use the **sidebar** to navigate between pages:
 - **🏠 Home** - Overview and dataset statistics
-- **🎬 Recommend** - Get personalized movie recommendations
+- **🎬 Recommend** - Choose from 5 advanced recommendation algorithms
 - **📊 Analytics** - Explore data insights and visualizations
 
 ---
@@ -131,17 +136,20 @@ Use the **sidebar** to navigate between pages:
 ### 🚀 Getting Started
 
 1. Navigate to the **🎬 Recommend** page
-2. Enter a User ID (e.g., 1, 123, 1000)
-3. Click "Get Recommendations" to see personalized movie suggestions
-4. Click "Explain" to understand why each movie was recommended
+2. **Choose your algorithm** from the sidebar (SVD, User-KNN, Item-KNN, Content-Based, or Hybrid)
+3. Enter a User ID (e.g., 1, 123, 1000)
+4. Click "Get Recommendations" to see personalized movie suggestions
+5. Click "Explain" to understand why each movie was recommended
 
 ### ✨ Key Features
 
+- 🤖 **5 Advanced Algorithms**: Choose the best algorithm for your needs
 - ✅ **Personalized Recommendations**: Based on your unique taste profile
 - ✅ **Explainable AI**: Understand *why* each movie is recommended
+- ✅ **Algorithm Comparison**: Compare performance metrics across algorithms
 - ✅ **User Taste Profiling**: See your genre preferences and rating patterns
-- ✅ **Surprise Me Mode**: Discover movies outside your usual taste
-- ✅ **Movie Similarity**: Find movies similar to ones you love
+- ✅ **Configurable Dataset Size**: From 100K to full 32M ratings
+- ✅ **Hybrid Intelligence**: Combines all algorithms for maximum accuracy
 
 ---
 
@@ -149,15 +157,18 @@ Use the **sidebar** to navigate between pages:
 
 """)
 
-col1, col2, col3 = st.columns(3)
+col1, col2, col3, col4 = st.columns(4)
 
 with col1:
     st.metric(label="Dataset", value="MovieLens 32M", delta="32M ratings")
 
 with col2:
-    st.metric(label="Algorithm", value="SVD", delta="Matrix Factorization")
+    st.metric(label="Algorithms", value="5 Advanced", delta="Multi-algorithm")
 
 with col3:
+    st.metric(label="Version", value="V2.0", delta="Latest")
+
+with col4:
     st.metric(label="Target RMSE", value="< 0.87", delta="Production-ready")
 
 st.markdown("""
@@ -166,15 +177,29 @@ st.markdown("""
 ### 🎓 Academic Context
 
 This project demonstrates:
-- Advanced collaborative filtering techniques
-- Explainable AI (XAI) for recommendation systems
-- Professional software engineering practices (Docker, testing, documentation)
-- User-centric design with interactive visualizations
+- **Multi-Algorithm Approach**: SVD, KNN (User & Item), Content-Based, and Hybrid methods
+- **Explainable AI (XAI)**: Transparent recommendation reasoning
+- **Professional Engineering**: Docker containerization, modular architecture, caching
+- **Algorithm Comparison**: Performance metrics and benchmarking
+- **User-centric Design**: Interactive visualizations and intuitive interface
+- **Scalability**: Configurable dataset sizes (100K to 32M ratings)
 
 **Built for**: Master's Thesis Defense  
-**Objective**: Showcase practical ML application with professional polish
+**Objective**: Showcase comprehensive ML recommendation system with production-grade quality
 
 ---
 
-*Navigate to the **🎬 Recommend** page to start exploring personalized recommendations!*
+### 🤖 Available Algorithms
+
+| Algorithm | Type | Best For |
+|-----------|------|----------|
+| 🔮 **SVD** | Matrix Factorization | General recommendations, cold start |
+| 👥 **User-KNN** | Collaborative Filtering | Finding similar users |
+| 🎬 **Item-KNN** | Collaborative Filtering | "If you liked X" recommendations |
+| 📝 **Content-Based** | Feature Analysis | Genre/tag-based matching |
+| 🚀 **Hybrid** | Ensemble | Maximum accuracy (combines all) |
+
+---
+
+*Navigate to the **🎬 Recommend** page to start exploring with multiple algorithms!*
 """)

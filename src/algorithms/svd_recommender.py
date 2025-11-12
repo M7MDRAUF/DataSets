@@ -78,10 +78,19 @@ class SVDRecommender(BaseRecommender):
         # Calculate coverage (% of movies that can be recommended)
         self.metrics.coverage = (len(self.model.movie_ids) / len(movies_df)) * 100
         
+        # Calculate memory usage (estimate based on model components)
+        memory_bytes = 0
+        if hasattr(self.model, 'user_factors') and self.model.user_factors is not None:
+            memory_bytes += self.model.user_factors.nbytes
+        if hasattr(self.model, 'movie_factors') and self.model.movie_factors is not None:
+            memory_bytes += self.model.movie_factors.nbytes
+        self.metrics.memory_usage_mb = memory_bytes / (1024 * 1024)
+        
         print(f"✓ {self.name} trained successfully!")
         print(f"  • Training time: {training_time:.1f}s")
         print(f"  • RMSE: {self.metrics.rmse:.4f}")
         print(f"  • Coverage: {self.metrics.coverage:.1f}%")
+        print(f"  • Memory: {self.metrics.memory_usage_mb:.1f} MB")
     
     def predict(self, user_id: int, movie_id: int) -> float:
         """Predict rating for a specific user-movie pair"""
@@ -296,6 +305,12 @@ class SVDRecommender(BaseRecommender):
                 'movie_bias': self.model.movie_bias,
                 'user_ids': self.model.user_ids,
                 'movie_ids': self.model.movie_ids
+            },
+            'metrics': {
+                'rmse': self.metrics.rmse,
+                'training_time': self.metrics.training_time,
+                'coverage': self.metrics.coverage,
+                'memory_usage_mb': self.metrics.memory_usage_mb
             }
         }
     
@@ -310,6 +325,21 @@ class SVDRecommender(BaseRecommender):
         # Restore all state
         for key, value in model_state.items():
             setattr(self.model, key, value)
+        
+        # Restore metrics if available
+        if 'metrics' in state:
+            metrics_data = state['metrics']
+            self.metrics.rmse = metrics_data.get('rmse', 0.0)
+            self.metrics.training_time = metrics_data.get('training_time', 0.0)
+            self.metrics.coverage = metrics_data.get('coverage', 0.0)
+            self.metrics.memory_usage_mb = metrics_data.get('memory_usage_mb', 0.0)
+        else:
+            # Calculate coverage from loaded model if metrics not saved
+            if hasattr(self.model, 'movie_ids') and self.movies_df is not None:
+                self.metrics.coverage = (len(self.model.movie_ids) / len(self.movies_df)) * 100
+        
+        # Mark as trained (critical for Hybrid loading)
+        self.is_trained = True
     
     def get_explanation_context(self, user_id: int, movie_id: int) -> Dict[str, Any]:
         """

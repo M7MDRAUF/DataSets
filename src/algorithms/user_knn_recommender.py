@@ -609,7 +609,13 @@ class UserKNNRecommender(BaseRecommender):
             'user_inv_mapper': self.user_inv_mapper,
             'movie_inv_mapper': self.movie_inv_mapper,
             'user_means': self.user_means,
-            'global_mean': self.global_mean
+            'global_mean': self.global_mean,
+            'metrics': {
+                'rmse': self.metrics.rmse,
+                'training_time': self.metrics.training_time,
+                'coverage': self.metrics.coverage,
+                'memory_usage_mb': self.metrics.memory_usage_mb
+            }
         }
     
     def _set_model_state(self, state: Dict[str, Any]) -> None:
@@ -624,6 +630,18 @@ class UserKNNRecommender(BaseRecommender):
         self.user_means = state['user_means']
         self.global_mean = state['global_mean']
         
+        # Restore metrics if available
+        if 'metrics' in state:
+            metrics_data = state['metrics']
+            self.metrics.rmse = metrics_data.get('rmse', 0.0)
+            self.metrics.training_time = metrics_data.get('training_time', 0.0)
+            self.metrics.coverage = metrics_data.get('coverage', 0.0)
+            self.metrics.memory_usage_mb = metrics_data.get('memory_usage_mb', 0.0)
+        else:
+            # Calculate coverage from loaded model if metrics not saved
+            if self.movie_mapper and self.movies_df is not None:
+                self.metrics.coverage = (len(self.movie_mapper) / len(self.movies_df)) * 100
+        
         # Recreate KNN model
         self.knn_model = NearestNeighbors(
             n_neighbors=self.n_neighbors + 1,
@@ -631,6 +649,9 @@ class UserKNNRecommender(BaseRecommender):
             algorithm='brute'
         )
         self.knn_model.fit(self.user_movie_matrix)
+        
+        # Mark as trained (critical for Hybrid loading)
+        self.is_trained = True
     
     def get_explanation_context(self, user_id: int, movie_id: int) -> Dict[str, Any]:
         """

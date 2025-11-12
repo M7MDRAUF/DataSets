@@ -737,7 +737,14 @@ class HybridRecommender(BaseRecommender):
             'dense_user_threshold': self.dense_user_threshold,
             'svd_model_state': self.svd_model._get_model_state(),
             'user_knn_model_state': self.user_knn_model._get_model_state(),
-            'item_knn_model_state': self.item_knn_model._get_model_state()
+            'item_knn_model_state': self.item_knn_model._get_model_state(),
+            'content_based_model_state': self.content_based_model._get_model_state(),
+            'metrics': {
+                'rmse': self.metrics.rmse,
+                'training_time': self.metrics.training_time,
+                'coverage': self.metrics.coverage,
+                'memory_usage_mb': self.metrics.memory_usage_mb
+            }
         }
     
     def _set_model_state(self, state: Dict[str, Any]) -> None:
@@ -752,6 +759,15 @@ class HybridRecommender(BaseRecommender):
         self.svd_model._set_model_state(state['svd_model_state'])
         self.user_knn_model._set_model_state(state['user_knn_model_state'])
         self.item_knn_model._set_model_state(state['item_knn_model_state'])
+        self.content_based_model._set_model_state(state['content_based_model_state'])
+        
+        # Restore metrics if available
+        if 'metrics' in state:
+            metrics_data = state['metrics']
+            self.metrics.rmse = metrics_data.get('rmse', 0.0)
+            self.metrics.training_time = metrics_data.get('training_time', 0.0)
+            self.metrics.coverage = metrics_data.get('coverage', 0.0)
+            self.metrics.memory_usage_mb = metrics_data.get('memory_usage_mb', 0.0)
     
     def get_explanation_context(self, user_id: int, movie_id: int) -> Dict[str, Any]:
         """Get explanation context for hybrid recommendations"""

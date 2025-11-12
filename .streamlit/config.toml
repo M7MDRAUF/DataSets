@@ -1,0 +1,30 @@
+[server]
+# Increase max message size to handle large data transfers (in MB)
+maxMessageSize = 500
+
+# Increase max upload size for large datasets (in MB)
+maxUploadSize = 500
+
+# Enable websocket compression for better performance
+enableWebsocketCompression = true
+
+# CRITICAL FIX: Must enable CORS when XSRF protection is enabled (fixes warning)
+enableCORS = true
+enableXsrfProtection = true
+
+# Allow long-running scripts (headless mode)
+headless = true
+
+# File watcher type - poll is more reliable in Docker
+fileWatcherType = "poll"
+
+[browser]
+# Disable usage stats collection
+gatherUsageStats = false
+
+[client]
+# Show error details
+showErrorDetails = true
+
+# Toolbar mode
+toolbarMode = "minimal"

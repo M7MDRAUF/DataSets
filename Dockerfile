@@ -25,6 +25,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY src/ ./src/
 COPY app/ ./app/
+COPY .streamlit/ ./.streamlit/
 COPY *.py ./
 
 # Create directories for data and models
@@ -52,4 +53,4 @@ ENV STREAMLIT_SERVER_ENABLE_CORS=false
 ENV STREAMLIT_SERVER_ENABLE_XSRF_PROTECTION=true
 
 # Run CineMatch V2.0 Multi-Algorithm Enhanced Interface
-CMD ["streamlit", "run", "app/pages/2_🎬_Recommend_V2.py", "--server.port=8501", "--server.address=0.0.0.0"]
+CMD ["streamlit", "run", "app/main.py", "--server.port=8501", "--server.address=0.0.0.0"]
