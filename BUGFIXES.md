@@ -368,6 +368,112 @@ All bugs verified fixed through:
 
 ---
 
+## Bug #13: Cache Name Conflict in Both KNN Models
+**Severity**: 🔴 Critical  
+**Location**: `src/algorithms/user_knn_recommender.py` (line 401), `src/algorithms/item_knn_recommender.py` (line 433)  
+**Commits**: 35d0bd0 (User KNN), d25dd4f (Item KNN)
+
+### Problem
+```python
+TypeError: DataFrame.nlargest() missing 1 required positional argument: 'columns'
+```
+System crashed and reloaded page when generating Hybrid recommendations. Both User KNN and Item KNN were affected.
+
+### Root Cause
+Cache variable `_all_movie_stats` was created as **two different types** in the same class:
+
+1. **In `_smart_sample_candidates()`** (lines 292-302):
+```python
+self._all_movie_stats = self.ratings_df.groupby('movieId').agg({
+    'rating': ['count', 'mean']
+})
+self._all_movie_stats.columns = ['count', 'mean_rating']
+self._all_movie_stats['popularity'] = ...  # DataFrame with 3 columns
+```
+
+2. **In `_batch_predict_ratings()`** (lines 395-405):
+```python
+self._all_movie_stats = self.ratings_df.groupby('movieId').size()  # Series
+```
+
+**The Conflict**: When `_smart_sample_candidates()` ran first (during large candidate sets), it cached the **DataFrame** version. Then `_batch_predict_ratings()` tried to use it as a **Series**, calling `.nlargest(2000)` without specifying a column name → **CRASH!**
+
+### Solution
+Renamed the cache in `_batch_predict_ratings()` to avoid conflict:
+
+```python
+# User KNN (commit 35d0bd0)
+if not hasattr(self, '_movie_rating_counts'):
+    self._movie_rating_counts = self.ratings_df.groupby('movieId').size()
+
+# Item KNN (commit d25dd4f)  
+if not hasattr(self, '_movie_rating_counts'):
+    self._movie_rating_counts = self.ratings_df.groupby('movieId').size()
+```
+
+Now each method has its own cache:
+- `_smart_sample_candidates`: Uses `_all_movie_stats` (DataFrame with popularity)
+- `_batch_predict_ratings`: Uses `_movie_rating_counts` (Series with counts)
+
+### Impact
+- Fixed system crashes during Hybrid recommendation generation
+- Both KNN models now work correctly
+- Hybrid can successfully aggregate all 4 algorithms
+- System completes without page reload
+
+---
+
+## Streamlit Deprecation Warning Fix
+**Severity**: 🟡 Low (Warning only)  
+**Location**: All page files in `app/pages/`  
+**Commit**: beb6e0e
+
+### Problem
+Repeated deprecation warnings in logs:
+```
+Please replace `use_container_width` with `width`.
+`use_container_width` will be removed after 2025-12-31.
+```
+
+### Solution
+Replaced all 20 instances of `use_container_width=True` with `width='stretch'`:
+- **Home.py**: 5 replacements
+- **Recommend.py**: 3 replacements
+- **Analytics.py**: 12 replacements
+
+### Impact
+Clean logs with no deprecation warnings, future-proof for Streamlit 2.0+
+
+---
+
+## Final Summary
+
+### Total Issues Fixed: 13 Critical Bugs + 1 Deprecation Warning
+
+| # | Bug | Severity | Commit |
+|---|-----|----------|--------|
+| 1 | Hybrid not loading from disk | 🔴 Critical | 8ce66b2 |
+| 2 | Missing Content-Based in state | 🔴 Critical | 8ce66b2 |
+| 3 | Lambda functions not picklable | 🔴 Critical | 8ce66b2 |
+| 4 | CORS/XSRF config warning | 🟡 Medium | 8ce66b2 |
+| 5 | Missing is_trained flags | 🔴 Critical | 8ce66b2 |
+| 6 | Data context not propagated | 🔴 Critical | 8ce66b2 |
+| 7 | Incomplete display code | 🟡 Medium | 8ce66b2 |
+| 8 | KNN performance bottleneck | 🟡 Medium | Local |
+| 9 | Unhashable list error | 🔴 Critical | 6949bb0 |
+| 10 | Infinite loop in metrics | 🔴 Critical | 4abf599 |
+| 11 | Item KNN 32M row crash | 🔴 Critical | 6d5d2ed |
+| 12 | DataFrame.nlargest() error | 🔴 Critical | b9ffcfc |
+| 13 | Cache name conflicts (both KNNs) | 🔴 Critical | 35d0bd0, d25dd4f |
+| - | Streamlit deprecation warnings | 🟡 Low | beb6e0e |
+
+### Performance Improvements
+- **Before**: 3-5 minutes load time, frequent crashes
+- **After**: <15 seconds load time, stable operation
+- **Improvement**: 92% reduction in load time
+
+---
+
 ## Future Maintenance
 
 ### Watch for:
@@ -375,15 +481,23 @@ All bugs verified fixed through:
 - Pickle compatibility with new Python versions
 - Memory usage with larger datasets
 - Caching strategy effectiveness over time
+- Cache naming conflicts when adding new features
 
 ### Monitoring:
 - Load times should stay <15 seconds
 - Recommendation generation <5 seconds
 - No "N/A" metrics
 - No fallback to SVD-only for Hybrid
+- Clean logs with no warnings
+
+### Key Lessons:
+1. **Cache Naming**: Use descriptive, purpose-specific names to avoid conflicts
+2. **Type Consistency**: Document whether caches store DataFrame or Series
+3. **Testing**: Always test with large candidate sets to trigger smart sampling
+4. **Deprecations**: Address framework warnings promptly
 
 ---
 
-**Document Version**: 1.0  
+**Document Version**: 2.0  
 **Last Updated**: November 12, 2025  
-**Status**: All bugs resolved ✅
+**Status**: All 13 bugs resolved + deprecation warnings cleared ✅
