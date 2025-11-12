@@ -1,0 +1,22 @@
+# CineMatch V2.1 - Streamlit Configuration
+# Netflix-inspired dark theme with enhanced UI
+
+[theme]
+primaryColor = "#E50914"        # Netflix Red
+backgroundColor = "#141414"      # Dark background
+secondaryBackgroundColor = "#222222"  # Slightly lighter dark
+textColor = "#FFFFFF"           # White text
+font = "sans serif"
+
+[server]
+port = 8501
+headless = true
+enableCORS = false
+enableXsrfProtection = true
+
+[browser]
+gatherUsageStats = false
+
+[client]
+showErrorDetails = true
+toolbarMode = "minimal"
