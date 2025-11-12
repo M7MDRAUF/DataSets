@@ -33,27 +33,49 @@ def get_custom_css() -> str:
     <style>
     /* ============= GLOBAL DARK MODE ============= */
     
-    /* Force dark background on all elements */
-    .stApp {{
+    /* Force dark background on all elements - ULTRA AGGRESSIVE */
+    .stApp,
+    .stApp > header,
+    .stApp > div,
+    [data-testid="stAppViewContainer"],
+    [data-testid="stHeader"] {{
+        background-color: {NETFLIX_BLACK} !important;
+        background: {NETFLIX_BLACK} !important;
+    }}
+    
+    /* Main content area - ALL nested elements */
+    .main,
+    .main *,
+    .main > div,
+    .main > section,
+    [data-testid="stMain"],
+    [data-testid="stMain"] *,
+    section.main {{
         background-color: {NETFLIX_BLACK} !important;
     }}
     
-    /* Main content area */
-    .main {{
-        background-color: {NETFLIX_BLACK} !important;
+    /* Sidebar dark mode - FORCE on ALL children */
+    [data-testid="stSidebar"],
+    section[data-testid="stSidebar"],
+    [data-testid="stSidebar"] > div,
+    [data-testid="stSidebar"] div,
+    [data-testid="stSidebar"] section {{
+        background-color: {NETFLIX_DARK_GRAY} !important;
+        background: {NETFLIX_DARK_GRAY} !important;
     }}
     
-    /* Sidebar dark mode */
-    [data-testid="stSidebar"] {{
+    [data-testid="stSidebarContent"],
+    [data-testid="stSidebarContent"] > div,
+    [data-testid="stSidebarContent"] div {{
         background-color: {NETFLIX_DARK_GRAY} !important;
+        background: {NETFLIX_DARK_GRAY} !important;
     }}
     
-    [data-testid="stSidebarContent"] {{
+    [data-testid="stSidebarUserContent"],
+    [data-testid="stSidebarUserContent"] > div,
+    [data-testid="stSidebarUserContent"] div {{
         background-color: {NETFLIX_DARK_GRAY} !important;
-    }}
-    
-    [data-testid="stSidebarUserContent"] {{
-        background-color: {NETFLIX_DARK_GRAY} !important;
+        background: {NETFLIX_DARK_GRAY} !important;
     }}
     
     /* All background colors */
@@ -61,6 +83,27 @@ def get_custom_css() -> str:
     div[data-testid="stHorizontalBlock"],
     section[data-testid="stSidebar"] > div {{
         background-color: transparent !important;
+    }}
+    
+    /* Kill all white backgrounds with extreme prejudice */
+    [style*="background: white"],
+    [style*="background: #fff"],
+    [style*="background: #FFF"],
+    [style*="background: rgb(255"],
+    [style*="background-color: white"],
+    [style*="background-color: #fff"],
+    [style*="background-color: #FFF"],
+    [style*="background-color: rgb(255"] {{
+        background-color: {NETFLIX_BLACK} !important;
+        background: {NETFLIX_BLACK} !important;
+    }}
+    
+    /* Sidebar white backgrounds specifically */
+    [data-testid="stSidebar"] [style*="background"],
+    [data-testid="stSidebarContent"] [style*="background"],
+    [data-testid="stSidebarUserContent"] [style*="background"] {{
+        background-color: {NETFLIX_DARK_GRAY} !important;
+        background: {NETFLIX_DARK_GRAY} !important;
     }}
     
     /* Remove default Streamlit padding */
@@ -493,7 +536,41 @@ def get_custom_css() -> str:
     
     /* ============= COMPREHENSIVE DARK MODE FIXES ============= */
     
-    /* All containers and sections */
+    /* Override ALL Streamlit backgrounds - Most aggressive approach */
+    * {{
+        scrollbar-color: {NETFLIX_RED} {NETFLIX_BLACK} !important;
+    }}
+    
+    /* Root level backgrounds */
+    html, body, #root, .stApp {{
+        background-color: {NETFLIX_BLACK} !important;
+    }}
+    
+    /* Target specific emotion-cache classes that Streamlit uses */
+    .st-emotion-cache-1csi29a,
+    .st-emotion-cache-10p9htt,
+    .st-emotion-cache-11ukie,
+    .st-emotion-cache-qmp9ai,
+    .st-emotion-cache-1r1cntt,
+    .st-emotion-cache-8atqhb,
+    .st-emotion-cache-tn0cau,
+    .st-emotion-cache-1vo6xi6,
+    .st-emotion-cache-1fwbbrh,
+    .st-emotion-cache-1s2v671,
+    .st-emotion-cache-uujwi5,
+    .st-emotion-cache-7e7wz2,
+    [class^="st-emotion-cache-"],
+    [class*=" st-emotion-cache-"] {{
+        background-color: transparent !important;
+    }}
+    
+    /* Sidebar emotion-cache classes */
+    [data-testid="stSidebar"] [class^="st-emotion-cache-"],
+    [data-testid="stSidebar"] [class*=" st-emotion-cache-"] {{
+        background-color: {NETFLIX_DARK_GRAY} !important;
+    }}
+    
+    /* All emotion-cache classes (Streamlit's CSS-in-JS) */
     div[class*="st-emotion-cache"],
     div[class*="element-container"],
     div[class*="stMarkdown"],
@@ -501,18 +578,45 @@ def get_custom_css() -> str:
     div[class*="stMultiSelect"],
     div[class*="stNumberInput"],
     div[class*="stTextInput"],
-    section[class*="st-emotion-cache"] {{
+    section[class*="st-emotion-cache"],
+    div[class*="Block"],
+    div[class*="stVertical"],
+    div[class*="stHorizontal"] {{
         background-color: transparent !important;
     }}
     
-    /* Sidebar elements */
-    [data-testid="stSidebarHeader"] {{
+    /* Force sidebar dark mode on ALL nested elements */
+    [data-testid="stSidebar"],
+    [data-testid="stSidebar"] *,
+    [data-testid="stSidebarContent"],
+    [data-testid="stSidebarContent"] *,
+    [data-testid="stSidebarHeader"],
+    [data-testid="stSidebarHeader"] *,
+    [data-testid="stSidebarUserContent"],
+    [data-testid="stSidebarUserContent"] * {{
         background-color: {NETFLIX_DARK_GRAY} !important;
+    }}
+    
+    /* Override white backgrounds specifically */
+    div[style*="background-color: white"],
+    div[style*="background-color: rgb(255, 255, 255)"],
+    div[style*="background: white"],
+    div[style*="background: rgb(255, 255, 255)"] {{
+        background-color: {NETFLIX_BLACK} !important;
+        background: {NETFLIX_BLACK} !important;
+    }}
+    
+    /* Sidebar specific white override */
+    [data-testid="stSidebar"] div[style*="background"],
+    [data-testid="stSidebarContent"] div[style*="background"] {{
+        background-color: {NETFLIX_DARK_GRAY} !important;
+        background: {NETFLIX_DARK_GRAY} !important;
     }}
     
     /* Input fields dark mode */
     input[type="text"],
     input[type="number"],
+    input[class*="st-"],
     textarea,
     select {{
         background-color: {NETFLIX_GRAY} !important;
@@ -520,19 +624,33 @@ def get_custom_css() -> str:
         border: 1px solid rgba(255,255,255,0.2) !important;
     }}
     
-    /* Selectbox dropdown */
-    div[data-baseweb="select"] {{
-        background-color: {NETFLIX_GRAY} !important;
-    }}
-    
-    div[data-baseweb="select"] > div {{
+    /* Selectbox dropdown - all nested divs */
+    div[data-baseweb="select"],
+    div[data-baseweb="select"] *,
+    div[data-baseweb="select"] > div,
+    div[data-baseweb="select"] > div > div,
+    [class*="st-ae"],
+    [class*="st-af"],
+    [class*="st-ag"] {{
         background-color: {NETFLIX_GRAY} !important;
         border-color: rgba(255,255,255,0.2) !important;
     }}
     
-    /* Keep existing text colors */
+    /* Dropdown menu items */
+    ul[role="listbox"],
+    ul[role="listbox"] li {{
+        background-color: {NETFLIX_GRAY} !important;
+        color: white !important;
+    }}
+    
+    ul[role="listbox"] li:hover {{
+        background-color: {NETFLIX_RED} !important;
+    }}
+    
+    /* Text color preservation */
     div[data-testid="stMarkdownContainer"] p,
-    div[data-testid="stMarkdownContainer"] li {{
+    div[data-testid="stMarkdownContainer"] li,
+    div[data-testid="stMarkdownContainer"] span {{
         color: inherit !important;
     }}
     
@@ -562,20 +680,51 @@ def get_custom_css() -> str:
     
     /* Widget labels */
     label[data-testid="stWidgetLabel"],
-    label[data-testid="stWidgetLabel"] p {{
+    label[data-testid="stWidgetLabel"] *,
+    label[data-testid="stWidgetLabel"] p,
+    label[data-testid="stWidgetLabel"] div {{
         color: white !important;
+        background-color: transparent !important;
     }}
     
     /* Tooltips */
-    div[data-testid="stTooltipIcon"] {{
+    div[data-testid="stTooltipIcon"],
+    div[data-testid="stTooltipIcon"] * {{
         color: {NETFLIX_LIGHT_GRAY} !important;
     }}
     
-    /* Headers in sidebar */
+    /* Headers everywhere */
+    h1, h2, h3, h4, h5, h6 {{
+        background-color: transparent !important;
+    }}
+    
+    /* Sidebar headers */
     [data-testid="stSidebarUserContent"] h1,
     [data-testid="stSidebarUserContent"] h2,
-    [data-testid="stSidebarUserContent"] h3 {{
+    [data-testid="stSidebarUserContent"] h3,
+    [data-testid="stSidebarUserContent"] h4,
+    [data-testid="stSidebarUserContent"] h5,
+    [data-testid="stSidebarUserContent"] h6 {{
         color: white !important;
+        background-color: transparent !important;
+    }}
+    
+    /* Number input spinners */
+    input[type="number"]::-webkit-inner-spin-button,
+    input[type="number"]::-webkit-outer-spin-button {{
+        background-color: {NETFLIX_GRAY} !important;
+    }}
+    
+    /* Metrics and stats */
+    [data-testid="stMetric"],
+    [data-testid="stMetric"] * {{
+        background-color: transparent !important;
+    }}
+    
+    /* Charts and visualizations */
+    [data-testid="stPlotlyChart"],
+    [data-testid="stVegaLiteChart"] {{
+        background-color: transparent !important;
     }}
     
     
