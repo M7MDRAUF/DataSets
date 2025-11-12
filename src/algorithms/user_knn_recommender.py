@@ -1,11 +1,15 @@
 """
-CineMatch V1.0.0 - User-Based KNN Recommender
+CineMatch V2.1.0 - User-Based KNN Recommender
 
 K-Nearest Neighbors recommendation using user-based collaborative filtering.
 Finds users with similar taste and recommends movies they loved.
 
+REFACTORED: Now inherits from KNNBaseRecommender using Template Method pattern.
+Eliminates ~120 lines of duplicated code.
+
 Author: CineMatch Development Team
-Date: November 7, 2025
+Date: November 12, 2025
+Version: 2.1.0
 """
 
 import sys
@@ -13,23 +17,23 @@ from pathlib import Path
 from typing import List, Dict, Tuple, Optional, Any
 import pandas as pd
 import numpy as np
-import time
 from scipy.sparse import csr_matrix
-from sklearn.neighbors import NearestNeighbors
-from sklearn.feature_extraction.text import TfidfVectorizer
 
 # Add parent directory to path for imports
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
-from src.algorithms.base_recommender import BaseRecommender
+from src.algorithms.knn_base import KNNBaseRecommender
 
 
-class UserKNNRecommender(BaseRecommender):
+class UserKNNRecommender(KNNBaseRecommender):
     """
     User-Based K-Nearest Neighbors Recommender.
     
     Finds users with similar rating patterns and recommends movies 
     that similar users have rated highly.
+    
+    Inherits common KNN logic from KNNBaseRecommender.
+    Implements user-specific matrix creation and prediction logic.
     """
     
     def __init__(self, n_neighbors: int = 50, similarity_metric: str = 'cosine', **kwargs):
@@ -41,72 +45,29 @@ class UserKNNRecommender(BaseRecommender):
             similarity_metric: Similarity metric ('cosine', 'euclidean', etc.)
             **kwargs: Additional parameters
         """
-        super().__init__("KNN User-Based", n_neighbors=n_neighbors, 
-                        similarity_metric=similarity_metric, **kwargs)
-        
-        self.n_neighbors = n_neighbors
-        self.similarity_metric = similarity_metric
-        self.knn_model = NearestNeighbors(
-            n_neighbors=n_neighbors + 1,  # +1 because it includes the query user
-            metric=similarity_metric,
-            algorithm='brute'  # Better for sparse matrices
+        # Initialize parent with Template Method pattern
+        super().__init__(
+            name="KNN User-Based",
+            n_neighbors=n_neighbors,
+            similarity_metric=similarity_metric,
+            **kwargs
         )
         
-        # Data structures
-        self.user_movie_matrix = None
-        self.user_mapper = {}
-        self.user_inv_mapper = {}
-        self.movie_mapper = {} 
-        self.movie_inv_mapper = {}
-        self.user_means = None
-        self.global_mean = 0.0
+        # User-specific data structures
+        self.user_movie_matrix = None  # Alias for interaction_matrix
+        self.user_means = None  # Mean ratings per user for centering
     
-    def fit(self, ratings_df: pd.DataFrame, movies_df: pd.DataFrame) -> None:
-        """Train the User KNN model on the provided data"""
-        print(f"\n👥 Training {self.name}...")
-        start_time = time.time()
-        
-        # Store data references
-        self.ratings_df = ratings_df.copy()
-        self.movies_df = movies_df.copy()
-        
-        # Add genres_list column if not present (as tuples for hashability)
-        if 'genres_list' not in self.movies_df.columns:
-            self.movies_df['genres_list'] = self.movies_df['genres'].str.split('|').apply(tuple)
-        
-        print("  • Creating user-item matrix...")
-        self._create_user_item_matrix(ratings_df)
-        
-        print("  • Training KNN model...")
-        self.knn_model.fit(self.user_movie_matrix)
-        
-        # Calculate metrics
-        training_time = time.time() - start_time
-        self.metrics.training_time = training_time
-        self.is_trained = True
-        
-        # Calculate RMSE on a test sample
-        print("  • Calculating RMSE...")
-        self._calculate_rmse(ratings_df)
-        
-        # Calculate coverage
-        self.metrics.coverage = 100.0  # KNN can recommend any movie in the dataset
-        
-        # Calculate memory usage (approximate)
-        matrix_size_mb = (self.user_movie_matrix.data.nbytes + 
-                         self.user_movie_matrix.indices.nbytes + 
-                         self.user_movie_matrix.indptr.nbytes) / (1024 * 1024)
-        self.metrics.memory_usage_mb = matrix_size_mb
-        
-        print(f"✓ {self.name} trained successfully!")
-        print(f"  • Training time: {training_time:.1f}s")
-        print(f"  • RMSE: {self.metrics.rmse:.4f}")
-        print(f"  • Matrix size: {self.user_movie_matrix.shape}")
-        print(f"  • Sparsity: {(1 - self.user_movie_matrix.nnz / np.prod(self.user_movie_matrix.shape)) * 100:.2f}%")
-        print(f"  • Memory usage: {matrix_size_mb:.1f} MB")
+    def _get_matrix_description(self) -> str:
+        """Return description of matrix type for logging"""
+        return "user-item matrix"
     
-    def _create_user_item_matrix(self, ratings_df: pd.DataFrame) -> None:
-        """Create sparse user-item matrix for KNN"""
+    def _create_interaction_matrix(self, ratings_df: pd.DataFrame) -> None:
+        """
+        Create sparse user-item matrix for User-Based KNN.
+        
+        Implements abstract method from KNNBaseRecommender.
+        Creates a users x movies matrix where each row is a user's rating vector.
+        """
         # Create user and movie mappings
         unique_users = ratings_df['userId'].unique()
         unique_movies = ratings_df['movieId'].unique()
@@ -130,30 +91,13 @@ class UserKNNRecommender(BaseRecommender):
             shape=(n_users, n_movies)
         )
         
+        # Set as interaction matrix for base class
+        self.interaction_matrix = self.user_movie_matrix
+        
         # Calculate user means for mean-centered predictions
         self.user_means = np.array(self.user_movie_matrix.sum(axis=1) / 
                                  (self.user_movie_matrix > 0).sum(axis=1)).flatten()
         self.user_means = np.nan_to_num(self.user_means)  # Handle division by zero
-        
-        # Global mean for fallback
-        self.global_mean = ratings_df['rating'].mean()
-    
-    def _calculate_rmse(self, ratings_df: pd.DataFrame) -> None:
-        """Calculate RMSE on a test sample"""
-        test_sample = ratings_df.sample(min(5000, len(ratings_df)), random_state=42)
-        
-        squared_errors = []
-        for _, row in test_sample.iterrows():
-            try:
-                pred = self.predict(row['userId'], row['movieId'])
-                squared_errors.append((pred - row['rating']) ** 2)
-            except:
-                continue  # Skip if prediction fails
-        
-        if squared_errors:
-            self.metrics.rmse = np.sqrt(np.mean(squared_errors))
-        else:
-            self.metrics.rmse = float('inf')
     
     def predict(self, user_id: int, movie_id: int) -> float:
         """Predict rating for a specific user-movie pair"""
