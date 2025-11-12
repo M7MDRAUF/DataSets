@@ -493,7 +493,14 @@ class AlgorithmManager:
                f"Item KNN {weights.get('item_knn', 0):.2f}")
 
     def get_algorithm_metrics(self, algorithm_type: AlgorithmType) -> Dict[str, Any]:
-        """Get performance metrics for a specific algorithm"""
+        """Get performance metrics for a specific algorithm with caching"""
+        # PERFORMANCE FIX: Cache metrics to avoid expensive re-calculation
+        cache_key = f"_metrics_cache_{algorithm_type.value}"
+        if hasattr(self, cache_key):
+            cached_metrics = getattr(self, cache_key)
+            print(f"✓ Using cached metrics for {algorithm_type.value}")
+            return cached_metrics
+        
         # Get or train the algorithm
         algorithm = self.get_algorithm(algorithm_type)
         
@@ -560,7 +567,7 @@ class AlgorithmManager:
                 "error": "Insufficient data for metrics calculation"
             }
         
-        return {
+        result = {
             "algorithm": algorithm_type.value,
             "status": "Trained",
             "training_time": info.get("training_time", "Unknown"),
@@ -568,6 +575,12 @@ class AlgorithmManager:
             "metrics": metrics,
             "last_updated": info.get("last_updated", "Unknown")
         }
+        
+        # PERFORMANCE FIX: Cache the result to avoid expensive re-calculation
+        cache_key = f"_metrics_cache_{algorithm_type.value}"
+        setattr(self, cache_key, result)
+        
+        return result
 
     def get_all_algorithm_metrics(self) -> Dict[str, Dict[str, Any]]:
         """Get performance metrics for all available algorithms"""

@@ -282,7 +282,7 @@ try:
     # Generate recommendations button
     if st.button("🎬 Generate Recommendations", type="primary", use_container_width=True):
         try:
-            with st.spinner(f"Training {selected_algorithm} algorithm and generating recommendations..."):
+            with st.spinner(f"Loading {selected_algorithm} algorithm and generating recommendations..."):
                 
                 # Map selected algorithm to AlgorithmType
                 algorithm_map = {
@@ -325,24 +325,9 @@ try:
                             compact=False
                         )
                 
-                # Show algorithm performance metrics if available
-                if hasattr(manager, 'get_algorithm_metrics'):
-                    try:
-                        metrics = manager.get_algorithm_metrics(algorithm_type)
-                        if metrics:
-                            st.markdown("### 📊 Algorithm Performance")
-                            
-                            perf_cols = st.columns(4)
-                            with perf_cols[0]:
-                                st.metric("RMSE", f"{metrics.rmse:.4f}" if hasattr(metrics, 'rmse') else "N/A")
-                            with perf_cols[1]:
-                                st.metric("MAE", f"{metrics.mae:.4f}" if hasattr(metrics, 'mae') else "N/A")
-                            with perf_cols[2]:
-                                st.metric("Training Time", f"{metrics.training_time:.2f}s" if hasattr(metrics, 'training_time') else "N/A")
-                            with perf_cols[3]:
-                                st.metric("Prediction Time", f"{metrics.prediction_time:.4f}s" if hasattr(metrics, 'prediction_time') else "N/A")
-                    except Exception as e:
-                        st.debug(f"Metrics display error: {e}")
+                # PERFORMANCE FIX: Removed expensive get_algorithm_metrics() call
+                # This was causing infinite loop by testing 1000 predictions after every recommendation
+                # Metrics are available in Analytics page where they belong
                 
         except Exception as e:
             st.error(f"❌ Error generating recommendations: {str(e)}")
