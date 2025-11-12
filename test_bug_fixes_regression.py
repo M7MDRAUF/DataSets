@@ -4,16 +4,53 @@ Tests all 14 bug fixes to ensure nothing breaks in future updates
 
 Author: CineMatch Development Team
 Date: November 12, 2025
-Version: 1.0
+Version: 1.2
 """
 
 import sys
+import os
 from pathlib import Path
 import time
 import traceback
+import warnings
+from io import StringIO
+
+# Suppress Streamlit warnings when running tests outside app context
+warnings.filterwarnings('ignore', message='.*ScriptRunContext.*')
+warnings.filterwarnings('ignore', message='.*missing ScriptRunContext.*')
+warnings.filterwarnings('ignore', message='.*Session state does not function.*')
+warnings.filterwarnings('ignore', module='streamlit.*')
+
+# Suppress Streamlit logging warnings by setting environment variable before import
+os.environ['STREAMLIT_SERVER_HEADLESS'] = 'true'
+os.environ['STREAMLIT_LOGGER_LEVEL'] = 'error'
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent))
+
+# Custom stderr filter to suppress Streamlit warnings
+class StreamlitWarningFilter:
+    """Filter to suppress Streamlit ScriptRunContext warnings in test mode"""
+    def __init__(self, original_stderr):
+        self.original_stderr = original_stderr
+        self.suppressed_patterns = [
+            'ScriptRunContext',
+            'missing ScriptRunContext',
+            'Session state does not function',
+            'to view this Streamlit app',
+            'streamlit run'
+        ]
+    
+    def write(self, text):
+        # Only suppress lines containing Streamlit warning patterns
+        if not any(pattern in text for pattern in self.suppressed_patterns):
+            self.original_stderr.write(text)
+    
+    def flush(self):
+        self.original_stderr.flush()
+
+# Install stderr filter before importing Streamlit-dependent modules
+sys.stderr = StreamlitWarningFilter(sys.stderr)
 
 from src.algorithms.algorithm_manager import AlgorithmManager, AlgorithmType
 from src.data_processing import load_ratings, load_movies
