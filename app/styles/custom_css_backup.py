@@ -1,7 +1,7 @@
 """
 CineMatch V2.1 - Custom CSS Theme System
 
-New minimal blue color scheme with genre-based dynamic colors.
+Netflix-inspired dark theme with genre-based dynamic colors.
 Mobile-responsive design with breakpoints.
 
 Author: CineMatch Team
@@ -38,8 +38,8 @@ def get_custom_css() -> str:
     .stApp > div,
     [data-testid="stAppViewContainer"],
     [data-testid="stHeader"] {{
-        background-color: {PRIMARY_DARK} !important;
-        background: {PRIMARY_DARK} !important;
+        background-color: {NETFLIX_BLACK} !important;
+        background: {NETFLIX_BLACK} !important;
     }}
     
     /* Main content area - ALL nested elements */
@@ -50,7 +50,7 @@ def get_custom_css() -> str:
     [data-testid="stMain"],
     [data-testid="stMain"] *,
     section.main {{
-        background-color: {PRIMARY_DARK} !important;
+        background-color: {NETFLIX_BLACK} !important;
     }}
     
     /* Sidebar dark mode - FORCE on ALL children */
@@ -59,22 +59,22 @@ def get_custom_css() -> str:
     [data-testid="stSidebar"] > div,
     [data-testid="stSidebar"] div,
     [data-testid="stSidebar"] section {{
-        background-color: {SECONDARY_DARK} !important;
-        background: {SECONDARY_DARK} !important;
+        background-color: {NETFLIX_DARK_GRAY} !important;
+        background: {NETFLIX_DARK_GRAY} !important;
     }}
     
     [data-testid="stSidebarContent"],
     [data-testid="stSidebarContent"] > div,
     [data-testid="stSidebarContent"] div {{
-        background-color: {SECONDARY_DARK} !important;
-        background: {SECONDARY_DARK} !important;
+        background-color: {NETFLIX_DARK_GRAY} !important;
+        background: {NETFLIX_DARK_GRAY} !important;
     }}
     
     [data-testid="stSidebarUserContent"],
     [data-testid="stSidebarUserContent"] > div,
     [data-testid="stSidebarUserContent"] div {{
-        background-color: {SECONDARY_DARK} !important;
-        background: {SECONDARY_DARK} !important;
+        background-color: {NETFLIX_DARK_GRAY} !important;
+        background: {NETFLIX_DARK_GRAY} !important;
     }}
     
     /* All background colors */
@@ -93,16 +93,16 @@ def get_custom_css() -> str:
     [style*="background-color: #fff"],
     [style*="background-color: #FFF"],
     [style*="background-color: rgb(255"] {{
-        background-color: {PRIMARY_DARK} !important;
-        background: {PRIMARY_DARK} !important;
+        background-color: {NETFLIX_BLACK} !important;
+        background: {NETFLIX_BLACK} !important;
     }}
     
     /* Sidebar white backgrounds specifically */
     [data-testid="stSidebar"] [style*="background"],
     [data-testid="stSidebarContent"] [style*="background"],
     [data-testid="stSidebarUserContent"] [style*="background"] {{
-        background-color: {SECONDARY_DARK} !important;
-        background: {SECONDARY_DARK} !important;
+        background-color: {NETFLIX_DARK_GRAY} !important;
+        background: {NETFLIX_DARK_GRAY} !important;
     }}
     
     /* Remove default Streamlit padding */
@@ -110,7 +110,7 @@ def get_custom_css() -> str:
         padding-top: 2rem;
         padding-bottom: 2rem;
         max-width: 1400px;
-        background-color: {PRIMARY_DARK} !important;
+        background-color: {NETFLIX_BLACK} !important;
     }}
     
     /* Hide Streamlit branding */
@@ -124,16 +124,16 @@ def get_custom_css() -> str:
     }}
     
     ::-webkit-scrollbar-track {{
-        background: {PRIMARY_DARK};
+        background: {NETFLIX_BLACK};
     }}
     
     ::-webkit-scrollbar-thumb {{
-        background: {ACCENT_BLUE};
+        background: {NETFLIX_RED};
         border-radius: 5px;
     }}
     
     ::-webkit-scrollbar-thumb:hover {{
-        background: #F4F4F4;
+        background: #FF0A16;
     }}
     
     
@@ -158,21 +158,21 @@ def get_custom_css() -> str:
     h3 {{
         font-size: 1.5rem !important;
         font-weight: 500 !important;
-        color: #F4F4F4 !important;
+        color: #CCC !important;
         margin-bottom: 0.75rem !important;
     }}
     
     p {{
         font-size: 1rem !important;
         line-height: 1.6 !important;
-        color: #F4F4F4 !important;
+        color: #DDD !important;
     }}
     
     
     /* ============= MOVIE CARDS ============= */
     
     .movie-card-enhanced {{
-        background: linear-gradient(135deg, {SECONDARY_DARK} 0%, {SECONDARY_DARK} 100%);
+        background: linear-gradient(135deg, {NETFLIX_DARK_GRAY} 0%, {NETFLIX_GRAY} 100%);
         border-radius: 12px;
         padding: 1.5rem;
         margin: 1rem 0;
@@ -184,7 +184,7 @@ def get_custom_css() -> str:
     .movie-card-enhanced:hover {{
         transform: translateY(-5px);
         box-shadow: 0 8px 16px rgba(229, 9, 20, 0.3);
-        border-color: {ACCENT_BLUE};
+        border-color: {NETFLIX_RED};
     }}
     
     .movie-title-large {{
@@ -197,7 +197,7 @@ def get_custom_css() -> str:
     
     .movie-year {{
         font-size: 1rem;
-        color: {LIGHT_COLOR};
+        color: {NETFLIX_LIGHT_GRAY};
         margin-left: 0.5rem;
     }}
     
@@ -242,13 +242,13 @@ def get_custom_css() -> str:
     .rating-stars {{
         font-size: 1.5rem;
         letter-spacing: 3px;
-        color: #F4F4F4;
+        color: #FFD700;
     }}
     
     .rating-number {{
         font-size: 2rem;
         font-weight: bold;
-        color: {ACCENT_BLUE};
+        color: {NETFLIX_RED};
         margin-right: 0.5rem;
     }}
     
@@ -256,15 +256,15 @@ def get_custom_css() -> str:
     /* ============= ALGORITHM SELECTOR ============= */
     
     .algorithm-selector-v2 {{
-        background: {SECONDARY_DARK};
+        background: {NETFLIX_DARK_GRAY};
         border-radius: 12px;
         padding: 1.5rem;
         margin: 1rem 0;
-        border: 2px solid {SECONDARY_DARK};
+        border: 2px solid {NETFLIX_GRAY};
     }}
     
     .algorithm-option {{
-        background: {SECONDARY_DARK};
+        background: {NETFLIX_GRAY};
         border-radius: 8px;
         padding: 1rem;
         margin: 0.5rem 0;
@@ -274,21 +274,21 @@ def get_custom_css() -> str:
     }}
     
     .algorithm-option:hover {{
-        background: {SECONDARY_DARK};
-        border-color: {ACCENT_BLUE};
+        background: {NETFLIX_DARK_GRAY};
+        border-color: {NETFLIX_RED};
         transform: translateX(5px);
     }}
     
     .algorithm-option.selected {{
-        border-color: {ACCENT_BLUE};
-        background: linear-gradient(135deg, {ACCENT_BLUE}22 0%, {SECONDARY_DARK} 100%);
+        border-color: {NETFLIX_RED};
+        background: linear-gradient(135deg, {NETFLIX_RED}22 0%, {NETFLIX_GRAY} 100%);
     }}
     
     
     /* ============= METRIC CARDS ============= */
     
     .metric-card-modern {{
-        background: linear-gradient(135deg, {SECONDARY_DARK} 0%, {SECONDARY_DARK} 100%);
+        background: linear-gradient(135deg, {NETFLIX_DARK_GRAY} 0%, {NETFLIX_GRAY} 100%);
         border-radius: 12px;
         padding: 1.5rem;
         text-align: center;
@@ -304,24 +304,24 @@ def get_custom_css() -> str:
     .metric-value {{
         font-size: 2.5rem;
         font-weight: bold;
-        color: {ACCENT_BLUE};
+        color: {NETFLIX_RED};
         margin: 0.5rem 0;
     }}
     
     .metric-label {{
         font-size: 0.9rem;
-        color: {LIGHT_COLOR};
+        color: {NETFLIX_LIGHT_GRAY};
         text-transform: uppercase;
         letter-spacing: 1px;
     }}
     
     .metric-delta-positive {{
-        color: {ACCENT_BLUE};
+        color: {SUCCESS_GREEN};
         font-size: 0.85rem;
     }}
     
     .metric-delta-negative {{
-        color: {PRIMARY_DARK};
+        color: {ERROR_RED};
         font-size: 0.85rem;
     }}
     
@@ -351,7 +351,7 @@ def get_custom_css() -> str:
     /* ============= BUTTONS ============= */
     
     .stButton > button {{
-        background: {ACCENT_BLUE};
+        background: {NETFLIX_RED};
         color: white;
         border: none;
         border-radius: 4px;
@@ -364,7 +364,7 @@ def get_custom_css() -> str:
     }}
     
     .stButton > button:hover {{
-        background: #F4F4F4;
+        background: #FF0A16;
         transform: translateY(-2px);
         box-shadow: 0 6px 12px rgba(229, 9, 20, 0.4);
     }}
@@ -377,53 +377,53 @@ def get_custom_css() -> str:
     /* ============= SELECT BOXES ============= */
     
     .stSelectbox > div > div {{
-        background-color: {SECONDARY_DARK};
+        background-color: {NETFLIX_GRAY};
         border: 1px solid rgba(255,255,255,0.2);
         border-radius: 4px;
         color: white;
     }}
     
     .stSelectbox > div > div:hover {{
-        border-color: {ACCENT_BLUE};
+        border-color: {NETFLIX_RED};
     }}
     
     
     /* ============= SLIDERS ============= */
     
     .stSlider > div > div > div > div {{
-        background-color: {ACCENT_BLUE};
+        background-color: {NETFLIX_RED};
     }}
     
     .stSlider > div > div > div {{
-        background-color: {SECONDARY_DARK};
+        background-color: {NETFLIX_GRAY};
     }}
     
     
     /* ============= DATAFRAMES ============= */
     
     .dataframe {{
-        background-color: {SECONDARY_DARK} !important;
+        background-color: {NETFLIX_DARK_GRAY} !important;
         color: white !important;
-        border: 1px solid {SECONDARY_DARK} !important;
+        border: 1px solid {NETFLIX_GRAY} !important;
         border-radius: 8px !important;
     }}
     
     .dataframe th {{
-        background-color: {ACCENT_BLUE} !important;
+        background-color: {NETFLIX_RED} !important;
         color: white !important;
         font-weight: 600 !important;
         padding: 0.75rem !important;
     }}
     
     .dataframe td {{
-        background-color: {SECONDARY_DARK} !important;
+        background-color: {NETFLIX_DARK_GRAY} !important;
         color: white !important;
         padding: 0.75rem !important;
-        border-bottom: 1px solid {SECONDARY_DARK} !important;
+        border-bottom: 1px solid {NETFLIX_GRAY} !important;
     }}
     
     .dataframe tr:hover td {{
-        background-color: {SECONDARY_DARK} !important;
+        background-color: {NETFLIX_GRAY} !important;
     }}
     
     
@@ -438,7 +438,7 @@ def get_custom_css() -> str:
     }}
     
     .loading-text {{
-        color: {LIGHT_COLOR};
+        color: {NETFLIX_LIGHT_GRAY};
         font-size: 1.2rem;
         margin-top: 1rem;
         animation: pulse 1.5s ease-in-out infinite;
@@ -454,13 +454,13 @@ def get_custom_css() -> str:
     
     .stTabs [data-baseweb="tab-list"] {{
         gap: 1rem;
-        background-color: {PRIMARY_DARK};
+        background-color: {NETFLIX_BLACK};
         border-radius: 8px;
         padding: 0.5rem;
     }}
     
     .stTabs [data-baseweb="tab"] {{
-        background-color: {SECONDARY_DARK};
+        background-color: {NETFLIX_GRAY};
         color: white;
         border-radius: 4px;
         padding: 0.75rem 1.5rem;
@@ -469,27 +469,27 @@ def get_custom_css() -> str:
     }}
     
     .stTabs [aria-selected="true"] {{
-        background-color: {ACCENT_BLUE};
+        background-color: {NETFLIX_RED};
     }}
     
     
     /* ============= EXPANDERS ============= */
     
     .streamlit-expanderHeader {{
-        background-color: {SECONDARY_DARK};
+        background-color: {NETFLIX_GRAY};
         color: white;
         border-radius: 4px;
         font-weight: 600;
     }}
     
     .streamlit-expanderHeader:hover {{
-        background-color: {SECONDARY_DARK};
-        border-color: {ACCENT_BLUE};
+        background-color: {NETFLIX_DARK_GRAY};
+        border-color: {NETFLIX_RED};
     }}
     
     .streamlit-expanderContent {{
-        background-color: {SECONDARY_DARK};
-        border: 1px solid {SECONDARY_DARK};
+        background-color: {NETFLIX_DARK_GRAY};
+        border: 1px solid {NETFLIX_GRAY};
         border-radius: 0 0 4px 4px;
     }}
     
@@ -497,8 +497,8 @@ def get_custom_css() -> str:
     /* ============= ALERTS ============= */
     
     .alert-success {{
-        background-color: {ACCENT_BLUE}22;
-        border-left: 4px solid {ACCENT_BLUE};
+        background-color: {SUCCESS_GREEN}22;
+        border-left: 4px solid {SUCCESS_GREEN};
         padding: 1rem;
         border-radius: 4px;
         color: white;
@@ -506,8 +506,8 @@ def get_custom_css() -> str:
     }}
     
     .alert-warning {{
-        background-color: {SECONDARY_DARK}22;
-        border-left: 4px solid {SECONDARY_DARK};
+        background-color: {WARNING_YELLOW}22;
+        border-left: 4px solid {WARNING_YELLOW};
         padding: 1rem;
         border-radius: 4px;
         color: white;
@@ -515,8 +515,8 @@ def get_custom_css() -> str:
     }}
     
     .alert-error {{
-        background-color: {PRIMARY_DARK}22;
-        border-left: 4px solid {PRIMARY_DARK};
+        background-color: {ERROR_RED}22;
+        border-left: 4px solid {ERROR_RED};
         padding: 1rem;
         border-radius: 4px;
         color: white;
@@ -524,8 +524,8 @@ def get_custom_css() -> str:
     }}
     
     .alert-info {{
-        background-color: {ACCENT_BLUE}22;
-        border-left: 4px solid {ACCENT_BLUE};
+        background-color: {INFO_BLUE}22;
+        border-left: 4px solid {INFO_BLUE};
         padding: 1rem;
         border-radius: 4px;
         color: white;
@@ -537,12 +537,12 @@ def get_custom_css() -> str:
     
     /* Override ALL Streamlit backgrounds - Most aggressive approach */
     * {{
-        scrollbar-color: {ACCENT_BLUE} {PRIMARY_DARK} !important;
+        scrollbar-color: {NETFLIX_RED} {NETFLIX_BLACK} !important;
     }}
     
     /* Root level backgrounds */
     html, body, #root, .stApp {{
-        background-color: {PRIMARY_DARK} !important;
+        background-color: {NETFLIX_BLACK} !important;
     }}
     
     /* Target specific emotion-cache classes that Streamlit uses */
@@ -566,7 +566,7 @@ def get_custom_css() -> str:
     /* Sidebar emotion-cache classes */
     [data-testid="stSidebar"] [class^="st-emotion-cache-"],
     [data-testid="stSidebar"] [class*=" st-emotion-cache-"] {{
-        background-color: {SECONDARY_DARK} !important;
+        background-color: {NETFLIX_DARK_GRAY} !important;
     }}
     
     /* All emotion-cache classes (Streamlit's CSS-in-JS) */
@@ -593,7 +593,7 @@ def get_custom_css() -> str:
     [data-testid="stSidebarHeader"] *,
     [data-testid="stSidebarUserContent"],
     [data-testid="stSidebarUserContent"] * {{
-        background-color: {SECONDARY_DARK} !important;
+        background-color: {NETFLIX_DARK_GRAY} !important;
     }}
     
     /* Override white backgrounds specifically */
@@ -601,15 +601,15 @@ def get_custom_css() -> str:
     div[style*="background-color: rgb(255, 255, 255)"],
     div[style*="background: white"],
     div[style*="background: rgb(255, 255, 255)"] {{
-        background-color: {PRIMARY_DARK} !important;
-        background: {PRIMARY_DARK} !important;
+        background-color: {NETFLIX_BLACK} !important;
+        background: {NETFLIX_BLACK} !important;
     }}
     
     /* Sidebar specific white override */
     [data-testid="stSidebar"] div[style*="background"],
     [data-testid="stSidebarContent"] div[style*="background"] {{
-        background-color: {SECONDARY_DARK} !important;
-        background: {SECONDARY_DARK} !important;
+        background-color: {NETFLIX_DARK_GRAY} !important;
+        background: {NETFLIX_DARK_GRAY} !important;
     }}
     
     /* Input fields dark mode */
@@ -618,7 +618,7 @@ def get_custom_css() -> str:
     input[class*="st-"],
     textarea,
     select {{
-        background-color: {SECONDARY_DARK} !important;
+        background-color: {NETFLIX_GRAY} !important;
         color: white !important;
         border: 1px solid rgba(255,255,255,0.2) !important;
     }}
@@ -631,19 +631,19 @@ def get_custom_css() -> str:
     [class*="st-ae"],
     [class*="st-af"],
     [class*="st-ag"] {{
-        background-color: {SECONDARY_DARK} !important;
+        background-color: {NETFLIX_GRAY} !important;
         border-color: rgba(255,255,255,0.2) !important;
     }}
     
     /* Dropdown menu items */
     ul[role="listbox"],
     ul[role="listbox"] li {{
-        background-color: {SECONDARY_DARK} !important;
+        background-color: {NETFLIX_GRAY} !important;
         color: white !important;
     }}
     
     ul[role="listbox"] li:hover {{
-        background-color: {ACCENT_BLUE} !important;
+        background-color: {NETFLIX_RED} !important;
     }}
     
     /* Text color preservation */
@@ -655,7 +655,7 @@ def get_custom_css() -> str:
     
     /* Algorithm card backgrounds */
     .algorithm-card {{
-        background-color: {SECONDARY_DARK} !important;
+        background-color: {NETFLIX_GRAY} !important;
         border: 1px solid rgba(229, 9, 20, 0.3) !important;
         padding: 1.5rem !important;
         border-radius: 12px !important;
@@ -664,12 +664,12 @@ def get_custom_css() -> str:
     }}
     
     .algorithm-card h3 {{
-        color: {ACCENT_BLUE} !important;
+        color: {NETFLIX_RED} !important;
         margin-bottom: 0.75rem !important;
     }}
     
     .algorithm-card p {{
-        color: #F4F4F4 !important;
+        color: #DDD !important;
         margin: 0.5rem 0 !important;
     }}
     
@@ -689,7 +689,7 @@ def get_custom_css() -> str:
     /* Tooltips */
     div[data-testid="stTooltipIcon"],
     div[data-testid="stTooltipIcon"] * {{
-        color: {LIGHT_COLOR} !important;
+        color: {NETFLIX_LIGHT_GRAY} !important;
     }}
     
     /* Headers everywhere */
@@ -711,7 +711,7 @@ def get_custom_css() -> str:
     /* Number input spinners */
     input[type="number"]::-webkit-inner-spin-button,
     input[type="number"]::-webkit-outer-spin-button {{
-        background-color: {SECONDARY_DARK} !important;
+        background-color: {NETFLIX_GRAY} !important;
     }}
     
     /* Metrics and stats */
@@ -785,7 +785,7 @@ def get_hero_section_css() -> str:
     return """
     <style>
     .hero-section {
-        background: linear-gradient(135deg, #0C2B4E 0%, #1D546C 100%);
+        background: linear-gradient(135deg, #141414 0%, #E50914 100%);
         padding: 3rem 2rem;
         border-radius: 12px;
         margin: 2rem 0;
@@ -823,7 +823,7 @@ def get_hero_section_css() -> str:
     
     .hero-subtitle {
         font-size: 1.3rem;
-        color: #F4F4F4;
+        color: #DDD;
         position: relative;
         z-index: 1;
     }
