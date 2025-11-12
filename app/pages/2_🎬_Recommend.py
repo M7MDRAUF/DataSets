@@ -1,11 +1,13 @@
 """
-CineMatch V1.0.0 - Enhanced Recommend Page
+CineMatch V2.1 - Enhanced Recommend Page
 
 Core feature: Multi-algorithm movie recommendations with intelligent switching.
-Now supports SVD, User KNN, Item KNN, and Hybrid algorithms with professional UI.
+Now supports SVD, User KNN, Item KNN, Content-Based, and Hybrid algorithms.
+
+V2.1 Enhancements: Netflix-themed UI, enhanced movie cards, visual algorithm selector
 
 Author: CineMatch Development Team
-Date: November 7, 2025
+Date: November 11, 2025
 """
 
 import streamlit as st
@@ -24,85 +26,35 @@ from src.utils import (
 )
 from src.data_processing import load_ratings, load_movies
 
+# V2.1 Enhanced Components
+from app.styles.custom_css import get_custom_css
+from app.components.loading_animation import render_loading_animation
+from app.components.metric_cards import render_algorithm_metrics
+from app.components.movie_card import render_movie_card_enhanced
+from app.components.algorithm_selector import render_algorithm_selector, render_algorithm_info
+
 
 # Page config
 st.set_page_config(
-    page_title="CineMatch - Multi-Algorithm Recommendations",
+    page_title="CineMatch V2.1 - Recommendations",
     page_icon="🎬",
     layout="wide"
 )
 
-# Custom CSS for enhanced UI
-st.markdown("""
-<style>
-.algorithm-card {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    padding: 1rem;
-    border-radius: 10px;
-    color: white;
-    margin: 0.5rem 0;
-    border-left: 4px solid #E50914;
-}
-
-.metrics-container {
-    background: #f8f9fa;
-    padding: 1rem;
-    border-radius: 8px;
-    border: 1px solid #dee2e6;
-    margin: 1rem 0;
-}
-
-.algorithm-selector {
-    background: #ffffff;
-    border: 2px solid #E50914;
-    border-radius: 10px;
-    padding: 1rem;
-    margin: 1rem 0;
-}
-
-.movie-card {
-    background: linear-gradient(135deg, #000000 0%, #c3cfe2 100%);
-    border-radius: 10px;
-    padding: 1.5rem;
-    margin: 1rem 0;
-    border-left: 5px solid #E50914;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    color: white;
-}
-
-.recommendation-header {
-    background: linear-gradient(90deg, #E50914, #8B0000);
-    color: white;
-    padding: 1rem;
-    border-radius: 10px;
-    text-align: center;
-    margin: 1rem 0;
-}
-
-.explanation-box {
-    background: #e8f5e8;
-    border-left: 4px solid #28a745;
-    padding: 1rem;
-    margin: 1rem 0;
-    border-radius: 0 8px 8px 0;
-}
-
-.performance-metric {
-    text-align: center;
-    padding: 0.5rem;
-    border-radius: 8px;
-    margin: 0.25rem;
-}
-</style>
-""", unsafe_allow_html=True)
+# V2.1 Enhanced CSS Theme
+st.markdown(get_custom_css(), unsafe_allow_html=True)
 
 # Header
 st.markdown("""
-<div class="recommendation-header">
-    <h1>🎬 CineMatch - Advanced Recommendations</h1>
-    <p>Choose your preferred AI algorithm or let our Hybrid system decide for you</p>
+<div style="text-align: center; padding: 2rem 1rem;">
+    <h1 style="color: white; font-size: 3rem; margin-bottom: 0.5rem;">🎬 Personalized Recommendations</h1>
+    <p style="color: #CCC; font-size: 1.2rem;">
+        Powered by Advanced AI • Multi-Algorithm Engine • Explainable Results
+    </p>
 </div>
 """, unsafe_allow_html=True)
+
+st.markdown("---")
 
 # Performance Configuration
 with st.expander("⚙️ Performance Settings", expanded=False):
@@ -158,10 +110,18 @@ def load_data(sample_size):
     return ratings_df, movies_df
 
 try:
-    with st.spinner(f"🚀 Loading MovieLens dataset... ({dataset_size[0]} mode)"):
-        ratings_df, movies_df = load_data(selected_sample_size)
+    # V2.1 Enhanced loading with animation
+    loading_placeholder = st.empty()
+    with loading_placeholder.container():
+        render_loading_animation('loading', 'Loading MovieLens dataset...', key='recommend_data_load')
     
-    # Show dataset statistics
+    ratings_df, movies_df = load_data(selected_sample_size)
+    loading_placeholder.empty()
+    
+    # Initialize algorithm manager
+    manager = get_algorithm_manager()
+    manager.initialize_data(ratings_df, movies_df)
+    
     st.success(f"✅ System ready! Loaded {len(ratings_df):,} ratings and {len(movies_df):,} movies")
     
     # Display performance expectation
@@ -173,14 +133,6 @@ try:
         st.info("🎯 **High Quality Mode**: Excellent accuracy with reasonable speed")
     else:
         st.warning("🐌 **Full Dataset Mode**: Maximum accuracy but slow training times")
-    
-    # Initialize algorithm manager
-    manager = get_algorithm_manager()
-    
-    # Always reinitialize with current dataset (fixes dataset size mismatch)
-    manager.initialize_data(ratings_df, movies_df)
-    
-    st.success(f"✅ System ready! Loaded {len(ratings_df):,} ratings and {len(movies_df):,} movies")
     
 except Exception as e:
     st.error(f"❌ Error loading data: {e}")

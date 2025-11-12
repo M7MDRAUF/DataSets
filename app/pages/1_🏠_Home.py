@@ -1,11 +1,13 @@
 """
-CineMatch V2.0 - Enhanced Home Page
+CineMatch V2.1 - Enhanced Home Page
 
 Overview, statistics, and multi-algorithm recommendation system integration.
 Now supports SVD, User KNN, Item KNN, and Hybrid algorithms.
 
+V2.1 Enhancements: Netflix-themed UI, data-driven visualizations, enhanced components
+
 Author: CineMatch Development Team  
-Date: November 7, 2025
+Date: November 11, 2025
 """
 
 import streamlit as st
@@ -26,65 +28,34 @@ from src.utils import (
     get_genre_emoji
 )
 
+# V2.1 Enhanced Components
+from app.styles.custom_css import get_custom_css, get_hero_section_css
+from app.components.loading_animation import render_loading_animation
+from app.components.metric_cards import render_dataset_stats, render_metric_grid
+from app.components.movie_card import render_movie_card_enhanced, render_movie_grid
+from app.components.genre_visualization import render_top_genres_summary
+
 
 # Page config
 st.set_page_config(
-    page_title="CineMatch V2.0 - Home",
+    page_title="CineMatch V2.1 - Home",
     page_icon="🏠",
     layout="wide"
 )
 
-# V2.0 CSS Styling
+# V2.1 Enhanced CSS Theme
+st.markdown(get_custom_css(), unsafe_allow_html=True)
+st.markdown(get_hero_section_css(), unsafe_allow_html=True)
+
+# Hero Header
 st.markdown("""
-<style>
-.algorithm-card {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    padding: 1rem;
-    border-radius: 10px;
-    color: white;
-    margin: 0.5rem 0;
-    border-left: 4px solid #E50914;
-}
-
-.metrics-container {
-    background: #f8f9fa;
-    padding: 1rem;
-    border-radius: 8px;
-    margin: 1rem 0;
-}
-
-.movie-card {
-    background: linear-gradient(135deg, #000000 0%, #c3cfe2 100%);
-    border-radius: 10px;
-    padding: 1.5rem;
-    margin: 1rem 0;
-    border-left: 5px solid #E50914;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    color: white;
-}
-
-.recommendation-header {
-    background: linear-gradient(90deg, #E50914, #8B0000);
-    color: white;
-    padding: 1rem;
-    border-radius: 10px;
-    margin-bottom: 1rem;
-}
-
-.performance-card {
-    background: linear-gradient(45deg, #f093fb 0%, #f5576c 100%);
-    padding: 1rem;
-    border-radius: 10px;
-    color: white;
-    text-align: center;
-}
-</style>
+<div class="hero-section">
+    <div class="hero-title">🎬 CineMatch V2.1</div>
+    <div class="hero-subtitle">
+        AI-Powered Movie Recommendations • Multi-Algorithm Engine • Dataset-Driven Intelligence
+    </div>
+</div>
 """, unsafe_allow_html=True)
-
-# Header
-st.title("🏠 CineMatch V2.0 - Home")
-st.markdown("### Multi-Algorithm Movie Recommendation Engine")
-st.markdown("---")
 
 # Algorithm Manager Integration
 @st.cache_resource
@@ -138,17 +109,36 @@ with st.expander("🚀 Dataset Size Configuration", expanded=True):
     """)
 
 try:
-    with st.spinner(f"🚀 Loading MovieLens dataset... ({dataset_size[0]} mode)"):
-        st.markdown("Running load_data(...).")
-        ratings_df, movies_df = load_data(selected_sample_size)
+    # V2.1 Enhanced loading with animation
+    loading_placeholder = st.empty()
+    with loading_placeholder.container():
+        render_loading_animation('loading', 'Loading MovieLens dataset...', key='home_data_load')
+    
+    ratings_df, movies_df = load_data(selected_sample_size)
+    loading_placeholder.empty()  # Clear loading animation
     
     # Initialize algorithm manager
     manager = get_manager()
-    
-    # Always reinitialize with current dataset (fixes dataset size mismatch)
     manager.initialize_data(ratings_df, movies_df)
     
     st.success(f"✅ System ready! Loaded {len(ratings_df):,} ratings and {len(movies_df):,} movies")
+    
+    # V2.1 Enhanced Dataset Statistics with Metric Cards
+    st.markdown("## 📊 Dataset Overview")
+    
+    # Calculate statistics
+    total_users = ratings_df['userId'].nunique()
+    total_movies = len(movies_df)
+    total_ratings = len(ratings_df)
+    sparsity = 100 * (1 - total_ratings / (total_users * total_movies))
+    
+    # Render enhanced metric cards
+    render_dataset_stats(
+        total_movies=total_movies,
+        total_ratings=total_ratings,
+        total_users=total_users,
+        sparsity=sparsity
+    )
     
     # Performance mode indicator
     if selected_sample_size and selected_sample_size <= 100000:
@@ -159,6 +149,55 @@ try:
         st.info("🎯 **High Quality Mode**: Excellent accuracy with reasonable speed")
     else:
         st.warning("🐌 **Full Dataset Mode**: Maximum accuracy but slow training times")
+    
+    st.markdown("---")
+    
+    # V2.1 Popular Movies Section (Phase 12)
+    st.markdown("## 🔥 Popular Movies")
+    st.markdown("Discover the most loved movies in our dataset")
+    
+    # Calculate movie statistics
+    @st.cache_data(ttl=3600)
+    def get_popular_movies(ratings_df, movies_df, min_ratings=50):
+        """Get popular movies with statistics"""
+        movie_stats = ratings_df.groupby('movieId').agg({
+            'rating': ['mean', 'count']
+        }).reset_index()
+        movie_stats.columns = ['movieId', 'avg_rating', 'num_ratings']
+        
+        # Filter by minimum ratings and sort
+        popular = movie_stats[movie_stats['num_ratings'] >= min_ratings]
+        popular = popular.sort_values('avg_rating', ascending=False).head(12)
+        
+        # Merge with movie info
+        popular = popular.merge(movies_df, on='movieId')
+        return popular
+    
+    popular_movies = get_popular_movies(ratings_df, movies_df)
+    
+    # Render as enhanced movie grid
+    popular_data = []
+    for _, movie in popular_movies.iterrows():
+        genres_list = movie['genres'].split('|') if '|' in movie['genres'] else [movie['genres']]
+        popular_data.append({
+            'title': movie['title'],
+            'genres': genres_list,
+            'avg_rating': movie['avg_rating'],
+            'num_ratings': int(movie['num_ratings']),
+            'rank': len(popular_data) + 1
+        })
+    
+    # Display in grid (3 columns)
+    render_movie_grid(popular_data[:9], columns=3)
+    
+    # Genre analysis
+    st.markdown("### 🎭 Genre Distribution")
+    all_genres = []
+    for _, movie in movies_df.iterrows():
+        genres = movie['genres'].split('|')
+        all_genres.extend(genres)
+    
+    render_top_genres_summary(all_genres, top_n=5)
     
     st.markdown("---")
     
@@ -263,29 +302,28 @@ try:
                 
                 st.success(f"✅ Generated {len(recommendations)} recommendations using {selected_algorithm}!")
                 
-                # Display recommendations
+                # V2.1 Enhanced Recommendation Display
                 st.markdown(f"### 🎬 Recommendations for User {user_id}")
                 st.markdown(f"*Powered by {selected_algorithm} algorithm*")
                 
-                # Show recommendations in a nice grid
+                # Show recommendations using enhanced movie cards
                 cols = st.columns(2)
                 for idx, (_, movie) in enumerate(recommendations.iterrows()):
                     col = cols[idx % 2]
                     
                     with col:
-                        st.markdown(f"""
-                        <div class="movie-card">
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                                <span style="font-weight: bold; font-size: 1.1rem;">#{idx + 1}</span>
-                                <span style="color: #ffd700; font-size: 1.2rem;">⭐ {movie.get('predicted_rating', 'N/A')}</span>
-                            </div>
-                            <h4 style="margin: 0.5rem 0; color: white;">{movie['title']}</h4>
-                            <p style="color: #ccc; font-size: 0.9rem; margin: 0.25rem 0;">
-                                <strong>Genres:</strong> {movie['genres']}
-                            </p>
-                            {f'<p style="color: #ddd; font-size: 0.8rem; margin-top: 0.5rem;"><strong>Why recommended:</strong> {movie.get("explanation", "Based on your preferences")}</p>' if movie.get("explanation") else ''}
-                        </div>
-                        """, unsafe_allow_html=True)
+                        # Parse genres
+                        genres_list = movie['genres'].split('|') if '|' in movie['genres'] else [movie['genres']]
+                        
+                        # Render enhanced card
+                        render_movie_card_enhanced(
+                            title=movie['title'],
+                            genres=genres_list,
+                            predicted_rating=movie.get('predicted_rating'),
+                            rank=idx + 1,
+                            explanation=movie.get('explanation'),
+                            compact=False
+                        )
                 
                 # Show algorithm performance metrics if available
                 if hasattr(manager, 'get_algorithm_metrics'):
