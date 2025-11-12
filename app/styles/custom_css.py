@@ -31,13 +31,44 @@ def get_custom_css() -> str:
     """
     return f"""
     <style>
-    /* ============= GLOBAL STYLES ============= */
+    /* ============= GLOBAL DARK MODE ============= */
+    
+    /* Force dark background on all elements */
+    .stApp {{
+        background-color: {NETFLIX_BLACK} !important;
+    }}
+    
+    /* Main content area */
+    .main {{
+        background-color: {NETFLIX_BLACK} !important;
+    }}
+    
+    /* Sidebar dark mode */
+    [data-testid="stSidebar"] {{
+        background-color: {NETFLIX_DARK_GRAY} !important;
+    }}
+    
+    [data-testid="stSidebarContent"] {{
+        background-color: {NETFLIX_DARK_GRAY} !important;
+    }}
+    
+    [data-testid="stSidebarUserContent"] {{
+        background-color: {NETFLIX_DARK_GRAY} !important;
+    }}
+    
+    /* All background colors */
+    div[data-testid="stVerticalBlock"],
+    div[data-testid="stHorizontalBlock"],
+    section[data-testid="stSidebar"] > div {{
+        background-color: transparent !important;
+    }}
     
     /* Remove default Streamlit padding */
     .main .block-container {{
         padding-top: 2rem;
         padding-bottom: 2rem;
         max-width: 1400px;
+        background-color: {NETFLIX_BLACK} !important;
     }}
     
     /* Hide Streamlit branding */
@@ -457,6 +488,94 @@ def get_custom_css() -> str:
         border-radius: 4px;
         color: white;
         margin: 1rem 0;
+    }}
+    
+    
+    /* ============= COMPREHENSIVE DARK MODE FIXES ============= */
+    
+    /* All containers and sections */
+    div[class*="st-emotion-cache"],
+    div[class*="element-container"],
+    div[class*="stMarkdown"],
+    div[class*="stSelectbox"],
+    div[class*="stMultiSelect"],
+    div[class*="stNumberInput"],
+    div[class*="stTextInput"],
+    section[class*="st-emotion-cache"] {{
+        background-color: transparent !important;
+    }}
+    
+    /* Sidebar elements */
+    [data-testid="stSidebarHeader"] {{
+        background-color: {NETFLIX_DARK_GRAY} !important;
+    }}
+    
+    /* Input fields dark mode */
+    input[type="text"],
+    input[type="number"],
+    textarea,
+    select {{
+        background-color: {NETFLIX_GRAY} !important;
+        color: white !important;
+        border: 1px solid rgba(255,255,255,0.2) !important;
+    }}
+    
+    /* Selectbox dropdown */
+    div[data-baseweb="select"] {{
+        background-color: {NETFLIX_GRAY} !important;
+    }}
+    
+    div[data-baseweb="select"] > div {{
+        background-color: {NETFLIX_GRAY} !important;
+        border-color: rgba(255,255,255,0.2) !important;
+    }}
+    
+    /* Keep existing text colors */
+    div[data-testid="stMarkdownContainer"] p,
+    div[data-testid="stMarkdownContainer"] li {{
+        color: inherit !important;
+    }}
+    
+    /* Algorithm card backgrounds */
+    .algorithm-card {{
+        background-color: {NETFLIX_GRAY} !important;
+        border: 1px solid rgba(229, 9, 20, 0.3) !important;
+        padding: 1.5rem !important;
+        border-radius: 12px !important;
+        margin: 1rem 0 !important;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.3) !important;
+    }}
+    
+    .algorithm-card h3 {{
+        color: {NETFLIX_RED} !important;
+        margin-bottom: 0.75rem !important;
+    }}
+    
+    .algorithm-card p {{
+        color: #DDD !important;
+        margin: 0.5rem 0 !important;
+    }}
+    
+    .algorithm-card strong {{
+        color: white !important;
+    }}
+    
+    /* Widget labels */
+    label[data-testid="stWidgetLabel"],
+    label[data-testid="stWidgetLabel"] p {{
+        color: white !important;
+    }}
+    
+    /* Tooltips */
+    div[data-testid="stTooltipIcon"] {{
+        color: {NETFLIX_LIGHT_GRAY} !important;
+    }}
+    
+    /* Headers in sidebar */
+    [data-testid="stSidebarUserContent"] h1,
+    [data-testid="stSidebarUserContent"] h2,
+    [data-testid="stSidebarUserContent"] h3 {{
+        color: white !important;
     }}
     
     
