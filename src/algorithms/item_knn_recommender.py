@@ -432,7 +432,8 @@ class ItemKNNRecommender(BaseRecommender):
                 self._all_movie_stats = self.ratings_df.groupby('movieId').size()
             
             # Filter cached stats (fast) instead of raw ratings (slow)
-            available_stats = self._all_movie_stats[self._all_movie_stats.index.isin(valid_candidates)]
+            # Use .loc to ensure we get a Series, not DataFrame
+            available_stats = self._all_movie_stats.loc[self._all_movie_stats.index.isin(valid_candidates)]
             
             top_candidates = available_stats.nlargest(2000).index.tolist()
             valid_candidates = [mid for mid in valid_candidates if mid in top_candidates]

@@ -507,7 +507,10 @@ class HybridRecommender(BaseRecommender):
                     top_recs = self._aggregate_recommendations(all_recs, n)
                     
                 except Exception as e:
+                    import traceback
                     print(f"  ❌ Error in full hybrid approach: {e}")
+                    print("  Full traceback:")
+                    traceback.print_exc()
                     # Fallback to SVD only
                     top_recs = self.svd_model.get_recommendations(user_id, n, exclude_rated)
             
