@@ -193,7 +193,7 @@ with st.sidebar:
             st.markdown("### 📊 Algorithm Comparison")
             st.dataframe(
                 performance_df[['Algorithm', 'RMSE', 'Interpretability']],
-                use_container_width=True
+                width='stretch'
             )
     except AttributeError as e:
         st.warning(f"⚠️ Performance comparison temporarily unavailable: {e}")
@@ -228,14 +228,14 @@ with col1:
         get_recs_button = st.button(
             "🎯 Get Recommendations", 
             type="primary", 
-            use_container_width=True
+            width='stretch'
         )
     
     with input_col3:
         # Advanced options toggle
         show_advanced = st.button(
             "⚙️ Advanced Options",
-            use_container_width=True
+            width='stretch'
         )
 
 with col2:
