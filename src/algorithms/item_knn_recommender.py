@@ -19,6 +19,7 @@ import pandas as pd
 import numpy as np
 from scipy.sparse import csr_matrix
 from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.neighbors import NearestNeighbors
 
 # Add parent directory to path for imports
 sys.path.append(str(Path(__file__).parent.parent.parent))
@@ -86,9 +87,19 @@ class ItemKNNRecommender(KNNBaseRecommender):
         # Filter ratings to only include valid items
         filtered_ratings = ratings_df[ratings_df['movieId'].isin(valid_items)]
         
+        # Create mappers from FILTERED data (not full dataset)
+        unique_movies = filtered_ratings['movieId'].unique()
+        unique_users = filtered_ratings['userId'].unique()
+        
+        # Rebuild mappers for filtered dataset
+        self.movie_mapper = {mid: idx for idx, mid in enumerate(unique_movies)}
+        self.movie_inv_mapper = {idx: mid for mid, idx in self.movie_mapper.items()}
+        self.user_mapper = {uid: idx for idx, uid in enumerate(unique_users)}
+        self.user_inv_mapper = {idx: uid for uid, idx in self.user_mapper.items()}
+        
         # Create sparse matrix (items x users)
-        n_movies = len(filtered_ratings['movieId'].unique())
-        n_users = len(filtered_ratings['userId'].unique())
+        n_movies = len(unique_movies)
+        n_users = len(unique_users)
         
         movie_indices = filtered_ratings['movieId'].map(self.movie_mapper).values
         user_indices = filtered_ratings['userId'].map(self.user_mapper).values
