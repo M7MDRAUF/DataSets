@@ -18,6 +18,7 @@ from typing import List, Dict, Tuple, Optional, Any
 import pandas as pd
 import numpy as np
 from scipy.sparse import csr_matrix
+from sklearn.neighbors import NearestNeighbors
 
 # Add parent directory to path for imports
 sys.path.append(str(Path(__file__).parent.parent.parent))

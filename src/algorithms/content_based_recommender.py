@@ -39,6 +39,14 @@ from src.algorithms.feature_engineering import (
 )
 
 
+# Backward compatibility for old pickle files (DO NOT REMOVE)
+# This function was moved to feature_engineering/movie_features.py during refactoring
+# but old pickle files still reference it in this module
+def identity_function(x):
+    """Identity function for TfidfVectorizer tokenizer (backward compatibility)."""
+    return x
+
+
 class ContentBasedRecommender(BaseRecommender):
     """
     Content-Based Filtering Recommender.
