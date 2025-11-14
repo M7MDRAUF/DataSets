@@ -43,7 +43,11 @@ services:
     
     restart: unless-stopped
     
-    # Resource limits (adjust based on your system)
+    # Resource limits (adjusted for 5 models: ~5GB + overhead)
+    mem_limit: 8g  # SVD (Surprise) requires 3.8x file size = ~4.2GB
+    cpus: 4
+    
+    # Swarm mode resource limits (not used in standalone compose)
     deploy:
       resources:
         limits:

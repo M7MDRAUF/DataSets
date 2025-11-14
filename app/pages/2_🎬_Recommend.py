@@ -174,11 +174,21 @@ try:
     else:
         st.warning("🐌 **Full Dataset Mode**: Maximum accuracy but slow training times")
     
-    # Initialize algorithm manager
+    # Initialize algorithm manager (singleton pattern)
     manager = get_algorithm_manager()
     
-    # Always reinitialize with current dataset (fixes dataset size mismatch)
-    manager.initialize_data(ratings_df, movies_df)
+    # Initialize data ONLY if not already initialized or dataset size changed
+    # This prevents creating 3.3GB copies on every Streamlit rerun
+    if not manager._is_initialized or manager._training_data is None:
+        manager.initialize_data(ratings_df, movies_df)
+        print(f"🎯 Initialized manager with {len(ratings_df):,} ratings")
+    elif 'last_dataset_size' in st.session_state:
+        # Dataset size changed - reinitialize
+        current_size = len(ratings_df)
+        stored_size = len(manager._training_data[0]) if manager._training_data else 0
+        if current_size != stored_size:
+            manager.initialize_data(ratings_df, movies_df)
+            print(f"🔄 Reinitialized manager (dataset changed: {stored_size:,} → {current_size:,})")
     
     st.success(f"✅ System ready! Loaded {len(ratings_df):,} ratings and {len(movies_df):,} movies")
     
@@ -241,7 +251,7 @@ with st.sidebar:
             st.markdown("### 📊 Algorithm Comparison")
             st.dataframe(
                 performance_df[['Algorithm', 'RMSE', 'Interpretability']],
-                use_container_width=True
+                width="stretch"
             )
     except AttributeError as e:
         st.warning(f"⚠️ Performance comparison temporarily unavailable: {e}")
@@ -276,14 +286,14 @@ with col1:
         get_recs_button = st.button(
             "🎯 Get Recommendations", 
             type="primary", 
-            use_container_width=True
+            width="stretch"
         )
     
     with input_col3:
         # Advanced options toggle
         show_advanced = st.button(
             "⚙️ Advanced Options",
-            use_container_width=True
+            width="stretch"
         )
 
 with col2:

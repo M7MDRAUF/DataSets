@@ -976,3 +976,74 @@ class ContentBasedRecommender(BaseRecommender):
             del self._genre_vocab
             if hasattr(self, '_genre_idf'):
                 del self._genre_idf
+    
+    def get_explanation_context(self, user_id: int, movie_id: int) -> Dict[str, Any]:
+        """
+        Get context for explaining why this movie was recommended.
+        
+        Args:
+            user_id: User ID
+            movie_id: Movie ID
+            
+        Returns:
+            Dictionary with explanation context specific to Content-Based filtering
+        """
+        if not self.is_trained:
+            return {}
+        
+        try:
+            # Get movie details
+            if movie_id not in self.movies_df['movieId'].values:
+                return {'method': 'fallback', 'reason': 'Movie not in database'}
+            
+            movie_data = self.movies_df[self.movies_df['movieId'] == movie_id].iloc[0]
+            
+            # Get feature importance for this movie
+            feature_info = self.get_feature_importance(movie_id)
+            
+            # Get user's rated movies to find similar ones
+            user_ratings = self.ratings_df[self.ratings_df['userId'] == user_id]
+            
+            if len(user_ratings) == 0:
+                return {
+                    'method': 'content_based',
+                    'reason': 'New user - recommended based on movie features',
+                    'movie_title': movie_data['title'],
+                    'genres': movie_data.get('genres', '').split('|'),
+                    'feature_weights': feature_info
+                }
+            
+            # Find most similar movies the user liked
+            highly_rated = user_ratings[user_ratings['rating'] >= 4.0]['movieId'].tolist()
+            
+            similar_movies = []
+            if len(highly_rated) > 0:
+                # Get similarities to user's highly rated movies
+                for rated_movie_id in highly_rated[:5]:  # Top 5 rated movies
+                    if rated_movie_id in self.movie_similarity_cache:
+                        sim_score = self.movie_similarity_cache[rated_movie_id].get(movie_id, 0)
+                        if sim_score > 0.1:  # Threshold for relevance
+                            rated_movie = self.movies_df[self.movies_df['movieId'] == rated_movie_id].iloc[0]
+                            similar_movies.append({
+                                'title': rated_movie['title'],
+                                'similarity': float(sim_score),
+                                'user_rating': float(user_ratings[user_ratings['movieId'] == rated_movie_id]['rating'].iloc[0])
+                            })
+            
+            # Sort by similarity
+            similar_movies.sort(key=lambda x: x['similarity'], reverse=True)
+            
+            return {
+                'method': 'content_based',
+                'movie_title': movie_data['title'],
+                'genres': movie_data.get('genres', '').split('|'),
+                'similar_to_liked': similar_movies[:3],  # Top 3 similar movies
+                'feature_weights': feature_info,
+                'user_rated_count': len(user_ratings)
+            }
+            
+        except Exception as e:
+            return {
+                'method': 'error',
+                'reason': f'Error generating explanation: {str(e)}'
+            }

@@ -212,7 +212,7 @@ try:
                     if benchmark_results:
                         # Display results
                         df_results = pd.DataFrame(benchmark_results)
-                        st.dataframe(df_results, use_container_width=True)
+                        st.dataframe(df_results, width="stretch")
                         
                         # Performance charts
                         if not df_results.empty:
@@ -231,7 +231,7 @@ try:
                                     color_continuous_scale='Viridis_r'
                                 )
                                 fig_rmse.update_layout(height=400)
-                                st.plotly_chart(fig_rmse, use_container_width=True)
+                                st.plotly_chart(fig_rmse, width="stretch")
                             
                             # Coverage comparison
                             if 'Coverage (%)' in df_results.columns:
@@ -249,7 +249,7 @@ try:
                                         color_continuous_scale='Greens'
                                     )
                                     fig_coverage.update_layout(height=400)
-                                    st.plotly_chart(fig_coverage, use_container_width=True)
+                                    st.plotly_chart(fig_coverage, width="stretch")
                     else:
                         st.warning("No benchmark results available. Please ensure algorithms are properly configured.")
         
@@ -318,7 +318,7 @@ try:
                 xaxis={'tickangle': -45}
             )
             
-            st.plotly_chart(fig_genres, use_container_width=True)
+            st.plotly_chart(fig_genres, width="stretch")
         
         with col2:
             st.markdown("### Genre Combinations")
@@ -342,7 +342,7 @@ try:
                 yaxis={'tickmode': 'linear'}
             )
             
-            st.plotly_chart(fig_combos, use_container_width=True)
+            st.plotly_chart(fig_combos, width="stretch")
         
         # Genre ratings analysis
         st.markdown("### 📊 Average Ratings by Genre")
@@ -373,7 +373,7 @@ try:
         )
         
         fig_genre_ratings.update_layout(height=400, xaxis={'tickangle': -45})
-        st.plotly_chart(fig_genre_ratings, use_container_width=True)
+        st.plotly_chart(fig_genre_ratings, width="stretch")
     
     # TAB 3: Temporal Trends
     with tab3:
@@ -406,7 +406,7 @@ try:
             )
             
             fig_years.update_layout(height=400)
-            st.plotly_chart(fig_years, use_container_width=True)
+            st.plotly_chart(fig_years, width="stretch")
         
         with col2:
             st.markdown("### Movies by Decade")
@@ -425,7 +425,7 @@ try:
             )
             
             fig_decades.update_layout(height=400)
-            st.plotly_chart(fig_decades, use_container_width=True)
+            st.plotly_chart(fig_decades, width="stretch")
         
         # Rating trends over time
         st.markdown("### ⭐ Rating Trends Over Time")
@@ -452,7 +452,7 @@ try:
         )
         
         fig_rating_trends.update_layout(height=450)
-        st.plotly_chart(fig_rating_trends, use_container_width=True)
+        st.plotly_chart(fig_rating_trends, width="stretch")
         
         st.info("""
         **Insight**: Older movies tend to have slightly higher ratings, possibly due to 
@@ -499,7 +499,7 @@ try:
                 yaxis={'tickmode': 'linear'}
             )
             
-            st.plotly_chart(fig_most_rated, use_container_width=True)
+            st.plotly_chart(fig_most_rated, width="stretch")
         
         with col2:
             st.markdown("### ⭐ Highest Rated Movies (100+ ratings)")
@@ -523,7 +523,7 @@ try:
                 yaxis={'tickmode': 'linear'}
             )
             
-            st.plotly_chart(fig_highest_rated, use_container_width=True)
+            st.plotly_chart(fig_highest_rated, width="stretch")
         
         # Popularity vs Quality scatter
         st.markdown("### 📊 Popularity vs Quality")
@@ -544,7 +544,7 @@ try:
         )
         
         fig_scatter.update_layout(height=500)
-        st.plotly_chart(fig_scatter, use_container_width=True)
+        st.plotly_chart(fig_scatter, width="stretch")
     
     # TAB 5: Movie Similarity Explorer
     with tab5:

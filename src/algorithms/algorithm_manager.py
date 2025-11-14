@@ -11,11 +11,21 @@ Date: November 7, 2025
 import sys
 from pathlib import Path
 from typing import Dict, Optional, Any, Type, List
-import streamlit as st
+import warnings
 import pandas as pd
 import time
 import threading
 from enum import Enum
+import logging
+
+# Suppress Streamlit warnings when running outside Streamlit context
+warnings.filterwarnings('ignore', category=UserWarning, module='streamlit')
+warnings.filterwarnings('ignore', message='.*ScriptRunContext.*')
+
+# Suppress Streamlit logger warnings about missing context
+logging.getLogger('streamlit.runtime.scriptrunner_utils.script_run_context').setLevel(logging.ERROR)
+
+import streamlit as st
 
 # Add parent directory to path for imports
 sys.path.append(str(Path(__file__).parent.parent.parent))
@@ -26,6 +36,24 @@ from src.algorithms.user_knn_recommender import UserKNNRecommender
 from src.algorithms.item_knn_recommender import ItemKNNRecommender
 from src.algorithms.content_based_recommender import ContentBasedRecommender
 from src.algorithms.hybrid_recommender import HybridRecommender
+
+
+def _is_streamlit_context() -> bool:
+    """Check if running in Streamlit context to avoid warnings"""
+    try:
+        # Temporarily suppress logging during context check
+        streamlit_logger = logging.getLogger('streamlit.runtime.scriptrunner_utils.script_run_context')
+        original_level = streamlit_logger.level
+        streamlit_logger.setLevel(logging.CRITICAL)
+        
+        from streamlit.runtime.scriptrunner import get_script_run_ctx
+        result = get_script_run_ctx() is not None
+        
+        # Restore logger level
+        streamlit_logger.setLevel(original_level)
+        return result
+    except:
+        return False
 
 
 class AlgorithmType(Enum):
@@ -119,11 +147,13 @@ class AlgorithmManager:
             if algorithm_type in self._algorithms:
                 algorithm = self._algorithms[algorithm_type]
                 if algorithm.is_trained:
-                    print(f"✓ Using cached {algorithm.name}")
+                    if not _is_streamlit_context():
+                        print(f"✓ Using cached {algorithm.name}")
                     return algorithm
             
             # Need to create and train algorithm
-            print(f"🔄 Loading {algorithm_type.value}...")
+            if not _is_streamlit_context():
+                print(f"🔄 Loading {algorithm_type.value}...")
             
             # Merge default and custom parameters
             params = self._default_params[algorithm_type].copy()
@@ -143,18 +173,24 @@ class AlgorithmManager:
             # Train algorithm if no pre-trained model available
             ratings_df, movies_df = self._training_data
             
-            # Show progress in Streamlit
-            with st.spinner(f'Training {algorithm.name}... This may take a moment.'):
+            # Show progress in Streamlit (only if in Streamlit context)
+            if _is_streamlit_context():
+                with st.spinner(f'Training {algorithm.name}... This may take a moment.'):
+                    start_time = time.time()
+                    algorithm.fit(ratings_df, movies_df)
+                    training_time = time.time() - start_time
+            else:
                 start_time = time.time()
                 algorithm.fit(ratings_df, movies_df)
                 training_time = time.time() - start_time
                 
-                # Cache the trained algorithm
-                self._algorithms[algorithm_type] = algorithm
-                
-                print(f"✓ {algorithm.name} trained in {training_time:.1f}s")
-                
-                # Show success message
+            # Cache the trained algorithm
+            self._algorithms[algorithm_type] = algorithm
+            
+            print(f"✓ {algorithm.name} trained in {training_time:.1f}s")
+            
+            # Show success message (only if in Streamlit context)
+            if _is_streamlit_context():
                 st.success(f"✅ {algorithm.name} ready! (Trained in {training_time:.1f}s)")
                 
             return algorithm
@@ -170,9 +206,13 @@ class AlgorithmManager:
         Returns:
             True if model was loaded successfully, False otherwise
         """
+        # Import load_model_safe utility
+        from src.utils import load_model_safe
+        
         # Define model paths for all supported algorithms
+        # Note: Using sklearn SVD variant (svd_model_sklearn.pkl) - faster and more memory-efficient
         model_paths = {
-            AlgorithmType.SVD: Path("models/svd_model.pkl"),
+            AlgorithmType.SVD: Path("models/svd_model_sklearn.pkl"),  # sklearn variant (not Surprise)
             AlgorithmType.USER_KNN: Path("models/user_knn_model.pkl"),
             AlgorithmType.ITEM_KNN: Path("models/item_knn_model.pkl"),
             AlgorithmType.CONTENT_BASED: Path("models/content_based_model.pkl")
@@ -191,29 +231,41 @@ class AlgorithmManager:
             return False
         
         if not model_path.exists():
-            print(f"   • No pre-trained model found at {model_path}")
+            if not _is_streamlit_context():
+                print(f"   • No pre-trained model found at {model_path}")
             return False
         
         try:
-            print(f"   • Loading pre-trained model from {model_path}")
+            if not _is_streamlit_context():
+                print(f"   • Loading pre-trained model from {model_path}")
             start_time = time.time()
-            algorithm.load_model(model_path)
+            
+            # Use load_model_safe to handle both old (pickle) and new (joblib dict) formats
+            loaded_model = load_model_safe(str(model_path))
             load_time = time.time() - start_time
+            
+            # IMPORTANT: Replace the algorithm instance with the loaded model
+            # Copy the loaded model's attributes to the current algorithm instance
+            algorithm.__dict__.update(loaded_model.__dict__)
             
             # IMPORTANT: Provide data context to the loaded model
             # Pre-trained models need access to current data for some operations
+            # Using shallow references (not copies) since models are already trained
             ratings_df, movies_df = self._training_data
-            algorithm.ratings_df = ratings_df.copy()
-            algorithm.movies_df = movies_df.copy()
+            algorithm.ratings_df = ratings_df  # Shallow reference (model is pre-trained, won't modify)
+            algorithm.movies_df = movies_df    # Shallow reference
             # Add genres_list if not present
             if 'genres_list' not in algorithm.movies_df.columns:
                 algorithm.movies_df['genres_list'] = algorithm.movies_df['genres'].str.split('|')
-            print(f"   • Data context provided to loaded model")
+            if not _is_streamlit_context():
+                print(f"   • Data context provided to loaded model")
             
             # Verify the model is properly loaded and trained
             if algorithm.is_trained:
-                print(f"   ✓ Pre-trained {algorithm.name} loaded in {load_time:.2f}s")
-                st.success(f"🚀 {algorithm.name} loaded from pre-trained model! ({load_time:.2f}s)")
+                if not _is_streamlit_context():
+                    print(f"   ✓ Pre-trained {algorithm.name} loaded in {load_time:.2f}s")
+                if _is_streamlit_context():
+                    st.success(f"🚀 {algorithm.name} loaded from pre-trained model! ({load_time:.2f}s)")
                 return True
             else:
                 print(f"   ⚠ Pre-trained model loaded but not marked as trained")
@@ -222,6 +274,8 @@ class AlgorithmManager:
         except Exception as e:
             print(f"   ❌ Failed to load pre-trained model: {e}")
             print(f"   → Will train from scratch instead")
+            import traceback
+            traceback.print_exc()  # Print full traceback for debugging
             return False
     
     def get_current_algorithm(self) -> Optional[BaseRecommender]:
@@ -247,7 +301,9 @@ class AlgorithmManager:
         Returns:
             The new algorithm instance
         """
-        print(f"🔄 Switching to {algorithm_type.value}")
+        # Only show in terminal/logs, not in Streamlit UI
+        if not _is_streamlit_context():
+            print(f"🔄 Switching to {algorithm_type.value}")
         
         # Store selection in session state
         st.session_state.selected_algorithm = algorithm_type
@@ -507,7 +563,9 @@ class AlgorithmManager:
             predictions = []
             actuals = []
             
-            print(f"🔍 Debug: Testing {len(test_sample)} samples for {algorithm_type.value}")
+            # Suppress verbose output in Streamlit UI
+            if not _is_streamlit_context():
+                print(f"🔍 Testing {len(test_sample)} samples for {algorithm_type.value}")
             
             for i, (_, row) in enumerate(test_sample.iterrows()):
                 try:
@@ -516,12 +574,14 @@ class AlgorithmManager:
                         predictions.append(pred)
                         actuals.append(row['rating'])
                 except Exception as e:
-                    # Skip failed predictions
-                    if i < 5:  # Only print first 5 errors to avoid spam
+                    # Skip failed predictions silently (only log in non-Streamlit context)
+                    if not _is_streamlit_context() and i < 5:
                         print(f"    ❌ Prediction failed for user {row['userId']}, movie {row['movieId']}: {e}")
                     continue
             
-            print(f"    ✓ Got {len(predictions)} valid predictions out of {len(test_sample)} samples")
+            # Only show in terminal/logs, not in Streamlit UI
+            if not _is_streamlit_context():
+                print(f"    ✓ Got {len(predictions)} valid predictions out of {len(test_sample)} samples")
             
             # Calculate metrics if we have predictions
             metrics = {}

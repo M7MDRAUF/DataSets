@@ -274,7 +274,7 @@ try:
             """, unsafe_allow_html=True)
     
     # Generate recommendations button
-    if st.button("🎬 Generate Recommendations", type="primary", use_container_width=True):
+    if st.button("🎬 Generate Recommendations", type="primary", width="stretch"):
         try:
             with st.spinner(f"Training {selected_algorithm} algorithm and generating recommendations..."):
                 
@@ -412,7 +412,7 @@ try:
         yaxis_title="Genre"
     )
     
-    st.plotly_chart(fig_genres, use_container_width=True)
+    st.plotly_chart(fig_genres, width="stretch")
     
     st.markdown("---")
     
@@ -436,7 +436,7 @@ try:
         )
         
         fig_ratings.update_layout(height=400)
-        st.plotly_chart(fig_ratings, use_container_width=True)
+        st.plotly_chart(fig_ratings, width="stretch")
     
     with col2:
         st.markdown("### Rating Statistics")
@@ -483,7 +483,7 @@ try:
     
     st.dataframe(
         display_df,
-        use_container_width=True,
+        width="stretch",
         hide_index=True
     )
     
@@ -511,7 +511,7 @@ try:
             showlegend=False
         )
         
-        st.plotly_chart(fig_user_engagement, use_container_width=True)
+        st.plotly_chart(fig_user_engagement, width="stretch")
     
     with col2:
         st.markdown("### Engagement Statistics")

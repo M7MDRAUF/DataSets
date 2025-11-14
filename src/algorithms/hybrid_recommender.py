@@ -91,8 +91,13 @@ class HybridRecommender(BaseRecommender):
         if 'genres_list' not in self.movies_df.columns:
             self.movies_df['genres_list'] = self.movies_df['genres'].str.split('|')
         
-        print("\n📊 Training SVD algorithm...")
-        self.svd_model.fit(ratings_df, movies_df)
+        print("\n📊 Loading/Training SVD algorithm...")
+        # Try to load pre-trained SVD model (use sklearn version - faster loading)
+        svd_loaded = self._try_load_svd(ratings_df, movies_df)
+        if not svd_loaded:
+            print("  • No pre-trained model found, training from scratch...")
+            self.svd_model.fit(ratings_df, movies_df)
+        
         self.algorithm_performance['svd'] = {
             'rmse': self.svd_model.metrics.rmse,
             'training_time': self.svd_model.metrics.training_time,
@@ -179,6 +184,7 @@ class HybridRecommender(BaseRecommender):
     def _try_load_user_knn(self, ratings_df: pd.DataFrame, movies_df: pd.DataFrame) -> bool:
         """Try to load pre-trained User KNN model"""
         from pathlib import Path
+        from src.utils import load_model_safe
         
         model_path = Path("models/user_knn_model.pkl")
         if not model_path.exists():
@@ -187,11 +193,17 @@ class HybridRecommender(BaseRecommender):
         try:
             print("  • Loading pre-trained User KNN model...")
             start_time = time.time()
-            self.user_knn_model.load_model(model_path)
             
-            # Provide data context
-            self.user_knn_model.ratings_df = ratings_df.copy()
-            self.user_knn_model.movies_df = movies_df.copy()
+            # Use load_model_safe to handle both pickle and joblib formats
+            loaded_model = load_model_safe(str(model_path))
+            
+            # Replace the user_knn_model with the loaded instance
+            self.user_knn_model = loaded_model
+            
+            # Provide data context (shallow reference - model is already trained)
+            # Pre-trained models only need data for metadata lookups, not training
+            self.user_knn_model.ratings_df = ratings_df  # Shallow reference instead of copy()
+            self.user_knn_model.movies_df = movies_df    # Shallow reference instead of copy()
             if 'genres_list' not in self.user_knn_model.movies_df.columns:
                 self.user_knn_model.movies_df['genres_list'] = self.user_knn_model.movies_df['genres'].str.split('|')
             
@@ -201,11 +213,14 @@ class HybridRecommender(BaseRecommender):
             
         except Exception as e:
             print(f"  ❌ Failed to load pre-trained User KNN: {e}")
+            import traceback
+            traceback.print_exc()
             return False
     
     def _try_load_item_knn(self, ratings_df: pd.DataFrame, movies_df: pd.DataFrame) -> bool:
         """Try to load pre-trained Item KNN model"""
         from pathlib import Path
+        from src.utils import load_model_safe
         
         model_path = Path("models/item_knn_model.pkl")
         if not model_path.exists():
@@ -214,11 +229,17 @@ class HybridRecommender(BaseRecommender):
         try:
             print("  • Loading pre-trained Item KNN model...")
             start_time = time.time()
-            self.item_knn_model.load_model(model_path)
             
-            # Provide data context
-            self.item_knn_model.ratings_df = ratings_df.copy()
-            self.item_knn_model.movies_df = movies_df.copy()
+            # Use load_model_safe to handle both pickle and joblib formats
+            loaded_model = load_model_safe(str(model_path))
+            
+            # Replace the item_knn_model with the loaded instance
+            self.item_knn_model = loaded_model
+            
+            # Provide data context (shallow reference - model is already trained)
+            # Pre-trained models only need data for metadata lookups, not training
+            self.item_knn_model.ratings_df = ratings_df  # Shallow reference instead of copy()
+            self.item_knn_model.movies_df = movies_df    # Shallow reference instead of copy()
             if 'genres_list' not in self.item_knn_model.movies_df.columns:
                 self.item_knn_model.movies_df['genres_list'] = self.item_knn_model.movies_df['genres'].str.split('|')
             
@@ -228,11 +249,14 @@ class HybridRecommender(BaseRecommender):
             
         except Exception as e:
             print(f"  ❌ Failed to load pre-trained Item KNN: {e}")
+            import traceback
+            traceback.print_exc()
             return False
     
     def _try_load_content_based(self, ratings_df: pd.DataFrame, movies_df: pd.DataFrame) -> bool:
         """Try to load pre-trained Content-Based model"""
         from pathlib import Path
+        from src.utils import load_model_safe
         
         model_path = Path("models/content_based_model.pkl")
         if not model_path.exists():
@@ -241,11 +265,17 @@ class HybridRecommender(BaseRecommender):
         try:
             print("  • Loading pre-trained Content-Based model...")
             start_time = time.time()
-            self.content_based_model.load_model(model_path)
             
-            # Provide data context
-            self.content_based_model.ratings_df = ratings_df.copy()
-            self.content_based_model.movies_df = movies_df.copy()
+            # Use load_model_safe to handle both pickle and joblib formats
+            loaded_model = load_model_safe(str(model_path))
+            
+            # Replace the content_based_model with the loaded instance
+            self.content_based_model = loaded_model
+            
+            # Provide data context (shallow reference - model is already trained)
+            # Pre-trained models only need data for metadata lookups, not training
+            self.content_based_model.ratings_df = ratings_df  # Shallow reference instead of copy()
+            self.content_based_model.movies_df = movies_df    # Shallow reference instead of copy()
             if 'genres_list' not in self.content_based_model.movies_df.columns:
                 self.content_based_model.movies_df['genres_list'] = self.content_based_model.movies_df['genres'].str.split('|')
             
@@ -255,6 +285,48 @@ class HybridRecommender(BaseRecommender):
             
         except Exception as e:
             print(f"  ❌ Failed to load pre-trained Content-Based: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+    
+    def _try_load_svd(self, ratings_df: pd.DataFrame, movies_df: pd.DataFrame) -> bool:
+        """Try to load pre-trained SVD model (using sklearn version for faster loading)"""
+        from pathlib import Path
+        from src.utils import load_model_safe
+        
+        # Try sklearn version first (faster loading, less memory)
+        model_path = Path("models/svd_model_sklearn.pkl")
+        if not model_path.exists():
+            # Fallback to Surprise version if sklearn not available
+            model_path = Path("models/svd_model.pkl")
+            if not model_path.exists():
+                return False
+            
+        try:
+            print(f"  • Loading pre-trained SVD model ({model_path.name})...")
+            start_time = time.time()
+            
+            # Use load_model_safe to handle both pickle and joblib formats
+            loaded_model = load_model_safe(str(model_path))
+            
+            # Replace the svd_model with the loaded instance
+            self.svd_model = loaded_model
+            
+            # Provide data context (shallow reference - model is already trained)
+            # Pre-trained models only need data for metadata lookups, not training
+            self.svd_model.ratings_df = ratings_df  # Shallow reference instead of copy()
+            self.svd_model.movies_df = movies_df    # Shallow reference instead of copy()
+            if 'genres_list' not in self.svd_model.movies_df.columns:
+                self.svd_model.movies_df['genres_list'] = self.svd_model.movies_df['genres'].str.split('|')
+            
+            load_time = time.time() - start_time
+            print(f"  ✓ Pre-trained SVD loaded in {load_time:.2f}s")
+            return True
+            
+        except Exception as e:
+            print(f"  ❌ Failed to load pre-trained SVD: {e}")
+            import traceback
+            traceback.print_exc()
             return False
     
     def _calculate_weights(self) -> None:
