@@ -74,6 +74,11 @@ STREAMLIT_*.md
 HYBRID_*.md
 MODEL_LOADING_*.md
 SVD_*.md
+ALL_TASKS_COMPLETE.md
+IMPLEMENTATION_STATUS.md
+PROJECT_STATUS.md
+TRAINING_*.md
+training_output.log
 
 # Exclude test and diagnostic files
 test_*.py
