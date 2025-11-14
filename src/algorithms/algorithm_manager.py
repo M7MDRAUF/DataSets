@@ -161,7 +161,7 @@ class AlgorithmManager:
     
     def _try_load_pretrained_model(self, algorithm: BaseRecommender, algorithm_type: AlgorithmType) -> bool:
         """
-        Try to load a pre-trained model for KNN algorithms.
+        Try to load a pre-trained model for algorithms.
         
         Args:
             algorithm: The algorithm instance to load into
@@ -170,16 +170,21 @@ class AlgorithmManager:
         Returns:
             True if model was loaded successfully, False otherwise
         """
-        # Only try to load for KNN and Content-Based algorithms
-        if algorithm_type not in [AlgorithmType.USER_KNN, AlgorithmType.ITEM_KNN, AlgorithmType.CONTENT_BASED]:
-            return False
-        
-        # Define model paths
+        # Define model paths for all supported algorithms
         model_paths = {
+            AlgorithmType.SVD: Path("models/svd_model.pkl"),
             AlgorithmType.USER_KNN: Path("models/user_knn_model.pkl"),
             AlgorithmType.ITEM_KNN: Path("models/item_knn_model.pkl"),
             AlgorithmType.CONTENT_BASED: Path("models/content_based_model.pkl")
         }
+        
+        # Hybrid doesn't have pre-trained - it uses component algorithms
+        if algorithm_type == AlgorithmType.HYBRID:
+            return False
+        
+        # Check if algorithm has pre-trained model support
+        if algorithm_type not in model_paths:
+            return False
         
         model_path = model_paths.get(algorithm_type)
         if not model_path:
@@ -455,10 +460,32 @@ class AlgorithmManager:
                f"SVD {weights.get('svd', 0):.2f}, User KNN {weights.get('user_knn', 0):.2f}, "
                f"Item KNN {weights.get('item_knn', 0):.2f}")
 
+    def is_algorithm_cached(self, algorithm_type: AlgorithmType) -> bool:
+        """
+        Check if algorithm is already cached and trained without loading it.
+        
+        Args:
+            algorithm_type: Type of algorithm to check
+            
+        Returns:
+            True if algorithm is cached and trained, False otherwise
+        """
+        if algorithm_type in self._algorithms:
+            return self._algorithms[algorithm_type].is_trained
+        return False
+    
     def get_algorithm_metrics(self, algorithm_type: AlgorithmType) -> Dict[str, Any]:
         """Get performance metrics for a specific algorithm"""
-        # Get or train the algorithm
-        algorithm = self.get_algorithm(algorithm_type)
+        # Check if algorithm is cached first
+        if not self.is_algorithm_cached(algorithm_type):
+            return {
+                "algorithm": algorithm_type.value,
+                "status": "Not loaded",
+                "metrics": {}
+            }
+        
+        # Get cached algorithm (won't trigger training)
+        algorithm = self._algorithms[algorithm_type]
         
         if not algorithm.is_trained:
             return {

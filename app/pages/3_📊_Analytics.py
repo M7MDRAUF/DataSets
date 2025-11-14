@@ -173,9 +173,6 @@ try:
     
     # TAB 1: Algorithm Performance Analysis (NEW V2.0 Feature)
     with tab1:
-        st.markdown("## 🤖 Multi-Algorithm Performance Analysis")
-        st.markdown("Compare and analyze different recommendation algorithms")
-        
         # Algorithm performance comparison
         col1, col2 = st.columns([2, 1])
         
@@ -184,15 +181,20 @@ try:
             
             # Run benchmarks button
             if st.button("🚀 Run Algorithm Benchmark", type="primary"):
-                with st.spinner("Training and evaluating all algorithms..."):
+                with st.spinner("Loading algorithm metrics..."):
                     benchmark_results = []
                     
-                    # Test each algorithm
+                    # Get metrics for each algorithm WITHOUT forcing training
                     for algo_type in [AlgorithmType.SVD, AlgorithmType.USER_KNN, AlgorithmType.ITEM_KNN, AlgorithmType.CONTENT_BASED, AlgorithmType.HYBRID]:
                         try:
-                            # Switch to algorithm and get metrics
-                            algorithm = manager.switch_algorithm(algo_type)
+                            # Check if algorithm is already cached/trained
                             metrics_data = manager.get_algorithm_metrics(algo_type)
+                            
+                            # If not cached, try to load it (will use pre-trained if available)
+                            if not metrics_data or metrics_data.get('status') != 'Trained':
+                                with st.spinner(f"Loading {algo_type.value}..."):
+                                    algorithm = manager.get_algorithm(algo_type)
+                                    metrics_data = manager.get_algorithm_metrics(algo_type)
                             
                             if metrics_data and metrics_data.get('status') == 'Trained':
                                 metrics = metrics_data.get('metrics', {})
