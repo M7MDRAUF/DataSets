@@ -78,6 +78,7 @@ ALL_TASKS_COMPLETE.md
 IMPLEMENTATION_STATUS.md
 PROJECT_STATUS.md
 TRAINING_*.md
+TESTING_PROCEDURES.md
 training_output.log
 
 # Exclude test and diagnostic files
