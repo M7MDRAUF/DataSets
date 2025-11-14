@@ -61,6 +61,28 @@ ISSUE_RESOLVED.md
 QUICKSTART_AFTER_TRAINING.md
 aa.md
 
+# Exclude session-specific documentation
+SESSION_*.md
+DERV_*.md
+BUGFIX_*.md
+*_FIX_*.md
+*_SUMMARY.md
+*_GUIDE.md
+*_ANALYSIS.md
+DOCKER_*.md
+STREAMLIT_*.md
+HYBRID_*.md
+MODEL_LOADING_*.md
+SVD_*.md
+
+# Exclude test and diagnostic files
+test_*.py
+diagnose_*.py
+validate_*.py
+monitor_*.py
+simple_test.py
+training_log.txt
+
 # ========================================
 # Model Files (Large binaries)
 # ========================================
