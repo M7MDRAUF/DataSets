@@ -1,22 +1,29 @@
-# 🚀 CineMatch V2.1.0 - Production Deployment Guide
+# 🚀 CineMatch V2.1.1 - Production Deployment Guide
 
 ## ⚠️ Important: Recommended Deployment Platform
 
 **Use Streamlit Cloud** (not Vercel) - Streamlit apps work best on Streamlit's native platform.
 
-**V2.1.0 Critical**: Pre-trained models (526MB total: User-KNN 266MB, Item-KNN 260MB, Content-Based ~300MB) require **Git LFS**. All deployment methods MUST support Git LFS for model files.
+**V2.1.1 Critical**: Pre-trained models (4.07GB total) require **Git LFS** and **adequate memory** (8GB+ RAM recommended). All deployment methods MUST support Git LFS for model files.
+
+**Memory Requirements (V2.1.1)**:
+- **Application**: 185MB runtime (optimized with shallow references)
+- **Docker Container**: 2.6GB total (with all dependencies)
+- **Recommended Limit**: 8GB (68% headroom)
+- **Models on Disk**: 4.07GB (SVD 909.6MB, User-KNN 1114MB, Item-KNN 1108.4MB, Content-Based 1059.9MB, Hybrid 491.3MB)
 
 Vercel has limitations with:
 - Long-running Python processes
 - Large dependencies (scikit-surprise, numba, scipy)
 - Streamlit's websocket connections
 - Git LFS (large model files)
+- Memory constraints (insufficient for 4GB+ models)
 
 ---
 
 ## 🔑 Prerequisites: Git LFS Setup (REQUIRED)
 
-**ALL deployment methods require Git LFS for pre-trained models (526MB)**
+**ALL deployment methods require Git LFS for pre-trained models (4.07GB)**
 
 ### Install Git LFS
 
@@ -47,12 +54,14 @@ git lfs install
 cd DataSets
 git lfs pull
 
-# Verify models downloaded (should see 526MB total)
+# Verify models downloaded (should see 4.07GB total)
 ls -lh models/
 # Expected files:
-# - user_knn_model.pkl (266 MB)
-# - item_knn_model.pkl (260 MB)
-# - content_based_*.pkl (~300 MB)
+# - svd_model_sklearn.pkl (909.6 MB)
+# - user_knn_model.pkl (1114 MB)
+# - item_knn_model.pkl (1108.4 MB)
+# - content_based_tfidf_model.pkl (1059.9 MB)
+# - hybrid_model.pkl (491.3 MB)
 ```
 
 **Without Git LFS**: Models will be pointer files (~100 bytes) and application will fail with "model not found" errors.
@@ -69,13 +78,15 @@ ls -lh models/
 - GitHub account
 - Streamlit Cloud account (free tier available)
 - Git LFS enabled on repository (already configured)
+- **8GB+ RAM** allocation for V2.1.1 models
 
 #### Steps:
 
 1. **Your repository is already on GitHub**
    - Repository: https://github.com/M7MDRAUF/DataSets
    - Branch: `main`
-   - Git LFS: ✅ Configured (526MB models)
+   - Git LFS: ✅ Configured (4.07GB models)
+   - Memory Optimization: ✅ Shallow references (V2.1.1)
 
 2. **Deploy on Streamlit Cloud**
    - Go to https://streamlit.io/cloud

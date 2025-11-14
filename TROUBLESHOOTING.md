@@ -1,4 +1,4 @@
-# CineMatch V2.1.0 - Troubleshooting Guide
+# CineMatch V2.1.1 - Troubleshooting Guide
 
 ## 📋 Overview
 
@@ -8,15 +8,60 @@ Comprehensive troubleshooting guide for common issues in CineMatch. This documen
 
 ## 🚨 Most Common Issues
 
-### 1. Git LFS Models Not Loaded
+### 1. Memory Issues / Container Crashes (V2.1.1 FIXED)
 
 **Symptom**:
 ```
-FileNotFoundError: models/user_knn_model.pkl not found
+Container restarts unexpectedly
+Streamlit reloads automatically
+OOM (Out of Memory) errors
+Docker container using > 8GB RAM
+Application freezes when switching algorithms
+```
+
+**Cause**: Algorithm manager creating deep copies of 3.3GB dataset on every model load.
+
+**Solution (Applied in V2.1.1)**:
+
+The memory explosion issue has been **permanently fixed** in V2.1.1:
+
+**Before (V2.0.x - Memory Explosion)**:
+```python
+# ❌ Created 3.3GB copy EVERY time user switched algorithms
+algorithm.ratings_df = ratings_df.copy()  # 3.3GB copy
+algorithm.movies_df = movies_df.copy()
+```
+
+**After (V2.1.1 - Shallow References)**:
+```python
+# ✅ Shallow reference (read-only, ~0 bytes overhead)
+algorithm.ratings_df = ratings_df  # No copy
+algorithm.movies_df = movies_df    # No copy
+```
+
+**Results**:
+- Memory: 13.2GB crash → 185MB stable (98.6% reduction)
+- Docker: 2.6GB / 8GB (68% headroom)
+- All algorithms work without crashes
+- Can switch between algorithms unlimited times
+
+**If you still experience memory issues**:
+1. Ensure you're running V2.1.1 (check README.md header)
+2. Rebuild Docker container: `docker-compose down && docker-compose up --build -d`
+3. Verify memory limit in docker-compose.yml: `mem_limit: 8g`
+4. Check Docker stats: `docker stats cinematch-v2`
+
+---
+
+### 2. Git LFS Models Not Loaded
+
+**Symptom**:
+```
+FileNotFoundError: models/svd_model_sklearn.pkl not found
 OR
 RuntimeError: File is a Git LFS pointer, not actual model
 OR
-Model file is only 133 bytes (should be 266MB)
+Model file is only 133 bytes (should be 909.6MB)
 ```
 
 **Cause**: Git LFS not installed or models not pulled.
@@ -40,19 +85,22 @@ git lfs install
 # Step 3: Pull actual model files
 git lfs pull
 
-# Step 4: Verify model sizes
+# Step 4: Verify model sizes (V2.1.1)
 ls -lh models/
 # Expected output:
-#   user_knn_model.pkl    ~266MB
-#   item_knn_model.pkl    ~260MB
-#   content_based_model.pkl ~300MB
+#   svd_model_sklearn.pkl         909.6 MB
+#   user_knn_model.pkl            1114 MB
+#   item_knn_model.pkl            1108.4 MB
+#   content_based_tfidf_model.pkl 1059.9 MB
+#   hybrid_model.pkl              491.3 MB
+#   TOTAL: 4.07 GB
 ```
 
 **Verification**:
 
 ```powershell
 # Check if file is LFS pointer
-Get-Content models/user_knn_model.pkl | Select-Object -First 3
+Get-Content models/svd_model_sklearn.pkl | Select-Object -First 3
 # If you see "version https://git-lfs.github.com/spec/v1", it's a pointer
 
 # After git lfs pull, you should see binary data (unreadable)
@@ -64,7 +112,7 @@ Get-Content models/user_knn_model.pkl | Select-Object -First 3
 
 ---
 
-### 2. Port 8501 Already in Use
+### 3. Port 8501 Already in Use
 
 **Symptom**:
 ```

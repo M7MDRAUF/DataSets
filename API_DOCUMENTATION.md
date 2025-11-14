@@ -1,8 +1,13 @@
-# CineMatch V2.1.0 - API & Interface Documentation
+# CineMatch V2.1.1 - API & Interface Documentation
 
 ## 📋 Overview
 
 Complete API reference for CineMatch's public interfaces and integration points. This document covers the AlgorithmManager API, BaseRecommender contract, and all public methods for algorithm interaction.
+
+**V2.1.1 Updates**:
+- Memory optimization: Shallow references for pre-trained models
+- Added `get_explanation_context()` to ContentBasedRecommender
+- Context-aware logging with `_is_streamlit_context()` helper
 
 ---
 
@@ -37,8 +42,10 @@ def get_algorithm(
 - `algorithm_name` (str): One of `"SVD"`, `"User-KNN"`, `"Item-KNN"`, `"Content-Based"`, `"Hybrid"`
 - `ratings_df` (pd.DataFrame, optional): Required for first-time algorithm initialization
   - Columns: `userId`, `movieId`, `rating`, `timestamp`
+  - **V2.1.1**: Passed as shallow reference (no copying)
 - `movies_df` (pd.DataFrame, optional): Required for Content-Based algorithm
   - Columns: `movieId`, `title`, `genres`
+  - **V2.1.1**: Passed as shallow reference (no copying)
 
 **Returns**:
 - `BaseRecommender`: Algorithm instance implementing the recommender interface
@@ -54,7 +61,7 @@ def get_algorithm(
 # Example 1: Load pre-trained model (recommended)
 manager = AlgorithmManager()
 recommender = manager.get_algorithm("User-KNN")
-# First call: Loads 266MB model (~1.5s)
+# First call: Loads 1114MB model (1-8s)
 # Subsequent calls: Returns cached instance (<0.01s)
 
 # Example 2: Initialize with data (if model not found)
@@ -66,16 +73,28 @@ recommender = manager.get_algorithm(
     movies_df=movies_df
 )
 
-# Example 3: Switch between algorithms
-svd_rec = manager.get_algorithm("SVD")
-knn_rec = manager.get_algorithm("User-KNN")
-hybrid_rec = manager.get_algorithm("Hybrid")
+# Example 3: Switch between algorithms (V2.1.1 optimized - no memory overhead)
+svd_rec = manager.get_algorithm("SVD")        # 909.6 MB
+knn_rec = manager.get_algorithm("User-KNN")   # 1114 MB
+hybrid_rec = manager.get_algorithm("Hybrid")  # 491.3 MB
+# Total memory: 185MB runtime (shallow references)
 ```
 
-**Performance**:
-- First call: 0.8-2s (model loading)
+**Performance (V2.1.1)**:
+- First call: 1-9s (model loading, depends on algorithm)
 - Cached call: <0.01s
-- Memory: Models cached in RAM (total ~800MB for all 5)
+- Memory: 185MB runtime (all 5 algorithms cached)
+- Switching: No memory overhead (shallow references)
+
+**Memory Optimization (V2.1.1)**:
+```python
+# Before V2.1.1 (❌ Memory explosion)
+algorithm.ratings_df = ratings_df.copy()  # 3.3GB copy per switch
+
+# V2.1.1 (✅ Shallow reference)
+algorithm.ratings_df = ratings_df  # ~0 bytes overhead
+algorithm.movies_df = movies_df    # Read-only access
+```
 
 ---
 
@@ -93,8 +112,8 @@ def switch_algorithm(
 
 **Parameters**:
 - `new_algorithm` (str): Target algorithm name
-- `ratings_df` (pd.DataFrame): Ratings data
-- `movies_df` (pd.DataFrame): Movies metadata
+- `ratings_df` (pd.DataFrame): Ratings data (shallow reference)
+- `movies_df` (pd.DataFrame): Movies metadata (shallow reference)
 
 **Example**:
 
@@ -344,6 +363,83 @@ for i, rec in enumerate(recommendations, 1):
 - **Item-KNN**: ~1s
 - **Content-Based**: ~0.5s
 - **Hybrid**: ~3s (combines all 4)
+
+---
+
+### Method: `get_explanation_context()` (NEW in V2.1.1)
+
+**Purpose**: Get rich context for explaining why a movie was recommended.
+
+```python
+def get_explanation_context(
+    user_id: int,
+    movie_id: int
+) -> Dict[str, Any]
+```
+
+**Parameters**:
+- `user_id` (int): User identifier
+- `movie_id` (int): Movie identifier
+
+**Returns**:
+```python
+{
+    "movie_title": "Inception (2010)",
+    "genres": ["Action", "Sci-Fi", "Thriller"],
+    "similar_to_liked": [
+        {
+            "title": "The Matrix (1999)",
+            "genres": "Action|Sci-Fi",
+            "user_rating": 5.0,
+            "similarity": 0.89
+        },
+        {
+            "title": "Interstellar (2014)",
+            "genres": "Adventure|Drama|Sci-Fi",
+            "user_rating": 4.5,
+            "similarity": 0.85
+        }
+    ],
+    "feature_weights": {
+        "genres": 0.45,
+        "tags": 0.35,
+        "title": 0.20
+    },
+    "user_rated_count": 324
+}
+```
+
+**Implemented By**:
+- ✅ ContentBasedRecommender (V2.1.1)
+- ✅ SVDRecommender
+- ✅ UserKNNRecommender
+- ✅ ItemKNNRecommender
+- ✅ HybridRecommender
+
+**Example**:
+
+```python
+manager = AlgorithmManager()
+recommender = manager.get_algorithm("Content-Based")
+
+# Get explanation context
+context = recommender.get_explanation_context(
+    user_id=123,
+    movie_id=456
+)
+
+# Generate explanation
+if context.get("similar_to_liked"):
+    similar = context["similar_to_liked"][0]
+    print(f"Because you loved '{similar['title']}' ({similar['user_rating']}★),")
+    print(f"you might enjoy '{context['movie_title']}' (similarity: {similar['similarity']:.2%})")
+```
+
+**Use Cases**:
+- Explainable AI (XAI) for recommendation transparency
+- Building detailed explanation UI
+- Understanding algorithm behavior
+- User trust and engagement
 
 ---
 

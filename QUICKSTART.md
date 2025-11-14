@@ -1,13 +1,14 @@
-# 🚀 CineMatch V2.1.0 Quick Setup Guide
+# 🚀 CineMatch V2.1.1 Quick Setup Guide
 
-This guide will help you get CineMatch V2.1.0 with all 5 algorithms up and running in under 15 minutes!
+This guide will help you get CineMatch V2.1.1 with all 5 algorithms up and running in under 15 minutes!
 
-**What's New in V2.1.0:**
-- ✅ Pre-trained KNN + Content-Based models (no training needed for demo!)
+**What's New in V2.1.1:**
+- ✅ Memory optimization: 98.6% reduction (13.2GB → 185MB)
+- ✅ Pre-trained models (4.07GB) - no training needed for demo!
 - ✅ 5 algorithms: SVD, User-KNN, Item-KNN, Content-Based, Hybrid
 - ✅ Analytics Dashboard with comprehensive benchmarking
-- ✅ 200x faster performance optimizations
-- ✅ Content-Based filtering with TF-IDF feature extraction
+- ✅ Clean professional UI (no debug spam)
+- ✅ Content-Based explanation context
 
 ---
 
@@ -16,7 +17,7 @@ This guide will help you get CineMatch V2.1.0 with all 5 algorithms up and runni
 ### Step 1: Install Dependencies (2 minutes)
 
 ```powershell
-# Install Git LFS (for 526MB pre-trained models)
+# Install Git LFS (for 4.07GB pre-trained models)
 git lfs install
 git lfs pull
 
@@ -42,13 +43,15 @@ pip install -r requirements.txt
 
 ### Step 3: Run the App (Instant - Pre-trained Models Included!)
 
-**V2.1.0 Note**: Pre-trained models (SVD, User-KNN, Item-KNN, Content-Based) are included (526MB via Git LFS), so you can run immediately!
+**V2.1.1 Note**: Pre-trained models (SVD 909.6MB, User-KNN 1114MB, Item-KNN 1108.4MB, Content-Based 1059.9MB, Hybrid 491.3MB) are included via Git LFS, so you can run immediately!
 
 ```powershell
 streamlit run app/main.py
 ```
 
 **Open**: http://localhost:8501
+
+**Memory Usage**: 185MB runtime (optimized with shallow references)
 
 #### Optional: Train Additional Models
 

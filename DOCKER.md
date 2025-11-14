@@ -1,6 +1,6 @@
-# 🐳 CineMatch V2.1.0 Docker Deployment
+# 🐳 CineMatch V2.1.1 Docker Deployment
 
-Quick and easy Docker deployment for the complete 5-algorithm recommendation system.
+Quick and easy Docker deployment for the complete 5-algorithm recommendation system with optimized memory usage.
 
 ## 🚀 One-Command Deployment
 
@@ -22,41 +22,55 @@ docker-compose up --build -d
 
 ## 📱 Access Your Application
 
-Once deployed, access CineMatch V2.1.0 at: **http://localhost:8501**
+Once deployed, access CineMatch V2.1.1 at: **http://localhost:8501**
 
 ## 🔧 Available Algorithms
 
-The V2.1.0 system includes all 5 recommendation algorithms:
+The V2.1.1 system includes all 5 recommendation algorithms:
 
-1. **SVD Matrix Factorization** - Fast, accurate for dense users
-2. **User-KNN (User-Based CF)** - Social recommendations based on similar users  
-3. **Item-KNN (Item-Based CF)** - Item similarity recommendations
-4. **Content-Based Filtering** - TF-IDF feature matching (genres, tags, titles)
-5. **Hybrid Ensemble** - Intelligent combination of all 4 algorithms ⭐
+1. **SVD Matrix Factorization (sklearn)** - Fast, accurate for dense users (909.6 MB, RMSE 0.7502)
+2. **User-KNN (User-Based CF)** - Social recommendations based on similar users (1114 MB, RMSE 0.8394)
+3. **Item-KNN (Item-Based CF)** - Item similarity recommendations (1108.4 MB, RMSE 0.9100)
+4. **Content-Based Filtering** - TF-IDF feature matching (genres, tags, titles) (1059.9 MB, RMSE 1.1130)
+5. **Hybrid Ensemble** - Intelligent combination of all 4 algorithms (491.3 MB, RMSE 0.8701) ⭐
 
-## 📊 Performance Comparison
+## 📊 Performance Comparison (V2.1.1)
 
-| Algorithm | RMSE (100K) | Speed  | Coverage | Memory | Best For |
-|-----------|-------------|--------|----------|---------|----------|
-| SVD       | 0.6829      | Fast   | 24.1%    | ~50 MB  | Dense users |
-| User-KNN  | 0.8394      | Medium | ~50%     | 266 MB  | Sparse users |
-| Item-KNN  | 0.8117      | Medium | ~50%     | 260 MB  | Item similarity |
-| Content-Based | N/A*    | Fast   | 100%     | ~300 MB | New items/cold-start |
-| **Hybrid**| **0.7668**  | Slower | **100%** | 526 MB+ | **All scenarios** ⭐|
+| Algorithm | Model Size | Load Time | RMSE | Coverage | Best For |
+|-----------|-----------|-----------|------|----------|----------|
+| SVD (sklearn) | 909.6 MB | 5-9s | 0.7502 | 100% | Dense users |
+| User-KNN | 1114 MB | 1-8s | 0.8394 | 100% | Sparse users |
+| Item-KNN | 1108.4 MB | 1-8s | 0.9100 | 50.1% | Item similarity |
+| Content-Based | 1059.9 MB | ~6s | 1.1130 | 100% | New items/cold-start |
+| **Hybrid** | **491.3 MB** | **~25s** | **0.8701** | **100%** | **All scenarios** ⭐|
 
-*Content-Based uses cosine similarity (not RMSE-based)
+**Total Models**: 4.07 GB on disk
 
-**Note**: SVD RMSE on full 32M dataset: 0.8406 (per model_metadata.json)
-
-## 🎯 V2.1.0 Features
+## 🎯 V2.1.1 Features
 
 ✨ **5 Algorithms** - SVD, User-KNN, Item-KNN, Content-Based, Hybrid  
 🔄 **Algorithm Selector** - Switch between algorithms in real-time  
 📈 **Live Metrics** - See RMSE, training time, memory usage  
-🎨 **Professional UI** - Netflix-style interface  
+🎨 **Professional UI** - Netflix-style interface (clean, no debug spam)  
 🧠 **Explainable AI** - Understand why movies were recommended  
 ⚙️ **Advanced Options** - Tune dataset size and parameters  
 📊 **Analytics Dashboard** - 5 tabs with comprehensive benchmarking  
+🚀 **Memory Optimized** - 98.6% reduction (13.2GB → 185MB runtime)
+
+## 💾 Memory Architecture (V2.1.1)
+
+**Runtime Memory Usage**:
+- Application: **185 MB** (shallow references optimization)
+- Docker Container: **2.6 GB total** (32% of 8GB limit)
+- Headroom: **5.4 GB free** (68% available)
+
+**Key Optimization**:
+- Shallow references for pre-trained models (read-only)
+- One-time data initialization in Streamlit session
+- Thread-safe algorithm caching
+- Smart garbage collection
+
+**Docker Memory Limit**: 8GB (configured in docker-compose.yml)
 
 ## 🛠️ Management Commands
 
@@ -72,12 +86,36 @@ docker-compose down && docker-compose up --build -d
 
 # View container status
 docker-compose ps
+
+# Check memory usage
+docker stats cinematch-v2
 ```
+
+## 🧹 Complete Docker Cleanup (V2.1.1)
+
+When you need to start fresh or reclaim disk space:
+
+```bash
+# Stop and remove containers, volumes, networks
+docker-compose down -v
+
+# Remove all Docker resources (images, cache, build cache)
+docker system prune -af --volumes
+
+# Verify cleanup
+docker system df
+
+# Fresh rebuild
+docker-compose up --build -d
+```
+
+**Expected Cleanup**: ~2-4 GB reclaimed
 
 ## 📋 Requirements
 
 - Docker Desktop or Docker Engine
 - Docker Compose
+- **8GB RAM minimum** (for 4.07GB models + runtime)
 - 8GB+ RAM recommended for optimal performance
 - Port 8501 available
 

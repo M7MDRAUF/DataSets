@@ -1,60 +1,54 @@
-# 🎬 CineMatch V2.1.0
+# 🎬 CineMatch V2.1.1
 
 **Multi-Algorithm Recommendation Engine with Explainable AI**
 
-A production-grade collaborative filtering recommendation system built for a master's thesis demonstration. CineMatch V2.1.0 features **5 recommendation algorithms** including SVD matrix factorization, User-KNN, Item-KNN, Content-Based filtering, and intelligent Hybrid ensemble on the MovieLens 32M dataset to provide personalized, explainable movie recommendations through an interactive Streamlit web interface.
+A production-grade collaborative filtering recommendation system built for a master's thesis demonstration. CineMatch V2.1.1 features **5 recommendation algorithms** including SVD matrix factorization, User-KNN, Item-KNN, Content-Based filtering, and intelligent Hybrid ensemble on the MovieLens 32M dataset to provide personalized, explainable movie recommendations through an interactive Streamlit web interface.
 
-![CineMatch Banner](https://img.shields.io/badge/CineMatch-V2.1.0-red?style=for-the-badge&logo=film)
-![Python](https://img.shields.io/badge/Python-3.9+-blue?style=for-the-badge&logo=python)
-![Streamlit](https://img.shields.io/badge/Streamlit-1.32+-red?style=for-the-badge&logo=streamlit)
+![CineMatch Banner](https://img.shields.io/badge/CineMatch-V2.1.1-red?style=for-the-badge&logo=film)
+![Python](https://img.shields.io/badge/Python-3.11+-blue?style=for-the-badge&logo=python)
+![Streamlit](https://img.shields.io/badge/Streamlit-1.51+-red?style=for-the-badge&logo=streamlit)
 ![Docker](https://img.shields.io/badge/Docker-Ready-blue?style=for-the-badge&logo=docker)
 ![Algorithms](https://img.shields.io/badge/Algorithms-5%20Types-green?style=for-the-badge)
 
 ## 🎯 Project Status
 
-**Last Updated**: November 11, 2025  
-**Version**: V2.1.0 Enterprise Multi-Algorithm System
-**Algorithms**: ✅ SVD + User KNN + Item KNN + Content-Based + Hybrid (All Optimized)
-**Model Accuracy**: ✅ SVD RMSE 0.6829, Hybrid RMSE 0.7668, Coverage 100%
-**Pre-trained Models**: ✅ 526MB KNN models with full 32M dataset
-**Performance**: ✅ KNN loading 1.5s (200x faster), Hybrid 7s (emergency optimized)
-**Analytics Dashboard**: ✅ Full benchmarking with RMSE/MAE/Coverage metrics
-**All Tests Passed**: ✅ All algorithms working with production optimizations
-**Application**: ✅ Enhanced UI with algorithm selection and live metrics
-**Cloud Deployment**: ✅ https://m7md007.streamlit.app
-**Status**: Production-ready with enterprise-grade performance optimizations
+**Last Updated**: November 14, 2025  
+**Version**: V2.1.1 Production-Optimized  
+**Algorithms**: ✅ SVD + User KNN + Item KNN + Content-Based + Hybrid (All Optimized)  
+**Model Accuracy**: ✅ SVD RMSE 0.7502, User-KNN 0.8394, Item-KNN 0.9100, Content-Based 1.1130, Hybrid 0.8701  
+**Pre-trained Models**: ✅ 4.07 GB models with full 32M dataset  
+**Performance**: ✅ All models load in <10s, Hybrid in 25s  
+**Memory Optimization**: ✅ 98.6% reduction (13.2GB → 185MB)  
+**Analytics Dashboard**: ✅ Full benchmarking with RMSE/MAE/Coverage metrics  
+**All Tests Passed**: ✅ All algorithms working with production optimizations  
+**Application**: ✅ Clean UI with suppressed debug output  
+**Docker**: ✅ 8GB limit, 2.6GB usage (68% headroom)  
+**Status**: **Production-Ready** 🚀
 
 ---
 
-## 🚀 What's New in V2.1.0
+## 🚀 What's New in V2.1.1
 
-### **Multi-Algorithm Support with Pre-trained Models**
-- **🔮 SVD Matrix Factorization** - Latent factor modeling for high accuracy (RMSE 0.8406 on full 32M dataset)
-- **👥 User-KNN** - Pre-trained on 32M ratings, loads in 1.5s (200x faster than training)
-- **🎬 Item-KNN** - Pre-trained similarity matrices, instant recommendations
-- **🎯 Content-Based Filtering** - TF-IDF feature extraction with movie attributes (genres, tags, titles)
-- **🚀 Hybrid System** - Intelligent 4-algorithm ensemble with optimized RMSE calculation
+### **Critical Performance & Memory Fixes**
+- **Memory Optimization** - Fixed memory explosion from 13.2GB crash to 185MB stable (98.6% reduction)
+- **Shallow References** - Eliminated unnecessary data copying in algorithm manager and hybrid recommender
+- **One-time Initialization** - Fixed Streamlit reinitialization causing N × 3.3GB copies
+- **Context-Aware Logging** - Suppressed verbose debug output in UI while preserving terminal logs
+- **Clean User Experience** - Professional UI without debug spam
 
-### **Enterprise Performance Optimizations**
-- **Pre-trained Model Loading** - 526MB KNN models trained on full 32M dataset
-- **Smart Candidate Sampling** - Reduces search space from 80K to 5K movies
-- **Vectorized Predictions** - Batch processing for 200x speed improvement
-- **Emergency RMSE Optimization** - Mathematical approximation eliminates 1+ hour bottleneck
-- **Intelligent Caching** - Thread-safe algorithm manager with session state
+### **Model Improvements**
+- **SVD sklearn** - 909.6 MB, loads in 5-9s, RMSE 0.7502
+- **User-KNN** - 1114 MB, loads in 1-8s, RMSE 0.8394, 100% coverage
+- **Item-KNN** - 1108.4 MB, loads in 1-8s, RMSE 0.9100, 50.1% coverage
+- **Content-Based** - 1059.9 MB, loads in 6s, RMSE 1.1130
+- **Hybrid** - 491.3 MB combined, loads in 25s, RMSE 0.8701
 
-### **Professional Analytics Dashboard**
-- **Algorithm Benchmarking** - Comprehensive RMSE, MAE, coverage metrics
-- **Performance Comparison** - Side-by-side algorithm analysis with visualizations
-- **Dataset Statistics** - Real-time insights on 500K+ ratings
-- **Live Metrics Display** - Training time, sample size, prediction coverage
-- **Interactive Charts** - Plotly visualizations for accuracy and performance
-
-### **Academic Features**
-- **Algorithm Comparison** - Detailed performance benchmarks across all 5 algorithms
-- **Explainable AI** - Transparent recommendation reasoning with algorithm-specific explanations
-- **Professional Architecture** - AlgorithmManager with factory + singleton patterns, abstract base classes
-- **Research-Grade Implementation** - Full 32M dataset utilization with production optimizations
-- **Debug Instrumentation** - Comprehensive logging for metrics calculation and prediction testing
+### **Bug Fixes**
+- ✅ Fixed missing `get_explanation_context()` in Content-Based recommender
+- ✅ Fixed RMSE calculation bottleneck (3+ hour hangs eliminated)
+- ✅ Fixed SVD model path (removed memory-heavy Surprise variant)
+- ✅ Suppressed Streamlit ScriptRunContext warnings
+- ✅ Fixed Docker memory management (2.6GB / 8GB usage)
 
 ---
 
