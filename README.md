@@ -447,9 +447,9 @@ cinematch-demo/
 │
 ├── 📋 Documentation/
 │   ├── README.md                 # This file
-│   ├── PRD.md                    # Product requirements
 │   ├── ARCHITECTURE.md           # Technical architecture
-│   └── ALGORITHM_ARCHITECTURE_PLAN.md # 🆕 Multi-algorithm design
+│   ├── QUICKSTART.md             # Quick start guide
+│   └── DEPLOYMENT.md             # Deployment instructions
 │
 ├── requirements.txt              # Python dependencies
 ├── test_multi_algorithm.py       # 🆕 Algorithm testing

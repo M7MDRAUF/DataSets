@@ -219,8 +219,8 @@ cinematch-demo/
 ├── 📋 requirements.txt                   # Python dependencies
 ├── 📖 README.md                          # Main documentation
 ├── 📐 ARCHITECTURE.md                    # This file
-├── 📝 todo.md                            # Development checklist
-├── 📄 PRD.md                             # Product requirements
+├── 📊 PROJECT_STATUS.md                  # Project status
+├── 🚀 DEPLOYMENT.md                      # Deployment guide
 ├── .gitignore                            # Git exclusions
 └── .env.example                          # Configuration template
 ```

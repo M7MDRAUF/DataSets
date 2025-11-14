@@ -249,8 +249,8 @@ Try these User IDs for diverse recommendations:
 Check:
 1. **README.md** - Comprehensive documentation
 2. **ARCHITECTURE.md** - Technical deep dive
-3. **PRD.md** - Product requirements
-4. **todo.md** - Development checklist
+3. **TROUBLESHOOTING.md** - Common issues & solutions
+4. **MODULE_DOCUMENTATION.md** - Complete code reference
 
 ---
 
