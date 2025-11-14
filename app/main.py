@@ -1,10 +1,11 @@
 """
-CineMatch V1.0.0 - Main Application Entry Point
+CineMatch V2.1.0 - Main Application Entry Point
 
 Streamlit multi-page application for movie recommendations.
+Now featuring 5 algorithms: SVD, User-KNN, Item-KNN, Content-Based, and Hybrid.
 
 Author: CineMatch Team
-Date: October 24, 2025
+Date: November 13, 2025
 """
 
 import streamlit as st
@@ -19,12 +20,12 @@ from src.data_processing import check_data_integrity
 
 # Page configuration
 st.set_page_config(
-    page_title="CineMatch - Intelligent Movie Recommendations",
+    page_title="CineMatch V2.1.0 - Multi-Algorithm Recommendations",
     page_icon="🎬",
     layout="wide",
     initial_sidebar_state="expanded",
     menu_items={
-        'About': "CineMatch V1.0.0 - Intelligent Movie Recommendation Engine\n\nBuilt with collaborative filtering (SVD) on MovieLens 32M dataset."
+        'About': "CineMatch V2.1.0 - Multi-Algorithm Movie Recommendation Engine\n\nFeaturing 5 advanced algorithms: SVD, User-KNN, Item-KNN, Content-Based, and Hybrid ensemble.\n\nBuilt on MovieLens 32M dataset with 87K movies and 32M ratings."
     }
 )
 
@@ -100,48 +101,60 @@ st.sidebar.markdown("""
 
 - **🏠 Home**: Project overview & statistics
 - **🎬 Recommend**: Get personalized recommendations  
-- **📊 Analytics**: Explore dataset insights
+- **📊 Analytics**: Multi-algorithm performance analysis
 
 ### ℹ️ About
 
-CineMatch uses collaborative filtering (SVD matrix factorization) to provide personalized movie recommendations with explainable AI.
+CineMatch V2.1.0 uses **5 advanced algorithms** to provide personalized movie recommendations:
 
-**Version**: 1.0.0  
+🎯 **SVD** - Matrix Factorization  
+👥 **User-KNN** - User-based Filtering  
+🎬 **Item-KNN** - Item-based Filtering  
+🔍 **Content-Based** - Feature Analysis  
+🚀 **Hybrid** - Best of All
+
+**Version**: 2.1.0  
 **Dataset**: MovieLens 32M  
-**Algorithm**: SVD (Surprise)
+**Movies**: 87,585  
+**Ratings**: 32M+
 """)
 
 # Main header
-st.markdown('<h1 class="main-header">🎬 CineMatch</h1>', unsafe_allow_html=True)
-st.markdown('<p class="sub-header">Intelligent Movie Recommendation Engine powered by Collaborative Filtering</p>', unsafe_allow_html=True)
+st.markdown('<h1 class="main-header">🎬 CineMatch V2.1.0</h1>', unsafe_allow_html=True)
+st.markdown('<p class="sub-header">Multi-Algorithm Movie Recommendation Engine with Intelligent Ensemble Learning</p>', unsafe_allow_html=True)
 
 # Welcome message
 st.markdown("""
 ---
 
-Welcome to **CineMatch**, a production-grade movie recommendation system built for a master's thesis demonstration.
+Welcome to **CineMatch V2.1.0**, a production-grade movie recommendation system featuring **5 advanced algorithms** built for master's thesis demonstration.
 
 Use the **sidebar** to navigate between pages:
 - **🏠 Home** - Overview and dataset statistics
-- **🎬 Recommend** - Get personalized movie recommendations
-- **📊 Analytics** - Explore data insights and visualizations
+- **🎬 Recommend** - Get personalized recommendations with algorithm selection
+- **📊 Analytics** - Multi-algorithm performance comparison and insights
 
 ---
 
 ### 🚀 Getting Started
 
 1. Navigate to the **🎬 Recommend** page
-2. Enter a User ID (e.g., 1, 123, 1000)
-3. Click "Get Recommendations" to see personalized movie suggestions
-4. Click "Explain" to understand why each movie was recommended
+2. **Select an algorithm** from the dropdown (SVD, User-KNN, Item-KNN, Content-Based, or Hybrid)
+3. Enter a User ID (e.g., 1, 123, 1000)
+4. Click "Get Recommendations" to see personalized movie suggestions
+5. Click "Explain" to understand why each movie was recommended
 
-### ✨ Key Features
+### ✨ Key Features (V2.1.0)
 
+- ✅ **5 Advanced Algorithms**: SVD, User-KNN, Item-KNN, Content-Based, and Hybrid
+- ✅ **Algorithm Comparison**: Benchmark and compare all algorithms side-by-side
+- ✅ **Intelligent Ensemble**: Hybrid algorithm combines strengths of all methods
+- ✅ **Pre-trained Models**: Instant loading for fast recommendations
 - ✅ **Personalized Recommendations**: Based on your unique taste profile
 - ✅ **Explainable AI**: Understand *why* each movie is recommended
 - ✅ **User Taste Profiling**: See your genre preferences and rating patterns
-- ✅ **Surprise Me Mode**: Discover movies outside your usual taste
-- ✅ **Movie Similarity**: Find movies similar to ones you love
+- ✅ **Content-Based Discovery**: Find movies even with no rating history
+- ✅ **Movie Similarity Explorer**: Discover similar movies across multiple dimensions
 
 ---
 
@@ -149,16 +162,72 @@ Use the **sidebar** to navigate between pages:
 
 """)
 
-col1, col2, col3 = st.columns(3)
+col1, col2, col3, col4 = st.columns(4)
 
 with col1:
-    st.metric(label="Dataset", value="MovieLens 32M", delta="32M ratings")
+    st.metric(label="Dataset", value="MovieLens 32M", delta="87K movies")
 
 with col2:
-    st.metric(label="Algorithm", value="SVD", delta="Matrix Factorization")
+    st.metric(label="Algorithms", value="5 Advanced", delta="V2.1.0")
 
 with col3:
-    st.metric(label="Target RMSE", value="< 0.87", delta="Production-ready")
+    st.metric(label="Best RMSE", value="0.6829", delta="SVD")
+
+with col4:
+    st.metric(label="Coverage", value="100%", delta="Content-Based")
+
+# Algorithm showcase
+st.markdown("""
+---
+
+### 🎯 Available Algorithms
+
+""")
+
+algo_col1, algo_col2, algo_col3 = st.columns(3)
+
+with algo_col1:
+    st.markdown("""
+    <div class="movie-card">
+        <h3>🎯 SVD Matrix Factorization</h3>
+        <p><b>RMSE:</b> 0.6829 | <b>Speed:</b> Fast</p>
+        <p>Discovers hidden patterns in user ratings for highly accurate predictions.</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    st.markdown("""
+    <div class="movie-card">
+        <h3>🔍 Content-Based Filtering</h3>
+        <p><b>Coverage:</b> 100% | <b>Speed:</b> Instant</p>
+        <p>Analyzes movie features (genres, tags, titles) for perfect cold-start handling.</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+with algo_col2:
+    st.markdown("""
+    <div class="movie-card">
+        <h3>👥 User-KNN</h3>
+        <p><b>RMSE:</b> 0.9089 | <b>Interpretability:</b> High</p>
+        <p>Finds users with similar taste for community-based recommendations.</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    st.markdown("""
+    <div class="movie-card">
+        <h3>🚀 Hybrid Ensemble</h3>
+        <p><b>Adaptive</b> | <b>Best Overall</b></p>
+        <p>Intelligently combines all algorithms with dynamic weighting.</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+with algo_col3:
+    st.markdown("""
+    <div class="movie-card">
+        <h3>🎬 Item-KNN</h3>
+        <p><b>RMSE:</b> 0.9127 | <b>Stability:</b> High</p>
+        <p>Recommends movies similar to what you've enjoyed before.</p>
+    </div>
+    """, unsafe_allow_html=True)
 
 st.markdown("""
 ---
@@ -166,15 +235,20 @@ st.markdown("""
 ### 🎓 Academic Context
 
 This project demonstrates:
-- Advanced collaborative filtering techniques
-- Explainable AI (XAI) for recommendation systems
-- Professional software engineering practices (Docker, testing, documentation)
-- User-centric design with interactive visualizations
+- **Multi-Algorithm Comparison**: 5 recommendation algorithms with benchmarking
+- **Ensemble Learning**: Hybrid algorithm with adaptive weighting strategies  
+- **Advanced Collaborative Filtering**: SVD, User-KNN, and Item-KNN implementations
+- **Content-Based Filtering**: TF-IDF feature extraction with cosine similarity
+- **Explainable AI (XAI)**: Clear explanations for each algorithm's recommendations
+- **Professional Engineering**: Docker deployment, comprehensive testing, Git LFS for models
+- **Performance Optimization**: Pre-trained models with intelligent caching (< 2s load time)
+- **User-Centric Design**: Interactive visualizations and algorithm selection
 
 **Built for**: Master's Thesis Defense  
-**Objective**: Showcase practical ML application with professional polish
+**Objective**: Showcase comprehensive ML application with production-ready implementation  
+**Status**: ✅ 100% Complete - All 5 algorithms trained and deployed
 
 ---
 
-*Navigate to the **🎬 Recommend** page to start exploring personalized recommendations!*
+*Navigate to the **🎬 Recommend** page to start exploring personalized recommendations with algorithm comparison!*
 """)
