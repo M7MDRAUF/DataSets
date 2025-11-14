@@ -51,5 +51,5 @@ ENV STREAMLIT_SERVER_HEADLESS=true
 ENV STREAMLIT_SERVER_ENABLE_CORS=false
 ENV STREAMLIT_SERVER_ENABLE_XSRF_PROTECTION=true
 
-# Run CineMatch V2.0 Multi-Algorithm Enhanced Interface
-CMD ["streamlit", "run", "app/pages/2_🎬_Recommend_V2.py", "--server.port=8501", "--server.address=0.0.0.0"]
+# Run CineMatch V2.1.0 Multi-Algorithm Enhanced Interface
+CMD ["streamlit", "run", "app/main.py", "--server.port=8501", "--server.address=0.0.0.0"]

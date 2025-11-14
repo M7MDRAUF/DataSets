@@ -1,11 +1,11 @@
 """
-CineMatch V2.0.0 - Analytics Page
+CineMatch V2.1.0 - Analytics Page
 
 Advanced analytics with multi-algorithm performance comparison and insights.
-Enhanced with V2.0 algorithm manager integration for comprehensive analysis.
+Features all 5 algorithms with optimized pre-trained model loading.
 
 Author: CineMatch Team
-Date: November 7, 2025
+Date: November 13, 2025
 """
 
 import streamlit as st
@@ -26,12 +26,12 @@ from src.utils import extract_year_from_title, create_genre_color_map
 
 # Page config
 st.set_page_config(
-    page_title="CineMatch V2.0 - Analytics",
+    page_title="CineMatch V2.1.0 - Analytics",
     page_icon="📊",
     layout="wide"
 )
 
-# Custom CSS for V2.0 styling
+# Custom CSS for V2.1.0 styling
 st.markdown("""
 <style>
 .algorithm-card {
@@ -86,7 +86,7 @@ st.markdown("""
 # Header
 st.markdown("""
     <div style="text-align: center; padding: 2rem 0;">
-        <h1>📊 CineMatch V2.0 - Advanced Analytics</h1>
+        <h1>📊 CineMatch V2.1.0 - Advanced Analytics</h1>
         <p style="font-size: 1.2rem; color: #666;">
             Multi-algorithm performance analysis and dataset insights
         </p>
@@ -129,7 +129,7 @@ with col2:
     else:
         st.warning("🐌 **Full Dataset Mode**")
 
-# Load data with caching and V2.0 manager
+# Load data with caching and V2.1.0 manager
 @st.cache_data
 def load_data(sample_size):
     """Load and cache dataset with configurable sample size"""
@@ -143,7 +143,7 @@ def get_manager():
     return get_algorithm_manager()
 
 try:
-    with st.spinner("Loading dataset and initializing V2.0 analytics..."):
+    with st.spinner("Loading dataset and initializing V2.1.0 analytics..."):
         ratings_df, movies_df = load_data(selected_sample_size)
         manager = get_manager()
         manager.initialize_data(ratings_df, movies_df)
@@ -171,7 +171,7 @@ try:
         "🔍 Movie Similarity Explorer"
     ])
     
-    # TAB 1: Algorithm Performance Analysis (NEW V2.0 Feature)
+    # TAB 1: Algorithm Performance Analysis (V2.1.0 - All 5 Algorithms)
     with tab1:
         # Algorithm performance comparison
         col1, col2 = st.columns([2, 1])
@@ -548,7 +548,7 @@ try:
     
     # TAB 5: Movie Similarity Explorer
     with tab5:
-        st.markdown("## 🔍 V2.0 Movie Similarity Explorer")
+        st.markdown("## 🔍 V2.1.0 Movie Similarity Explorer")
         st.markdown("### Discover similar movies using advanced AI algorithms")
         
         # Algorithm selection for similarity
@@ -587,7 +587,7 @@ try:
                         
                         with col_b:
                             if st.button("Find Similar", key=f"sim_{row['movieId']}"):
-                                # Find similar movies using V2.0 algorithms
+                                # Find similar movies using V2.1.0 algorithms
                                 try:
                                     with st.spinner(f"Finding similar movies using {similarity_algorithm}..."):
                                         
@@ -631,7 +631,7 @@ try:
                                     
                                 except Exception as e:
                                     st.error(f"Error finding similar movies: {e}")
-                                    st.info("Similarity calculation is being enhanced for V2.0. Currently showing genre-based suggestions.")
+                                    st.info("Similarity calculation is being enhanced for V2.1.0. Currently showing genre-based suggestions.")
                 else:
                     st.warning("No movies found. Try a different search term.")
         
@@ -658,7 +658,7 @@ try:
         st.markdown("---")
         
         st.info("""
-        ### 💡 V2.0 Similarity Analysis
+        ### 💡 V2.1.0 Similarity Analysis
         
         Our enhanced similarity explorer now supports multiple algorithms:
         
@@ -682,7 +682,7 @@ except Exception as e:
 st.markdown("---")
 st.markdown("""
 <div style='text-align: center; color: #666; padding: 1rem;'>
-    <p><strong>CineMatch V2.0 Analytics</strong> | Advanced Multi-Algorithm Analysis</p>
+    <p><strong>CineMatch V2.1.0 Analytics</strong> | Advanced Multi-Algorithm Analysis</p>
     <p>Powered by Plotly, Pandas, and Multiple AI Algorithms</p>
 </div>
 """, unsafe_allow_html=True)

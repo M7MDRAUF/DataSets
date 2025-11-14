@@ -1,11 +1,11 @@
 """
-CineMatch V1.0.0 - Enhanced Recommend Page
+CineMatch V2.1.0 - Recommend Page
 
-Core feature: Multi-algorithm movie recommendations with intelligent switching.
-Now supports SVD, User KNN, Item KNN, and Hybrid algorithms with professional UI.
+Multi-algorithm movie recommendations with intelligent switching.
+Supports all 5 algorithms: SVD, User-KNN, Item-KNN, Content-Based, and Hybrid.
 
 Author: CineMatch Development Team
-Date: November 7, 2025
+Date: November 13, 2025
 """
 
 import streamlit as st
@@ -27,7 +27,7 @@ from src.data_processing import load_ratings, load_movies
 
 # Page config
 st.set_page_config(
-    page_title="CineMatch - Multi-Algorithm Recommendations",
+    page_title="CineMatch V2.1.0 - Recommendations",
     page_icon="🎬",
     layout="wide"
 )
@@ -521,7 +521,7 @@ else:
 st.markdown("---")
 st.markdown("""
 <div style='text-align: center; color: #666; padding: 1rem;'>
-    <p><strong>CineMatch V2.0 - Multi-Algorithm Recommendation Engine</strong></p>
+    <p><strong>CineMatch V2.1.0 - Multi-Algorithm Recommendation Engine</strong></p>
     <p>Powered by SVD Matrix Factorization + KNN Collaborative Filtering + Hybrid Intelligence</p>
     <p>Trained on 32+ million ratings for maximum accuracy and diversity</p>
 </div>
