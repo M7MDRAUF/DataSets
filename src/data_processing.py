@@ -148,7 +148,7 @@ def load_ratings(sample_size: Optional[int] = None) -> pd.DataFrame:
         # Production: load full dataset
         df = pd.read_csv(ratings_path, dtype=dtypes)
     
-    print(f"  ✓ Loaded {len(df):,} ratings")
+    print(f"  [OK] Loaded {len(df):,} ratings")
     return df
 
 
@@ -171,7 +171,7 @@ def load_movies() -> pd.DataFrame:
     # Parse genres (pipe-separated) into list
     df['genres_list'] = df['genres'].str.split('|')
     
-    print(f"  ✓ Loaded {len(df):,} movies")
+    print(f"  [OK] Loaded {len(df):,} movies")
     return df
 
 
@@ -194,7 +194,7 @@ def load_links() -> pd.DataFrame:
     
     df = pd.read_csv(links_path, dtype=dtypes)
     
-    print(f"  ✓ Loaded {len(df):,} links")
+    print(f"  [OK] Loaded {len(df):,} links")
     return df
 
 
@@ -218,7 +218,7 @@ def load_tags() -> pd.DataFrame:
     
     df = pd.read_csv(tags_path, dtype=dtypes)
     
-    print(f"  ✓ Loaded {len(df):,} tags")
+    print(f"  [OK] Loaded {len(df):,} tags")
     return df
 
 
