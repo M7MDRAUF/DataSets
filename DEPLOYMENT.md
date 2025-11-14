@@ -1,10 +1,10 @@
-# 🚀 CineMatch V2.0.0 - Production Deployment Guide
+# 🚀 CineMatch V2.1.0 - Production Deployment Guide
 
 ## ⚠️ Important: Recommended Deployment Platform
 
 **Use Streamlit Cloud** (not Vercel) - Streamlit apps work best on Streamlit's native platform.
 
-**V2.0.0 Note**: Pre-trained KNN models (526MB) are managed via Git LFS. Ensure your deployment platform supports Git LFS or upload models separately.
+**V2.1.0 Critical**: Pre-trained models (526MB total: User-KNN 266MB, Item-KNN 260MB, Content-Based ~300MB) require **Git LFS**. All deployment methods MUST support Git LFS for model files.
 
 Vercel has limitations with:
 - Long-running Python processes
@@ -14,19 +14,68 @@ Vercel has limitations with:
 
 ---
 
+## 🔑 Prerequisites: Git LFS Setup (REQUIRED)
+
+**ALL deployment methods require Git LFS for pre-trained models (526MB)**
+
+### Install Git LFS
+
+**Windows:**
+```powershell
+# Download from https://git-lfs.github.com/ or use Chocolatey
+choco install git-lfs
+git lfs install
+```
+
+**macOS:**
+```bash
+brew install git-lfs
+git lfs install
+```
+
+**Linux:**
+```bash
+sudo apt-get install git-lfs  # Ubuntu/Debian
+sudo yum install git-lfs      # CentOS/RHEL
+git lfs install
+```
+
+### Pull Pre-trained Models
+
+```bash
+# After cloning repository
+cd DataSets
+git lfs pull
+
+# Verify models downloaded (should see 526MB total)
+ls -lh models/
+# Expected files:
+# - user_knn_model.pkl (266 MB)
+# - item_knn_model.pkl (260 MB)
+# - content_based_*.pkl (~300 MB)
+```
+
+**Without Git LFS**: Models will be pointer files (~100 bytes) and application will fail with "model not found" errors.
+
+---
+
 ## Deployment Options
 
 ### Option 1: Deploy to Streamlit Cloud (✅ RECOMMENDED)
 
+**Current Live Deployment**: https://m7md007.streamlit.app
+
 #### Prerequisites
 - GitHub account
 - Streamlit Cloud account (free tier available)
+- Git LFS enabled on repository (already configured)
 
 #### Steps:
 
 1. **Your repository is already on GitHub**
    - Repository: https://github.com/M7MDRAUF/DataSets
    - Branch: `main`
+   - Git LFS: ✅ Configured (526MB models)
 
 2. **Deploy on Streamlit Cloud**
    - Go to https://streamlit.io/cloud
@@ -36,68 +85,74 @@ Vercel has limitations with:
    - Set main file: `app/main.py`
    - Branch: `main`
    - Click "Deploy"
+   - **Important**: Streamlit Cloud automatically pulls Git LFS files
 
-3. **Configure Secrets** (if needed)
-   - Go to app settings → Secrets
-   - Add any required environment variables
+3. **Verify Deployment**
+   - Check logs for "AlgorithmManager initialized" message
+   - Confirm all 5 algorithms load successfully:
+     - ✅ SVD (trained on startup)
+     - ✅ User-KNN (pre-trained, 266MB)
+     - ✅ Item-KNN (pre-trained, 260MB)
+     - ✅ Content-Based (pre-trained, ~300MB)
+     - ✅ Hybrid (ensemble of all 4)
 
 4. **Access your app**
-   - URL will be: `https://YOUR-APP-NAME.streamlit.app`
+   - URL: `https://YOUR-APP-NAME.streamlit.app`
+   - Example: https://m7md007.streamlit.app
 
 ---
 
-### Option 2: Deploy to Heroku (Alternative)
+### Option 2: Docker Deployment (Self-Hosted)
 
-#### Prerequisites
-- GitHub account
-- Streamlit Cloud account (free tier available)
-
-#### Steps:
-
-1. **Push to GitHub** (same as above)
-
-2. **Deploy on Streamlit Cloud**
-   - Go to https://streamlit.io/cloud
-   - Click "New app"
-   - Select your repository
-   - Set main file: `app/main.py`
-   - Click "Deploy"
-
-3. **Configure Secrets** (if needed)
-   - Go to app settings → Secrets
-   - Add any required environment variables
-
----
-
-### Option 3: Docker Deployment (Most Flexible)
+**Best for**: Self-hosted deployments, cloud VMs (AWS, GCP, Azure), on-premises servers
 
 #### Prerequisites
 - Docker and Docker Compose installed
-- Server with minimum 4GB RAM
+- Git LFS installed (see prerequisites above)
+- Server with minimum 4GB RAM (8GB recommended)
+- 3GB free disk space (600MB dataset + 526MB models + containers)
 
 #### Steps:
 
-1. **Clone the repository**
+1. **Clone the repository with LFS**
    ```bash
-   git clone https://github.com/YOUR_USERNAME/cinematch.git
-   cd cinematch
+   git clone https://github.com/M7MDRAUF/DataSets.git
+   cd DataSets
+   
+   # Pull pre-trained models (CRITICAL)
+   git lfs pull
+   
+   # Verify models downloaded (should show ~526MB)
+   ls -lh models/
    ```
 
-2. **Download the dataset**
+2. **Download the MovieLens 32M dataset**
    ```bash
-   # Download MovieLens 32M dataset
+   # Download and extract
    wget http://files.grouplens.org/datasets/movielens/ml-32m.zip
-   unzip ml-32m.zip -d data/
-   mv data/ml-32m/* data/ml-32m/
+   unzip ml-32m.zip
+   
+   # Move files to correct location
+   mkdir -p data/ml-32m
+   mv ml-32m/*.csv data/ml-32m/
+   
+   # Verify dataset (should have 4 CSV files)
+   ls data/ml-32m/
+   # Expected: ratings.csv, movies.csv, links.csv, tags.csv
    ```
 
-3. **Build and run**
+3. **Build and run Docker container**
    ```bash
    docker-compose up --build
+   
+   # Or run in background
+   docker-compose up --build -d
    ```
 
 4. **Access the application**
-   - Open browser: http://localhost:8501
+   - Open browser: **http://localhost:8501**
+   - Wait for "AlgorithmManager initialized" in logs
+   - All 5 algorithms should load successfully
 
 ---
 

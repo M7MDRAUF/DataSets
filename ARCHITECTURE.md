@@ -1,14 +1,15 @@
-# CineMatch V2.0.0 - Enterprise Architecture Documentation
+# CineMatch V2.1.0 - Enterprise Architecture Documentation
 
 ## 🎯 Executive Summary
 
-**CineMatch V2.0.0** is an enterprise-grade multi-algorithm recommendation engine built for a master's thesis demonstration. It features four collaborative filtering algorithms (SVD, User KNN, Item KNN, Hybrid) with pre-trained models on the MovieLens 32M dataset, delivering personalized, explainable movie recommendations through an interactive Streamlit web interface with comprehensive analytics.
+**CineMatch V2.1.0** is an enterprise-grade multi-algorithm recommendation engine built for a master's thesis demonstration. It features five advanced recommendation algorithms (SVD, User-KNN, Item-KNN, Content-Based, Hybrid) with pre-trained models on the MovieLens 32M dataset, delivering personalized, explainable movie recommendations through an interactive Streamlit web interface with comprehensive analytics.
 
-**Key Differentiators V2.0.0:**
-- ✅ **Multi-Algorithm Support**: 4 different recommendation paradigms with intelligent switching
-- ✅ **Pre-trained Model Infrastructure**: 526MB KNN models trained on full 32M dataset
+**Key Differentiators V2.1.0:**
+- ✅ **Multi-Algorithm Support**: 5 different recommendation paradigms with intelligent switching
+- ✅ **Content-Based Filtering**: TF-IDF vectorization with genre/tag/title features (~300MB model)
+- ✅ **Pre-trained Model Infrastructure**: 526MB+ models trained on full 32M dataset (Git LFS)
 - ✅ **Enterprise Performance**: 200x faster loading (1.5s vs 124s), emergency optimizations
-- ✅ **Analytics Dashboard**: Complete benchmarking with RMSE/MAE/Coverage metrics
+- ✅ **Analytics Dashboard**: Complete benchmarking with RMSE/MAE/Coverage metrics for all 5 algorithms
 - ✅ **Algorithm Manager**: Thread-safe singleton with intelligent caching and data context
 - ✅ **Explainable AI**: Algorithm-specific reasoning for every recommendation
 - ✅ **Smart Sampling**: Reduces search space 80K→5K for 200x speed improvement
@@ -26,8 +27,8 @@
 │                   (Streamlit Multi-Page App)                 │
 ├─────────────────┬─────────────────┬─────────────────────────┤
 │   Home Page     │ Recommend Page  │   Analytics Page        │
-│  (Overview &    │ (Core Feature)  │  (Data Insights)        │
-│  Visualizations)│                 │                         │
+│  (Overview &    │ (Core Feature)  │  (5-Algorithm           │
+│  Visualizations)│                 │   Benchmarking)         │
 └────────┬────────┴────────┬────────┴──────────┬──────────────┘
          │                 │                   │
          └─────────────────┼───────────────────┘
@@ -36,21 +37,23 @@
 │                   APPLICATION LAYER                         │
 │                  (Business Logic - src/)                    │
 ├──────────────────┬──────────────────┬──────────────────────┤
-│ Recommendation   │  Explanation     │   Data Processing    │
-│    Engine        │    Engine        │      Module          │
-│                  │   (XAI Logic)    │  (Integrity Checks)  │
+│ AlgorithmManager │  Explanation     │   Data Processing    │
+│ (Factory +       │    Engine        │      Module          │
+│  Singleton)      │   (XAI Logic)    │  (Integrity Checks)  │
 └────────┬─────────┴─────────┬────────┴──────────┬───────────┘
          │                   │                   │
          └───────────────────┼───────────────────┘
                              │
 ┌────────────────────────────▼─────────────────────────────────┐
 │                      MODEL LAYER                              │
-│              (Pre-trained SVD Model - models/)                │
+│           (5 Pre-trained Models - models/ - Git LFS)          │
 ├───────────────────────────────────────────────────────────────┤
-│  • Trained on 32M ratings                                     │
-│  • Optimized for RMSE < 0.87                                  │
-│  • Serialized with joblib/pickle                              │
-│  • Loaded once and cached                                     │
+│  • SVD: Matrix factorization (legacy)                         │
+│  • User-KNN: 266MB collaborative filtering (32M ratings)      │
+│  • Item-KNN: 260MB item similarity (32M ratings)              │
+│  • Content-Based: ~300MB TF-IDF (genres/tags/titles)          │
+│  • Hybrid: Ensemble of 4 algorithms (weighted averaging)      │
+│  • All serialized with joblib/pickle, lazy-loaded & cached    │
 └─────────────────────────────┬─────────────────────────────────┘
                               │
 ┌─────────────────────────────▼──────────────────────────────────┐
@@ -60,7 +63,7 @@
 │  • ratings.csv (32M user-movie-rating records)                  │
 │  • movies.csv (Movie metadata: title, genres)                   │
 │  • links.csv (IMDb/TMDb IDs for external integration)           │
-│  • tags.csv (User-generated tags)                               │
+│  • tags.csv (User-generated tags for Content-Based)             │
 │  • Integrity checked on startup (NF-01)                         │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -82,16 +85,20 @@ cinematch-demo/
 │       ├── user_genre_matrix.pkl         # User-genre preference matrix
 │       └── movie_features.pkl            # Extracted movie features
 │
-├── 🧠 models/                            # MODEL LAYER (V2.0.0 Enhanced)
-│   ├── svd_model.pkl                     # Trained SVD model (legacy)
-│   ├── user_knn_model.pkl                # ⭐ NEW: Pre-trained User KNN (266MB, 32M ratings)
-│   ├── item_knn_model.pkl                # ⭐ NEW: Pre-trained Item KNN (260MB, 32M ratings)
-│   └── model_metadata.json               # Training metrics, hyperparameters
-│   └── Note: 526MB total, managed via Git LFS
+├── 🧠 models/                            # MODEL LAYER (V2.1.0 Complete)
+│   ├── svd_model.pkl                     # Trained SVD model (legacy, <10MB)
+│   ├── user_knn_model.pkl                # Pre-trained User-KNN (266MB, 32M ratings)
+│   ├── item_knn_model.pkl                # Pre-trained Item-KNN (260MB, 32M ratings)
+│   ├── content_based_model.pkl           # ⭐ NEW: Content-Based TF-IDF (~300MB)
+│   │   ├── tfidf_vectorizer.pkl          # TF-IDF model for genres/tags/titles
+│   │   ├── movie_features_matrix.pkl     # Precomputed feature vectors
+│   │   └── cosine_similarity_matrix.pkl  # Precomputed similarity scores
+│   └── model_metadata.json               # Training metrics, hyperparameters (5 algorithms)
+│   └── Note: ~800MB total, managed via Git LFS
 │
 ├── ⚙️ src/                               # APPLICATION LAYER (Core Logic)
 │   ├── __init__.py
-│   ├── algorithms/                       # 🧠 MULTI-ALGORITHM MODULE (V2.0.0)
+│   ├── algorithms/                       # 🧠 MULTI-ALGORITHM MODULE (V2.1.0)
 │   │   ├── __init__.py
 │   │   ├── algorithm_manager.py          # 🎯 Central Algorithm Coordinator
 │   │   │   ├── AlgorithmManager (Singleton)     # Thread-safe manager with caching
@@ -123,12 +130,20 @@ cinematch-demo/
 │   │   │   ├── recommend()                      # Vectorized batch processing
 │   │   │   └── Pre-trained: 260MB, loads in 1.0s
 │   │   │
-│   │   └── hybrid_recommender.py         # 🚀 Intelligent Ensemble
-│   │       ├── fit()                            # Trains all sub-algorithms
+│   │   ├── content_based_recommender.py  # 📚 Content-Based Filtering (V2.1.0)
+│   │   │   ├── fit()                            # Builds TF-IDF vectors from genres/tags/titles
+│   │   │   ├── predict()                        # Cosine similarity scoring
+│   │   │   ├── recommend()                      # User profile + item features matching
+│   │   │   ├── _build_user_profile()            # Aggregate user's rated movie features
+│   │   │   ├── _compute_similarities()          # Cosine similarity calculations
+│   │   │   └── Pre-trained: ~300MB TF-IDF model, loads in <1s
+│   │   │
+│   │   └── hybrid_recommender.py         # 🚀 Intelligent Ensemble (4 Algorithms)
+│   │       ├── fit()                            # Trains all sub-algorithms (SVD+UserKNN+ItemKNN+ContentBased)
 │   │       ├── predict()                        # Weighted ensemble prediction
 │   │       ├── recommend()                      # Combined recommendations
 │   │       ├── _calculate_hybrid_rmse()         # Emergency optimized (7s vs 2+ hours)
-│   │       └── Adaptive weights: SVD=0.41, UserKNN=0.28, ItemKNN=0.31
+│   │       └── Adaptive weights: SVD=0.33, UserKNN=0.22, ItemKNN=0.25, ContentBased=0.20
 │   │
 │   ├── data_processing.py                # 🔍 Data integrity checker (NF-01)
 │   │   ├── check_data_integrity()        #    Validates dataset presence
@@ -391,6 +406,86 @@ Where:
 
 ---
 
+### Content-Based Filtering - TF-IDF Feature Extraction (V2.1.0)
+
+**Algorithm Choice Rationale:**
+- ✅ No cold-start problem for new users (only needs movie features)
+- ✅ Explainable recommendations (directly tied to movie attributes)
+- ✅ Captures content similarity (genres, tags, titles)
+- ✅ Complements collaborative filtering in hybrid approach
+
+**Mathematical Foundation:**
+```
+TF-IDF (Term Frequency - Inverse Document Frequency):
+
+For movie i and feature term t:
+TF(t, i) = frequency of term t in movie i's features
+IDF(t) = log(N / df(t))
+  where N = total movies, df(t) = # movies containing term t
+
+TF-IDF(t, i) = TF(t, i) × IDF(t)
+
+Movie Feature Vector:
+v_i = [TF-IDF(t1, i), TF-IDF(t2, i), ..., TF-IDF(tn, i)]
+
+User Profile (aggregate of rated movies):
+u_profile = Σ(rating_j × v_j) / Σ(rating_j)
+  for all movies j rated by user
+
+Similarity Score (Cosine Similarity):
+sim(u_profile, v_i) = (u_profile · v_i) / (||u_profile|| × ||v_i||)
+
+Prediction:
+r̂_ui = global_mean + sim(u_profile, v_i) × scaling_factor
+```
+
+**Feature Engineering:**
+```python
+# Combined features from multiple sources
+features = [
+    genres,      # "Action|Sci-Fi|Thriller"
+    tags,        # User-generated tags from tags.csv
+    title_words  # Extracted keywords from movie titles
+]
+
+# TF-IDF Vectorization
+from sklearn.feature_extraction.text import TfidfVectorizer
+vectorizer = TfidfVectorizer(
+    max_features=5000,     # Top 5000 most important features
+    ngram_range=(1, 2),    # Unigrams and bigrams
+    stop_words='english',  # Remove common words
+    min_df=2,              # Ignore very rare terms
+    max_df=0.8             # Ignore very common terms
+)
+
+feature_matrix = vectorizer.fit_transform(combined_features)
+# Shape: (87,000 movies, 5,000 features)
+```
+
+**Training Process:**
+1. Load movies.csv (titles, genres) + tags.csv (user tags)
+2. Combine features: genres + tags + title keywords
+3. Build TF-IDF vectorizer and transform to feature matrix
+4. Precompute cosine similarity matrix (87K × 87K, sparse)
+5. Serialize: vectorizer (~50MB), feature_matrix (~150MB), similarity_matrix (~100MB)
+6. Total model size: ~300MB
+
+**Inference Process:**
+1. Retrieve user's rated movies and ratings
+2. Build user profile: weighted average of rated movie feature vectors
+3. Compute cosine similarity between user profile and all unrated movies
+4. Rank by similarity score, return Top-10
+5. Target: < 1 second for recommendations
+
+**Performance Characteristics:**
+- **RMSE**: N/A (not trained on ratings, similarity-based)
+- **Coverage**: 100% (can recommend any movie with features)
+- **Load Time**: ~0.8s (300MB model)
+- **Inference Time**: ~0.5s (vectorized operations)
+- **Memory**: ~400MB in RAM (sparse matrices)
+
+---
+
 ## 🔒 Data Integrity & Error Handling (NF-01)
 
 ### Implementation Strategy
@@ -637,17 +732,15 @@ docker-compose up --build
 ## 📚 Technology Stack Summary
 
 | Layer | Technology | Purpose |
-|-------|-----------|---------|
-| **Frontend** | Streamlit 1.28+ | Rapid prototyping, interactive UI |
-| **Backend** | Python 3.9+ | Core application logic |
-| **ML Library** | scikit-surprise | SVD collaborative filtering |
+|-------|-----------|---------|  
+| **Frontend** | Streamlit 1.32+ | Rapid prototyping, interactive UI |
+| **Backend** | Python 3.9-3.13 | Core application logic |
+| **ML Library** | scikit-learn 1.5+ | 5 recommendation algorithms (SVD, KNN, Content-Based, Hybrid) |
 | **Data Processing** | Pandas, NumPy | Data manipulation |
 | **Visualization** | Plotly, Matplotlib | Interactive charts |
-| **Serialization** | Joblib | Model persistence |
+| **Serialization** | Joblib, Pickle | Model persistence |
 | **Containerization** | Docker, Docker Compose | Deployment |
-| **Version Control** | Git | Source control |
-
----
+| **Version Control** | Git + Git LFS | Source control + large model files |---
 
 ## 🎓 Academic Contribution
 
@@ -678,6 +771,6 @@ docker-compose up --build
 
 ---
 
-*Document Version: 1.0.0*
-*Last Updated: October 24, 2025*
+*Document Version: 2.1.0*
+*Last Updated: November 13, 2025*
 *Maintained By: CineMatch Development Team*

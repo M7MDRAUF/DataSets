@@ -1,14 +1,14 @@
-# 🎬 CineMatch V2.0
+# 🎬 CineMatch V2.1.0
 
 **Multi-Algorithm Recommendation Engine with Explainable AI**
 
-A production-grade collaborative filtering recommendation system built for a master's thesis demonstration. CineMatch V2.0 now features **multiple algorithms** including SVD matrix factorization, User KNN, Item KNN, and intelligent Hybrid systems on the MovieLens 32M dataset to provide personalized, explainable movie recommendations through an interactive Streamlit web interface.
+A production-grade collaborative filtering recommendation system built for a master's thesis demonstration. CineMatch V2.1.0 features **5 recommendation algorithms** including SVD matrix factorization, User-KNN, Item-KNN, Content-Based filtering, and intelligent Hybrid ensemble on the MovieLens 32M dataset to provide personalized, explainable movie recommendations through an interactive Streamlit web interface.
 
-![CineMatch Banner](https://img.shields.io/badge/CineMatch-V2.0-red?style=for-the-badge&logo=film)
+![CineMatch Banner](https://img.shields.io/badge/CineMatch-V2.1.0-red?style=for-the-badge&logo=film)
 ![Python](https://img.shields.io/badge/Python-3.9+-blue?style=for-the-badge&logo=python)
-![Streamlit](https://img.shields.io/badge/Streamlit-1.28+-red?style=for-the-badge&logo=streamlit)
+![Streamlit](https://img.shields.io/badge/Streamlit-1.32+-red?style=for-the-badge&logo=streamlit)
 ![Docker](https://img.shields.io/badge/Docker-Ready-blue?style=for-the-badge&logo=docker)
-![Algorithms](https://img.shields.io/badge/Algorithms-4%20Types-green?style=for-the-badge)
+![Algorithms](https://img.shields.io/badge/Algorithms-5%20Types-green?style=for-the-badge)
 
 ## 🎯 Project Status
 
@@ -26,14 +26,14 @@ A production-grade collaborative filtering recommendation system built for a mas
 
 ---
 
-## 🚀 What's New in V2.0
+## 🚀 What's New in V2.1.0
 
 ### **Multi-Algorithm Support with Pre-trained Models**
-- **🔮 SVD Matrix Factorization** - Latent factor modeling for high accuracy (RMSE 0.6829)
-- **👥 User KNN** - Pre-trained on 32M ratings, loads in 1.5s (200x faster than training)
-- **🎬 Item KNN** - Pre-trained similarity matrices, instant recommendations
-- **� Content-Based Filtering** - TF-IDF feature extraction with movie attributes (genres, tags, titles)
-- **�🚀 Hybrid System** - Intelligent 4-algorithm ensemble with optimized RMSE calculation
+- **🔮 SVD Matrix Factorization** - Latent factor modeling for high accuracy (RMSE 0.8406 on full 32M dataset)
+- **👥 User-KNN** - Pre-trained on 32M ratings, loads in 1.5s (200x faster than training)
+- **🎬 Item-KNN** - Pre-trained similarity matrices, instant recommendations
+- **🎯 Content-Based Filtering** - TF-IDF feature extraction with movie attributes (genres, tags, titles)
+- **🚀 Hybrid System** - Intelligent 4-algorithm ensemble with optimized RMSE calculation
 
 ### **Enterprise Performance Optimizations**
 - **Pre-trained Model Loading** - 526MB KNN models trained on full 32M dataset
@@ -50,9 +50,9 @@ A production-grade collaborative filtering recommendation system built for a mas
 - **Interactive Charts** - Plotly visualizations for accuracy and performance
 
 ### **Academic Features**
-- **Algorithm Comparison** - Detailed performance benchmarks across all 4 algorithms
+- **Algorithm Comparison** - Detailed performance benchmarks across all 5 algorithms
 - **Explainable AI** - Transparent recommendation reasoning with algorithm-specific explanations
-- **Professional Architecture** - AlgorithmManager with factory patterns, abstract base classes
+- **Professional Architecture** - AlgorithmManager with factory + singleton patterns, abstract base classes
 - **Research-Grade Implementation** - Full 32M dataset utilization with production optimizations
 - **Debug Instrumentation** - Comprehensive logging for metrics calculation and prediction testing
 
@@ -77,15 +77,15 @@ A production-grade collaborative filtering recommendation system built for a mas
 
 ## Overview
 
-CineMatch V2.0 addresses the "analysis paralysis" problem in movie selection by providing **multiple recommendation approaches** backed by explainable AI. Built on 32 million user ratings, it demonstrates practical application of **ensemble learning** and **multi-paradigm collaborative filtering** while maintaining production-level code quality and user experience.
+CineMatch V2.1.0 addresses the "analysis paralysis" problem in movie selection by providing **5 distinct recommendation approaches** backed by explainable AI. Built on 32 million user ratings, it demonstrates practical application of **ensemble learning** and **multi-paradigm collaborative filtering** while maintaining production-level code quality and user experience.
 
-### Success Metrics V2.0.0
+### Success Metrics V2.1.0
 
-- ✅ **Multi-Algorithm Accuracy**: SVD RMSE 0.6829, Hybrid RMSE 0.7668, Coverage 100%
+- ✅ **Multi-Algorithm Accuracy**: SVD RMSE 0.8406 (full 32M), 0.6829 (100K sample), Coverage 100%
 - ✅ **Performance**: KNN loading 1.5s (200x faster), Hybrid 7s (vs 2+ hours before)
-- ✅ **Pre-trained Models**: 526MB models trained on full 32M dataset
+- ✅ **Pre-trained Models**: 526MB models trained on full 32M dataset (User-KNN 266MB, Item-KNN 260MB)
 - ✅ **Response Time**: < 2 seconds for all algorithms with smart sampling
-- ✅ **Algorithm Diversity**: 4 different recommendation paradigms with optimizations
+- ✅ **Algorithm Diversity**: 5 different recommendation paradigms (SVD, User-KNN, Item-KNN, Content-Based, Hybrid)
 - ✅ **Professional UI**: Algorithm selection with live metrics and benchmarking
 - ✅ **Analytics Dashboard**: Complete RMSE/MAE/Coverage metrics with visualizations
 - ✅ **Explainability**: 80%+ recommendations have clear explanations
@@ -122,11 +122,11 @@ CineMatch V2.0 addresses the "analysis paralysis" problem in movie selection by 
 
 ## Multi-Algorithm Architecture
 
-CineMatch V2.0 implements multiple recommendation paradigms with intelligent ensemble methods:
+CineMatch V2.1.0 implements multiple recommendation paradigms with intelligent ensemble methods:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                STREAMLIT UI LAYER V2.0                       │
+│                STREAMLIT UI LAYER V2.1.0                     │
 │      (Algorithm Selector + Performance Metrics)              │
 └──────────────────────┬──────────────────────────────────────┘
                        │
@@ -162,8 +162,8 @@ CineMatch V2.0 implements multiple recommendation paradigms with intelligent ens
 | Algorithm | Paradigm | Best For | Interpretability | Accuracy |
 |-----------|----------|----------|------------------|----------|
 | **SVD** | Matrix Factorization | Hidden patterns, latent factors | Medium | High |
-| **User KNN** | User-Based CF | New users, social recommendations | Very High | Medium |
-| **Item KNN** | Item-Based CF | Similar movies, genre exploration | High | Medium |
+| **User-KNN** | User-Based CF | New users, social recommendations | Very High | Medium |
+| **Item-KNN** | Item-Based CF | Similar movies, genre exploration | High | Medium |
 | **Content-Based** | Feature Similarity | New items, explainable recommendations | Very High | Medium |
 | **Hybrid** | Ensemble Learning | Best overall results, all scenarios | Medium | Highest |
 
@@ -171,30 +171,26 @@ CineMatch V2.0 implements multiple recommendation paradigms with intelligent ens
 
 ## Quick Start
 
-### Option 1: Multi-Algorithm V2.0
+### Option 1: Docker (Recommended)
 
 ```bash
 # 1. Clone repository
-git clone <repository-url>
-cd cinematch-demo
+git clone https://github.com/M7MDRAUF/DataSets.git
+cd DataSets
 
-# 2. Download dataset (see below)
-# Place files in data/ml-32m/
+# 2. Pull pre-trained models (526MB via Git LFS)
+git lfs install
+git lfs pull
 
-# 3. Test multi-algorithm system
-python simple_test.py
-
-# 4. Launch enhanced UI
-streamlit run app/pages/2_🎬_Recommend_V2.py
-```
-
-### Option 2: Classic V1.0 (Original)
+# 3. Download dataset
+# Visit: http://files.grouplens.org/datasets/movielens/ml-32m.zip
+# Extract and place files in data/ml-32m/
 
 # 4. Run with Docker
 docker-compose up --build
 ```
 
-Visit: http://localhost:8501
+Visit: **http://localhost:8501**
 
 ### Option 2: Local Python
 
@@ -253,11 +249,12 @@ pip install -r requirements.txt
 ```
 
 **Key dependencies:**
-- `pandas` (data processing)
-- `scikit-surprise` (collaborative filtering)
-- `streamlit` (web interface)
-- `plotly` (visualizations)
-- `joblib` (model persistence)
+- `pandas` (≥2.2.0) - data processing
+- `scikit-learn` (≥1.5.0) - machine learning algorithms (SVD, KNN)
+- `streamlit` (≥1.32.0) - web interface
+- `plotly` (≥5.18.0) - visualizations
+- `joblib` - model persistence
+- `scipy` - sparse matrix operations
 
 ### Step 3: Train Model
 
@@ -266,10 +263,12 @@ python src/model_training.py
 ```
 
 **Options:**
-- **Full dataset** (recommended for thesis): ~30 minutes, RMSE < 0.87
-- **Sample (1M ratings)**: ~2 minutes, RMSE ~0.90
+- **Full dataset** (32M ratings, recommended for thesis): ~30 minutes, RMSE 0.8406
+- **Sample (100K ratings)**: ~2 minutes, RMSE 0.6829
 
-The trained model will be saved to `models/svd_model.pkl` (~200 MB).
+The trained SVD model will be saved to `models/svd_model.pkl` (~200 MB).
+
+**Note**: Pre-trained KNN and Content-Based models (526MB total) are included via Git LFS.
 
 ---
 
@@ -281,7 +280,7 @@ The trained model will be saved to `models/svd_model.pkl` (~200 MB).
 **How it works**: Decomposes the user-movie matrix into lower-dimensional representations to discover latent factors (e.g., "action lovers", "drama enthusiasts").
 
 **Strengths**:
-- Excellent accuracy (RMSE ~0.57)
+- Excellent accuracy (RMSE 0.8406 on 32M dataset)
 - Handles sparse data well
 - Discovers complex relationships
 - Good for diverse recommendations
@@ -290,7 +289,7 @@ The trained model will be saved to `models/svd_model.pkl` (~200 MB).
 
 ---
 
-### 👥 User KNN (Collaborative Filtering)
+### 👥 User-KNN (Collaborative Filtering)
 **Best for**: Social recommendations, new users, interpretable results
 
 **How it works**: Finds users with similar rating patterns and recommends movies that those similar users enjoyed.
@@ -305,7 +304,7 @@ The trained model will be saved to `models/svd_model.pkl` (~200 MB).
 
 ---
 
-### 🎬 Item KNN (Content-Based)  
+### 🎬 Item-KNN (Item Similarity)  
 **Best for**: Movie similarity, genre exploration, stable recommendations
 
 **How it works**: Analyzes movies with similar rating patterns and recommends items similar to what you've enjoyed before.
@@ -320,70 +319,72 @@ The trained model will be saved to `models/svd_model.pkl` (~200 MB).
 
 ---
 
+### 🎯 Content-Based Filtering
+**Best for**: New items (cold-start), explainable recommendations, feature-driven discovery
+
+**How it works**: Analyzes movie attributes (genres, tags, titles) using TF-IDF vectorization and cosine similarity to find movies matching user preference profiles.
+
+**Strengths**:
+- Excellent for new/unpopular movies (no ratings needed)
+- Highly interpretable ("You liked Sci-Fi, here are more Sci-Fi movies")
+- No cold-start problem for items
+- Works with sparse user profiles
+- Feature-driven recommendations
+
+**When to use**: New movie catalog additions, explainability requirements, genre/tag-based discovery
+
+---
+
 ### 🚀 Hybrid Ensemble
 **Best for**: Best overall results, production systems, all user types
 
-**How it works**: Intelligently combines SVD, User KNN, and Item KNN with dynamic weighting based on user profile and data context.
+**How it works**: Intelligently combines 4 algorithms (SVD, User-KNN, Item-KNN, Content-Based) with dynamic weighting based on user profile and data context.
 
 **Strengths**:
-- Highest accuracy (RMSE ~0.56)
+- Combines strengths of all 4 paradigms
 - Adapts to different user types
 - Robust against individual algorithm weaknesses  
-- Combines multiple recommendation paradigms
+- Leverages collaborative + content-based filtering
 
-**When to use**: Production systems, academic research, when highest accuracy is required
+**When to use**: Production systems, academic research, when robustness and diversity are required
 
 ### Algorithm Selection Guide
 
 | User Profile | Recommended Algorithm | Reason |
 |-------------|----------------------|--------|
-| **New user (0 ratings)** | Hybrid → Item KNN | Content-based fallbacks work better |
-| **Sparse user (<30 ratings)** | User KNN → Hybrid | Social recommendations are more interpretable |
+| **New user (0 ratings)** | Content-Based → Hybrid | Feature-based works without user history |
+| **Sparse user (<30 ratings)** | User-KNN → Hybrid | Social recommendations are more interpretable |
 | **Dense user (>50 ratings)** | SVD → Hybrid | Matrix factorization captures complex patterns |
+| **New movies (cold-start)** | Content-Based | No ratings needed, uses movie features |
 | **Research/Production** | Hybrid | Best overall performance and robustness |
 
 ---
 
 ## Usage
 
-### Multi-Algorithm V2.0 Interface
+### Multi-Algorithm Interface
 
-#### Enhanced Recommend Page
-1. **Select Algorithm**: Choose from sidebar (SVD, User KNN, Item KNN, Hybrid)
+#### Recommend Page
+1. **Select Algorithm**: Choose from sidebar (SVD, User-KNN, Item-KNN, Content-Based, Hybrid)
 2. **Enter User ID**: (1 to 200,000) or try sample IDs: 66954, 123, 1000
 3. **Click "Get Recommendations"**: See personalized results with algorithm-specific explanations
 4. **Compare Performance**: View real-time RMSE, training time, memory usage
-5. **Advanced Options**: Fine-tune algorithm parameters
+5. **Advanced Options**: Fine-tune dataset size (100K/500K/1M/Full 32M)
 
 #### Algorithm Switching
 - **Live Switching**: Change algorithms instantly with cached models
 - **Performance Comparison**: Side-by-side metrics display
 - **Explanations**: Algorithm-specific reasoning for each recommendation
 
-### Classic V1.0 Interface
-
-#### Recommend Page (Original)
-1. Enter a User ID (1 to 200,000)
-2. Click "Get Recommendations"
-3. View top 10 SVD-based recommendations
-4. Click "Explain" to see why each movie is recommended
-5. Try "Surprise Me" for serendipity mode
-
-**Sample User IDs to try**: 1, 50, 123, 500, 1000, 5000
+**Sample User IDs to try**: 1, 50, 123, 500, 1000, 5000, 66954
 
 ### Running the Application
 
-#### V2.0 Multi-Algorithm
-```bash
-streamlit run app/pages/2_🎬_Recommend_V2.py
-```
-
-#### V1.0 Classic
 ```bash
 streamlit run app/main.py
 ```
 
-Access at: http://localhost:8501
+Access at: **http://localhost:8501**
 
 #### Analytics Page
 - Genre analysis
@@ -414,25 +415,33 @@ cinematch-demo/
 │   ├── __init__.py
 │   ├── data_processing.py        # Data loading & integrity (NF-01)
 │   ├── model_training.py         # Training pipeline
-│   ├── recommendation_engine.py  # Original SVD engine
-│   ├── algorithms/               # 🆕 Multi-algorithm system
-│   │   ├── base_recommender.py   #     Abstract base class
-│   │   ├── algorithm_manager.py  #     Central management
+│   ├── recommendation_engine.py  # Legacy V1.0 SVD engine
+│   ├── algorithms/               # Multi-algorithm system (V2.1.0)
+│   │   ├── base_recommender.py   #     Abstract base class interface
+│   │   ├── algorithm_manager.py  #     Central management (Factory + Singleton)
 │   │   ├── svd_recommender.py    #     SVD implementation
-│   │   ├── user_knn_recommender.py #   User-based KNN
-│   │   ├── item_knn_recommender.py #   Item-based KNN
-│   │   └── hybrid_recommender.py #     Ensemble system
+│   │   ├── user_knn_recommender.py #   User-based collaborative filtering
+│   │   ├── item_knn_recommender.py #   Item-based collaborative filtering
+│   │   ├── content_based_recommender.py # Content-based filtering (TF-IDF)
+│   │   └── hybrid_recommender.py #     Ensemble system (4 algorithms)
 │   └── utils.py                  # Explainability & helpers
 │
 ├── 🎨 app/                       # Streamlit UI
 │   ├── main.py                   # Entry point
 │   └── pages/
-│       ├── 1_🏠_Home.py
-│       ├── 2_🎬_Recommend.py     # Classic V1.0
-│       ├── 2_🎬_Recommend_V2.py  # 🆕 Multi-algorithm V2.0
-│       └── 3_📊_Analytics.py
+│       ├── 1_🏠_Home.py          # Algorithm selector
+│       ├── 2_🎬_Recommend.py     # Recommendation engine (all 5 algorithms)
+│       └── 3_📊_Analytics.py     # Advanced analytics dashboard
 │
-├── 🐳 Docker/
+├── 🐳 Dockerfile                # Docker container config
+├── docker-compose.yml           # Multi-container orchestration
+├── .dockerignore                # Docker build exclusions
+│
+├── 📄 requirements.txt          # Python dependencies
+├── README.md                    # This file
+├── QUICKSTART.md                # Quick setup guide
+├── ARCHITECTURE.md              # System design docs
+└── .dockerignore
 │   ├── Dockerfile
 │   └── docker-compose.yml
 │
@@ -458,20 +467,34 @@ cinematch-demo/
 | Algorithm | RMSE | Training Time | Memory Usage | Coverage | Interpretability |
 |-----------|------|---------------|--------------|----------|------------------|
 | **SVD** | 0.5690 | 1.8s | <1 MB | 12.8% | Medium |
-| **User KNN** | 0.5992 | 13.1s | 1.0 MB | 100% | Very High |
-| **Item KNN** | 1.0218 | 116.7s | 50.9 MB | 4.1% | High |
+| **User-KNN** | 0.5992 | 13.1s | 1.0 MB | 100% | Very High |
+| **Item-KNN** | 1.0218 | 116.7s | 50.9 MB | 4.1% | High |
+| **Content-Based** | N/A* | <1s | ~300 MB | 100% | Very High |
 | **Hybrid** | 0.5585 | 246.0s | 51.9 MB | 100% | Medium |
+
+*Content-Based uses cosine similarity (no RMSE applicable)
+
+### Full Dataset Performance (32M ratings)
+
+| Algorithm | Model Size | Load Time | Training Time |
+|-----------|------------|-----------|---------------|
+| **SVD** | ~200 MB | <1s | ~30 min |
+| **User-KNN** | 266 MB | 1.5s | N/A (pre-trained) |
+| **Item-KNN** | 260 MB | 1.5s | N/A (pre-trained) |
+| **Content-Based** | ~300 MB | <1s | ~5 min |
+| **Hybrid** | 526 MB+ | 7s | Ensemble |
 
 ### Performance Insights
 
-- **Best Accuracy**: Hybrid (0.5585 RMSE) > SVD (0.5690) > User KNN (0.5992)
-- **Fastest Training**: SVD (1.8s) > User KNN (13.1s) > Item KNN (116.7s)
-- **Memory Efficient**: SVD (<1MB) > User KNN (1.0MB) > Item KNN (50.9MB)
-- **Best Coverage**: User KNN & Hybrid (100%) > SVD (12.8%) > Item KNN (4.1%)
+- **Best Accuracy**: Hybrid (0.5585 RMSE) > SVD (0.5690) > User-KNN (0.5992) on sample data
+- **Fastest Training**: SVD (1.8s) > Content-Based (<1s load) > User-KNN (13.1s)
+- **Memory Efficient**: SVD (<1MB) > User-KNN (1.0MB) > Item-KNN (50.9MB)
+- **Best Coverage**: User-KNN, Content-Based & Hybrid (100%) > SVD (12.8%) > Item-KNN (4.1%)
+- **Production Ready**: All 5 algorithms optimized with pre-trained models (526MB total)
 
-### Original V1.0 Performance (Full Dataset: 32M ratings)
+### SVD Algorithm Details (Full Dataset: 32M ratings)
 
-**Algorithm**: SVD (Singular Value Decomposition) via scikit-surprise
+**Algorithm**: SVD (Singular Value Decomposition) via scikit-learn
 
 **Mathematical Foundation:**
 ```
@@ -486,10 +509,14 @@ Prediction: r̂_ui = μ + b_u + b_i + q_i^T · p_u
 - `lr_all`: 0.005 (learning rate)
 - `reg_all`: 0.02 (regularization)
 
-**Performance:**
-- Training RMSE: ~0.83
-- Test RMSE: < 0.87 ✅
-- Training time: 15-30 minutes (full dataset)
+**Performance (Full 32M Dataset):**
+- Test RMSE: 0.8406 (per model_metadata.json)
+- Training time: ~31 seconds (optimized sklearn implementation)
+- Model size: ~200 MB
+
+**Performance (100K Sample):**
+- Test RMSE: 0.6829
+- Training time: ~2 minutes
 
 ### Explainable AI (XAI)
 
@@ -810,16 +837,23 @@ This project is created for academic purposes (Master's Thesis).
 
 - **GroupLens Research**: For the MovieLens dataset
 - **Streamlit Team**: For the amazing web framework
-- **scikit-surprise**: For collaborative filtering implementation
+- **scikit-learn**: For machine learning algorithms (SVD, KNN)
 - **My Thesis Advisor**: For guidance and support
 
 ---
 
-## References
+## 📚 References
 
 1. Koren, Y., Bell, R., & Volinsky, C. (2009). Matrix factorization techniques for recommender systems. *Computer*, 42(8), 30-37.
 
 2. Harper, F. M., & Konstan, J. A. (2015). The MovieLens datasets: History and context. *ACM Transactions on Interactive Intelligent Systems (TiiS)*, 5(4), 1-19.
+
+3. Pedregosa, F., et al. (2011). Scikit-learn: Machine learning in Python. *Journal of Machine Learning Research*, 12, 2825-2830.
+
+---
+
+**CineMatch V2.1.0** | Multi-Algorithm Recommendation Engine  
+Last Updated: November 13, 2025
 
 3. Ricci, F., Rokach, L., & Shapira, B. (2015). *Recommender systems handbook*. Springer.
 

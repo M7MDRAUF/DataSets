@@ -1,12 +1,13 @@
-# 🚀 CineMatch V2.0.0 Quick Setup Guide
+# 🚀 CineMatch V2.1.0 Quick Setup Guide
 
-This guide will help you get CineMatch V2.0.0 with all 4 algorithms up and running in under 15 minutes!
+This guide will help you get CineMatch V2.1.0 with all 5 algorithms up and running in under 15 minutes!
 
-**What's New in V2.0.0:**
-- ✅ Pre-trained KNN models (no training needed for demo!)
-- ✅ Analytics Dashboard with benchmarking
+**What's New in V2.1.0:**
+- ✅ Pre-trained KNN + Content-Based models (no training needed for demo!)
+- ✅ 5 algorithms: SVD, User-KNN, Item-KNN, Content-Based, Hybrid
+- ✅ Analytics Dashboard with comprehensive benchmarking
 - ✅ 200x faster performance optimizations
-- ✅ Multi-algorithm support (SVD + User KNN + Item KNN + Hybrid)
+- ✅ Content-Based filtering with TF-IDF feature extraction
 
 ---
 
@@ -15,6 +16,10 @@ This guide will help you get CineMatch V2.0.0 with all 4 algorithms up and runni
 ### Step 1: Install Dependencies (2 minutes)
 
 ```powershell
+# Install Git LFS (for 526MB pre-trained models)
+git lfs install
+git lfs pull
+
 # Create virtual environment
 python -m venv venv
 .\venv\Scripts\activate
@@ -37,13 +42,13 @@ pip install -r requirements.txt
 
 ### Step 3: Run the App (Instant - Pre-trained Models Included!)
 
-**V2.0.0 Note**: Pre-trained KNN models are included (526MB via Git LFS), so you can run immediately!
+**V2.1.0 Note**: Pre-trained models (SVD, User-KNN, Item-KNN, Content-Based) are included (526MB via Git LFS), so you can run immediately!
 
 ```powershell
-streamlit run app/main.py --server.port 8508
+streamlit run app/main.py
 ```
 
-**Open**: http://localhost:8508
+**Open**: http://localhost:8501
 
 #### Optional: Train Additional Models
 
@@ -75,58 +80,60 @@ docker-compose up --build
 
 ---
 
-## ✅ Verification Checklist V2.0.0
+## ✅ Verification Checklist V2.1.0
 
 Before running, ensure:
 
 - [ ] Python 3.9+ installed (`python --version`)
+- [ ] Git LFS installed and pulled (`git lfs version`, `git lfs pull`)
 - [ ] All dependencies installed (`pip list | grep streamlit`)
 - [ ] Dataset files in `data/ml-32m/` (4 CSV files)
-- [ ] Pre-trained models exist (Git LFS pull completed):
+- [ ] Pre-trained models exist (526MB total via Git LFS):
   - [ ] `models/user_knn_model.pkl` (266MB)
   - [ ] `models/item_knn_model.pkl` (260MB)
-- [ ] Port 8508 available (changed from 8501)
-- [ ] Git LFS installed (`git lfs version`) for model files
+  - [ ] `models/content_based_*.pkl` (~300MB)
+- [ ] Port 8501 available (Streamlit default)
+- [ ] ~2GB disk space for dataset + models
 
 ---
 
-## 🎯 Demo Flow V2.0.0 (For Professor)
+## 🎯 Demo Flow V2.1.0 (For Professor)
 
 ### 1. Home Page (45 seconds)
 - Shows dataset overview (32M ratings, 87K+ movies)
-- **NEW**: Algorithm selector with 4 options
+- **V2.1.0**: Algorithm selector with 5 options (SVD, User-KNN, Item-KNN, Content-Based, Hybrid)
 - **NEW**: Live performance metrics display
 - **NEW**: Dataset size selection (100K/500K/1M/Full)
 - Algorithm status indicators
 - Genre distribution chart
 
 ### 2. Recommend Page (3 minutes)
-- **NEW**: Select algorithm from dropdown (SVD/User KNN/Item KNN/Hybrid)
+- **V2.1.0**: Select algorithm from dropdown (SVD/User-KNN/Item-KNN/Content-Based/Hybrid)
 - Enter User ID: **123**
 - Click **"Get Recommendations"**
-- **NEW**: Observe algorithm switching (e.g., "🔄 Switching to User KNN...")
+- **NEW**: Observe algorithm switching (e.g., "🔄 Switching to Content-Based...")
 - **NEW**: View live performance metrics (training time, RMSE, coverage)
 - View personalized movie list with ratings
 - Click **"Explain"** on first movie (algorithm-specific reasoning)
 - Show taste profile sidebar with genre preferences
 - Try **"Surprise Me"** button
-- **NEW**: Compare recommendations across different algorithms
+- **NEW**: Compare recommendations across all 5 algorithms
 
-### 3. Analytics Page (2 minutes) ⭐ NEW IN V2.0.0
+### 3. Analytics Page (2 minutes) ⭐ NEW IN V2.1.0
 - **Algorithm Benchmarking**:
   - Click **"🚀 Run Algorithm Benchmark"** button
-  - View performance comparison table (RMSE/MAE/Coverage)
+  - View performance comparison table for all 5 algorithms (RMSE/MAE/Coverage)
   - See interactive Plotly charts (accuracy & coverage)
 - **Dataset Statistics**: Users, movies, ratings, sparsity
 - **Genre Analysis**: Distribution and trends
 - **Temporal Trends**: Release year patterns
 - **Movie Similarity**: Search for **"Matrix"** and find similar movies
 
-### 4. Technical Highlights V2.0.0
-- **Multi-Algorithm Support**: 4 different recommendation paradigms ✅
+### 4. Technical Highlights V2.1.0
+- **5 Algorithms**: SVD, User-KNN, Item-KNN, Content-Based, Hybrid ✅
 - **Pre-trained Models**: 526MB models on full 32M dataset ✅
 - **Performance**: KNN loading 1.5s (200x faster), Hybrid 7s ✅
-- **Accuracy**: SVD RMSE 0.6829, Hybrid RMSE 0.7668, Coverage 100% ✅
+- **Accuracy**: SVD RMSE 0.8406 (full 32M), 0.6829 (100K sample) ✅
 - **Response time**: < 2 seconds with smart sampling ✅
 - **Explainable AI**: Algorithm-specific reasoning ✅
 - **Analytics Dashboard**: Comprehensive benchmarking ✅
@@ -134,17 +141,26 @@ Before running, ensure:
 
 ---
 
-## 🔧 Troubleshooting V2.0.0
+## 🔧 Troubleshooting V2.1.0
 
 ### "Data Integrity Check Failed"
 **Solution**: Download dataset and place in `data/ml-32m/`
 
-### "Pre-trained model not found"
+### "Pre-trained model not found" (MOST COMMON)
 **Solution**: 
 ```powershell
 # Ensure Git LFS is installed and pull large files
 git lfs install
 git lfs pull
+# Verify models downloaded (should see 526MB total)
+ls models/
+```
+
+### "Port 8501 already in use"
+**Solution**:
+```powershell
+# Use different port
+streamlit run app/main.py --server.port 8502
 ```
 
 ### "Import streamlit could not be resolved"
@@ -164,14 +180,19 @@ pip install -r requirements.txt
 
 ---
 
-## 📊 Expected Performance V2.0.0
+## 📊 Expected Performance V2.1.0
 
-| Algorithm | RMSE | Loading Time | Recommendation Time | Model Size | Coverage |
-|-----------|------|--------------|---------------------|------------|----------|
+| Algorithm | RMSE (100K) | Loading Time | Recommendation Time | Model Size | Coverage |
+|-----------|-------------|--------------|---------------------|------------|----------|
 | **SVD** | 0.6829 | 4-7s (train) | < 2s | ~50MB | 24.1% |
-| **User KNN** | 0.8394 | 1.5s (pre-trained) | < 2s | 266MB | ~50% |
-| **Item KNN** | 0.8117 | 1.0s (pre-trained) | < 2s | 260MB | ~50% |
-| **Hybrid** | 0.7668 | 7s (combined) | < 2s | 488MB | 100% ✅ |
+| **User-KNN** | 0.8394 | 1.5s (pre-trained) | < 2s | 266MB | ~50% |
+| **Item-KNN** | 0.8117 | 1.0s (pre-trained) | < 2s | 260MB | ~50% |
+| **Content-Based** | N/A* | <1s (pre-trained) | < 2s | ~300MB | 100% |
+| **Hybrid** | 0.7668 | 7s (combined) | < 2s | 526MB+ | 100% ✅ |
+
+*Content-Based uses cosine similarity (no RMSE applicable)
+
+**Note**: SVD RMSE on full 32M dataset: 0.8406 (per model_metadata.json)
 
 **Performance Improvements:**
 - ✅ KNN loading: **200x faster** (1.5s vs 124s before pre-training)
@@ -219,7 +240,7 @@ Try these User IDs for diverse recommendations:
 
 ## 🎬 One-Liner Pitch
 
-> "CineMatch uses SVD collaborative filtering on 32 million ratings to deliver personalized, explainable movie recommendations with production-level engineering."
+> "CineMatch V2.1.0 uses 5 different algorithms (SVD, User-KNN, Item-KNN, Content-Based, Hybrid) on 32 million ratings to deliver personalized, explainable movie recommendations with production-level engineering."
 
 ---
 

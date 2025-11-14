@@ -1,6 +1,6 @@
-# 🐳 CineMatch V2.0 Docker Deployment
+# 🐳 CineMatch V2.1.0 Docker Deployment
 
-Quick and easy Docker deployment for the enhanced multi-algorithm recommendation system.
+Quick and easy Docker deployment for the complete 5-algorithm recommendation system.
 
 ## 🚀 One-Command Deployment
 
@@ -22,33 +22,41 @@ docker-compose up --build -d
 
 ## 📱 Access Your Application
 
-Once deployed, access CineMatch V2.0 at: **http://localhost:8501**
+Once deployed, access CineMatch V2.1.0 at: **http://localhost:8501**
 
 ## 🔧 Available Algorithms
 
-The V2.0 system includes all 4 recommendation algorithms:
+The V2.1.0 system includes all 5 recommendation algorithms:
 
 1. **SVD Matrix Factorization** - Fast, accurate for dense users
-2. **KNN User-Based** - Social recommendations based on similar users  
-3. **KNN Item-Based** - Content-based recommendations
-4. **Hybrid (Best of All)** - Intelligent combination of all algorithms ⭐
+2. **User-KNN (User-Based CF)** - Social recommendations based on similar users  
+3. **Item-KNN (Item-Based CF)** - Item similarity recommendations
+4. **Content-Based Filtering** - TF-IDF feature matching (genres, tags, titles)
+5. **Hybrid Ensemble** - Intelligent combination of all 4 algorithms ⭐
 
 ## 📊 Performance Comparison
 
-| Algorithm | RMSE  | Speed  | Coverage | Memory | Best For |
-|-----------|-------|--------|----------|---------|----------|
-| SVD       | 0.5690| Fast   | 12.8%    | <1 MB   | Dense users |
-| User KNN  | 0.5992| Medium | 100%     | 1 MB    | Sparse users |
-| Item KNN  | 1.0218| Slow   | 4.1%     | 51 MB   | Content-based |
-| **Hybrid**| **0.5585**| Slower | **100%** | 52 MB   | **All users** ⭐|
+| Algorithm | RMSE (100K) | Speed  | Coverage | Memory | Best For |
+|-----------|-------------|--------|----------|---------|----------|
+| SVD       | 0.6829      | Fast   | 24.1%    | ~50 MB  | Dense users |
+| User-KNN  | 0.8394      | Medium | ~50%     | 266 MB  | Sparse users |
+| Item-KNN  | 0.8117      | Medium | ~50%     | 260 MB  | Item similarity |
+| Content-Based | N/A*    | Fast   | 100%     | ~300 MB | New items/cold-start |
+| **Hybrid**| **0.7668**  | Slower | **100%** | 526 MB+ | **All scenarios** ⭐|
 
-## 🎯 V2.0 Features
+*Content-Based uses cosine similarity (not RMSE-based)
 
-✨ **Algorithm Selector** - Switch between algorithms in real-time  
+**Note**: SVD RMSE on full 32M dataset: 0.8406 (per model_metadata.json)
+
+## 🎯 V2.1.0 Features
+
+✨ **5 Algorithms** - SVD, User-KNN, Item-KNN, Content-Based, Hybrid  
+🔄 **Algorithm Selector** - Switch between algorithms in real-time  
 📈 **Live Metrics** - See RMSE, training time, memory usage  
 🎨 **Professional UI** - Netflix-style interface  
 🧠 **Explainable AI** - Understand why movies were recommended  
-⚙️ **Advanced Options** - Tune algorithm parameters  
+⚙️ **Advanced Options** - Tune dataset size and parameters  
+📊 **Analytics Dashboard** - 5 tabs with comprehensive benchmarking  
 
 ## 🛠️ Management Commands
 
@@ -79,9 +87,10 @@ The application is configured via environment variables in `docker-compose.yml`:
 
 ```yaml
 environment:
-  - CINEMATCH_VERSION=2.0
+  - CINEMATCH_VERSION=2.1.0
   - ENABLE_ALL_ALGORITHMS=true
   - STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
+  - STREAMLIT_SERVER_PORT=8501
 ```
 
 ## 📂 Volume Mounts
