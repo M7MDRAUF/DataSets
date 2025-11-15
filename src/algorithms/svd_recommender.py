@@ -63,25 +63,47 @@ class SVDRecommender(BaseRecommender):
         self.metrics.training_time = training_time
         self.is_trained = True
         
-        # Calculate RMSE on a test set (sample for speed)
+        # Calculate RMSE and MAE on a test set (sample for speed)
         test_sample = ratings_df.sample(min(10000, len(ratings_df)), random_state=42)
-        rmse_sum = 0
+        squared_errors = []
+        absolute_errors = []
+        
         for _, row in test_sample.iterrows():
             try:
                 pred = self.model.predict(row['userId'], row['movieId'])
-                rmse_sum += (pred - row['rating']) ** 2
+                error = pred - row['rating']
+                squared_errors.append(error ** 2)
+                absolute_errors.append(abs(error))
             except:
                 continue
         
-        self.metrics.rmse = np.sqrt(rmse_sum / len(test_sample))
+        if squared_errors:
+            self.metrics.rmse = np.sqrt(np.mean(squared_errors))
+            self.metrics.mae = np.mean(absolute_errors)
         
         # Calculate coverage (% of movies that can be recommended)
         self.metrics.coverage = (len(self.model.movie_ids) / len(movies_df)) * 100
         
+        # Calculate memory usage (approximate)
+        # SVD stores: U matrix, V matrix, singular values
+        if hasattr(self.model, 'U') and hasattr(self.model, 'Vt'):
+            memory_mb = (self.model.U.nbytes + self.model.Vt.nbytes + 
+                        self.model.sigma.nbytes) / (1024 * 1024)
+            self.metrics.memory_usage_mb = memory_mb
+        else:
+            # Estimate based on model parameters
+            n_users = len(self.model.user_ids)
+            n_items = len(self.model.movie_ids)
+            # U: n_users x n_components, Vt: n_components x n_items
+            estimated_mb = (n_users * self.n_components + self.n_components * n_items) * 8 / (1024 * 1024)
+            self.metrics.memory_usage_mb = estimated_mb
+        
         print(f"✓ {self.name} trained successfully!")
         print(f"  • Training time: {training_time:.1f}s")
         print(f"  • RMSE: {self.metrics.rmse:.4f}")
+        print(f"  • MAE: {self.metrics.mae:.4f}")
         print(f"  • Coverage: {self.metrics.coverage:.1f}%")
+        print(f"  • Memory usage: {self.metrics.memory_usage_mb:.1f} MB")
     
     def predict(self, user_id: int, movie_id: int) -> float:
         """Predict rating for a specific user-movie pair"""

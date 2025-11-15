@@ -366,7 +366,7 @@ with col2:
                     st.metric("RMSE", "N/A", help="Metrics not yet calculated")
                 
                 # Display MAE (Mean Absolute Error)
-                mae_value = metrics.get('mae', 0.0)
+                mae_value = metrics.get('mae', current_algo.metrics.mae if current_algo.metrics.mae > 0 else 0.0)
                 if mae_value > 0:
                     st.metric(
                         "MAE", 

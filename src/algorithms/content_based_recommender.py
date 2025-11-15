@@ -166,6 +166,7 @@ class ContentBasedRecommender(BaseRecommender):
         print(f"✓ {self.name} trained successfully!")
         print(f"  • Training time: {training_time:.1f}s")
         print(f"  • RMSE: {self.metrics.rmse:.4f}")
+        print(f"  • MAE: {self.metrics.mae:.4f}")
         print(f"  • Feature dimensions: {self.combined_features.shape}")
         if self.similarity_matrix is not None:
             print(f"  • Similarity matrix size: {self.similarity_matrix.shape}")
@@ -614,21 +615,27 @@ class ContentBasedRecommender(BaseRecommender):
         return recommendations[['movieId', 'predicted_rating', 'similarity', 'title', 'genres', 'genres_list']]
     
     def _calculate_rmse(self, ratings_df: pd.DataFrame) -> None:
-        """Calculate RMSE on a test sample"""
+        """Calculate RMSE and MAE on a test sample"""
         test_sample = ratings_df.sample(min(5000, len(ratings_df)), random_state=42)
         
         squared_errors = []
+        absolute_errors = []
+        
         for _, row in test_sample.iterrows():
             try:
                 pred = self.predict(row['userId'], row['movieId'])
-                squared_errors.append((pred - row['rating']) ** 2)
+                error = pred - row['rating']
+                squared_errors.append(error ** 2)
+                absolute_errors.append(abs(error))
             except:
                 continue
         
         if squared_errors:
             self.metrics.rmse = np.sqrt(np.mean(squared_errors))
+            self.metrics.mae = np.mean(absolute_errors)
         else:
             self.metrics.rmse = 0.0
+            self.metrics.mae = 0.0
     
     def _calculate_memory_usage(self) -> float:
         """Calculate approximate memory usage in MB"""

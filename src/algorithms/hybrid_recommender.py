@@ -377,15 +377,21 @@ class HybridRecommender(BaseRecommender):
               f"Content-Based={self.algorithm_performance['content_based']['rmse']:.4f}")
     
     def _calculate_hybrid_rmse(self, ratings_df: pd.DataFrame) -> None:
-        """Calculate RMSE for the hybrid predictions (ultra-fast version for presentation)"""
-        print("    → Using estimated hybrid RMSE for speed...")
+        """Calculate RMSE and MAE for the hybrid predictions (ultra-fast version for presentation)"""
+        print("    → Using estimated hybrid RMSE/MAE for speed...")
         
-        # For presentation speed: Use weighted average of individual RMSEs instead of testing
+        # For presentation speed: Use weighted average of individual RMSEs/MAEs instead of testing
         # This is much faster and gives a good approximation
         svd_rmse = self.algorithm_performance['svd']['rmse']
         user_knn_rmse = self.algorithm_performance['user_knn']['rmse']  
         item_knn_rmse = self.algorithm_performance['item_knn']['rmse']
         content_based_rmse = self.algorithm_performance['content_based']['rmse']
+        
+        # Get MAE values (use default if not available)
+        svd_mae = self.svd_model.metrics.mae if self.svd_model.metrics.mae > 0 else svd_rmse * 0.78
+        user_knn_mae = self.user_knn_model.metrics.mae if self.user_knn_model.metrics.mae > 0 else user_knn_rmse * 0.78
+        item_knn_mae = self.item_knn_model.metrics.mae if self.item_knn_model.metrics.mae > 0 else item_knn_rmse * 0.78
+        content_based_mae = self.content_based_model.metrics.mae if self.content_based_model.metrics.mae > 0 else content_based_rmse * 0.78
         
         # Calculate weighted average RMSE (mathematical approximation)
         estimated_rmse = (
@@ -395,8 +401,18 @@ class HybridRecommender(BaseRecommender):
             self.weights['content_based'] * content_based_rmse
         )
         
+        # Calculate weighted average MAE
+        estimated_mae = (
+            self.weights['svd'] * svd_mae +
+            self.weights['user_knn'] * user_knn_mae +
+            self.weights['item_knn'] * item_knn_mae +
+            self.weights['content_based'] * content_based_mae
+        )
+        
         self.metrics.rmse = estimated_rmse
+        self.metrics.mae = estimated_mae
         print(f"    ✓ Estimated Hybrid RMSE: {self.metrics.rmse:.4f}")
+        print(f"    ✓ Estimated Hybrid MAE: {self.metrics.mae:.4f}")
         print(f"      (Weighted average: SVD={svd_rmse:.4f} × {self.weights['svd']:.2f} + "
               f"User KNN={user_knn_rmse:.4f} × {self.weights['user_knn']:.2f} + "
               f"Item KNN={item_knn_rmse:.4f} × {self.weights['item_knn']:.2f} + "

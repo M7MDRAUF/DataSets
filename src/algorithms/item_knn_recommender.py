@@ -114,6 +114,7 @@ class ItemKNNRecommender(BaseRecommender):
         print(f"✓ {self.name} trained successfully!")
         print(f"  • Training time: {training_time:.1f}s")
         print(f"  • RMSE: {self.metrics.rmse:.4f}")
+        print(f"  • MAE: {self.metrics.mae:.4f}")
         print(f"  • Matrix size: {self.item_user_matrix.shape}")
         print(f"  • Valid items: {len(self.valid_items)}")
         print(f"  • Coverage: {self.metrics.coverage:.1f}%")

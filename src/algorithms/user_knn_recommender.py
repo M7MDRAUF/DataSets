@@ -101,6 +101,7 @@ class UserKNNRecommender(BaseRecommender):
         print(f"✓ {self.name} trained successfully!")
         print(f"  • Training time: {training_time:.1f}s")
         print(f"  • RMSE: {self.metrics.rmse:.4f}")
+        print(f"  • MAE: {self.metrics.mae:.4f}")
         print(f"  • Matrix size: {self.user_movie_matrix.shape}")
         print(f"  • Sparsity: {(1 - self.user_movie_matrix.nnz / np.prod(self.user_movie_matrix.shape)) * 100:.2f}%")
         print(f"  • Memory usage: {matrix_size_mb:.1f} MB")
