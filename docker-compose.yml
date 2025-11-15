@@ -37,6 +37,7 @@ services:
       
       # Python configuration
       - PYTHONUNBUFFERED=1
+      - PYTHONDONTWRITEBYTECODE=1
       - PYTHONPATH=/app
       
       # V2.0 Multi-Algorithm Configuration

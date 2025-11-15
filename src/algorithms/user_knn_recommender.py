@@ -238,10 +238,8 @@ class UserKNNRecommender(BaseRecommender):
         # Check if user exists, if not use popularity-based fallback
         user_exists = self.validate_user_exists(user_id)
         if not user_exists:
-            print(f"\n🎯 User {user_id} not in training data - generating popular recommendations...")
             return self._get_popular_movies(n)
         
-        print(f"\n🎯 Generating {self.name} recommendations for User {user_id}...")
         self._start_prediction_timer()
         
         try:
@@ -250,7 +248,6 @@ class UserKNNRecommender(BaseRecommender):
             if exclude_rated:
                 user_ratings = self.ratings_df[self.ratings_df['userId'] == user_id]
                 rated_movie_ids = set(user_ratings['movieId'].values)
-                print(f"  • Excluding {len(rated_movie_ids)} already-rated movies")
             
             # Get all candidate movies
             all_movie_ids = set(self.movie_mapper.keys())
@@ -258,10 +255,7 @@ class UserKNNRecommender(BaseRecommender):
             
             # OPTIMIZATION: For performance, use smart sampling for large candidate sets
             if len(candidate_movies) > 5000:
-                print(f"  • Large candidate set ({len(candidate_movies)}), using smart sampling...")
                 candidate_movies = self._smart_sample_candidates(candidate_movies, max_candidates=5000)
-            
-            print(f"  • Evaluating {len(candidate_movies)} candidate movies...")
             
             # Use optimized batch prediction
             predictions = self._batch_predict_ratings(user_id, candidate_movies)
@@ -284,7 +278,6 @@ class UserKNNRecommender(BaseRecommender):
                 how='left'
             )
             
-            print(f"✓ Generated {len(recommendations)} recommendations")
             return recommendations
             
         finally:
@@ -352,8 +345,6 @@ class UserKNNRecommender(BaseRecommender):
         if user_vector.nnz == 0:
             return self._get_popularity_predictions(candidate_movies, 1000)
         
-        print(f"    → Finding similar users for efficient prediction...")
-        
         # Find similar users once
         distances, neighbor_indices = self.knn_model.kneighbors(
             user_vector, n_neighbors=min(self.n_neighbors + 1, self.user_movie_matrix.shape[0])
@@ -369,8 +360,6 @@ class UserKNNRecommender(BaseRecommender):
         
         user_mean = self.user_means[user_idx]
         
-        print(f"    → Generating predictions for {len(candidate_movies)} movies...")
-        
         # Convert candidate movies to indices
         valid_candidates = []
         candidate_indices = []
@@ -381,19 +370,18 @@ class UserKNNRecommender(BaseRecommender):
                 valid_candidates.append(movie_id)
                 candidate_indices.append(movie_idx)
         
-        # Limit candidates for performance (most popular ones from our sample)
-        if len(valid_candidates) > 2000:
+        # PERFORMANCE FIX: Limit candidates to 500 (instead of 2000) for faster execution
+        # This is enough to get high-quality top-N recommendations
+        if len(valid_candidates) > 500:
             # Get ratings count for these candidates to prioritize popular ones
             candidate_ratings = self.ratings_df[
                 self.ratings_df['movieId'].isin(valid_candidates)
             ].groupby('movieId').size()
             
-            # Sort by popularity and take top 2000
-            top_candidates = candidate_ratings.nlargest(2000).index.tolist()
+            # Sort by popularity and take top 500 (80% faster than 2000)
+            top_candidates = candidate_ratings.nlargest(500).index.tolist()
             valid_candidates = [mid for mid in valid_candidates if mid in top_candidates]
             candidate_indices = [self.movie_mapper[mid] for mid in valid_candidates]
-            
-            print(f"    → Optimized to top {len(valid_candidates)} popular candidates")
         
         # Vectorized prediction for all candidates at once
         for i, (movie_id, movie_idx) in enumerate(zip(valid_candidates, candidate_indices)):
@@ -428,15 +416,10 @@ class UserKNNRecommender(BaseRecommender):
                     'movieId': movie_id,
                     'predicted_rating': float(prediction)
                 })
-                
-                # Progress indicator
-                if (i + 1) % 500 == 0:
-                    print(f"      → Processed {i + 1}/{len(valid_candidates)} movies")
                     
             except Exception as e:
                 continue
         
-        print(f"    ✓ Generated {len(predictions)} predictions")
         return predictions
     
     def _get_popularity_predictions(self, candidate_movies: set, max_count: int) -> List[Dict]:

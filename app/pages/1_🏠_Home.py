@@ -167,6 +167,60 @@ def compute_rating_distribution(_ratings_df):
     rating_counts = _ratings_df['rating'].value_counts().sort_index()
     return rating_counts
 
+@st.cache_data
+def create_genre_chart(_genre_counts):
+    """Create and cache genre distribution chart"""
+    fig_genres = px.bar(
+        x=_genre_counts.values,
+        y=_genre_counts.index,
+        orientation='h',
+        labels={'x': 'Number of Movies', 'y': 'Genre'},
+        title='Top 15 Movie Genres',
+        color=_genre_counts.values,
+        color_continuous_scale='Viridis'
+    )
+    
+    fig_genres.update_layout(
+        height=500,
+        showlegend=False,
+        xaxis_title="Number of Movies",
+        yaxis_title="Genre"
+    )
+    
+    return fig_genres
+
+@st.cache_data
+def create_rating_chart(_rating_counts):
+    """Create and cache rating distribution chart"""
+    fig_ratings = px.bar(
+        x=_rating_counts.index,
+        y=_rating_counts.values,
+        labels={'x': 'Rating', 'y': 'Count'},
+        title='How users rate movies',
+        color=_rating_counts.index,
+        color_continuous_scale='RdYlGn'
+    )
+    
+    fig_ratings.update_layout(height=400)
+    return fig_ratings
+
+@st.cache_data
+def create_engagement_chart(_user_rating_counts):
+    """Create and cache user engagement histogram"""
+    fig_user_engagement = px.histogram(
+        _user_rating_counts,
+        nbins=50,
+        labels={'value': 'Number of Ratings', 'count': 'Number of Users'},
+        title='Distribution of user activity'
+    )
+    
+    fig_user_engagement.update_layout(
+        height=400,
+        showlegend=False
+    )
+    
+    return fig_user_engagement
+
 # V2.0 Performance Settings and Algorithm Selection
 st.markdown("## ⚙️ Algorithm & Performance Settings")
 
@@ -281,11 +335,7 @@ try:
     with col2:
         st.markdown("### Algorithm Performance")
         
-        # Get algorithm manager and show current status
-        manager = get_manager()
-        manager.initialize_data(ratings_df, movies_df)
-        
-        # Show algorithm info cards
+        # Show algorithm info cards (manager already initialized at line 269)
         algorithm_info = {
             "SVD": {"emoji": "🎯", "color": "#1f77b4", "strength": "Accuracy"},
             "User KNN": {"emoji": "👥", "color": "#ff7f0e", "strength": "Similarity"},
@@ -360,9 +410,11 @@ try:
             st.markdown(f"### 🎬 Recommendations for User {user_id}")
             st.markdown(f"*Powered by {selected_algorithm} algorithm*")
             
-            # Show recommendations in a nice grid
+            # Show recommendations in a nice grid - using index-based loop to avoid iterator blocking
             cols = st.columns(2)
-            for idx, (_, movie) in enumerate(recommendations.iterrows()):
+            num_recs = len(recommendations)
+            for idx in range(num_recs):
+                movie = recommendations.iloc[idx]
                 col = cols[idx % 2]
                 
                 with col:
@@ -380,24 +432,9 @@ try:
                     </div>
                     """, unsafe_allow_html=True)
             
-            # Show algorithm performance metrics if available
-            if hasattr(manager, 'get_algorithm_metrics'):
-                    try:
-                        metrics = manager.get_algorithm_metrics(algorithm_type)
-                        if metrics:
-                            st.markdown("### 📊 Algorithm Performance")
-                            
-                            perf_cols = st.columns(4)
-                            with perf_cols[0]:
-                                st.metric("RMSE", f"{metrics.rmse:.4f}" if hasattr(metrics, 'rmse') else "N/A")
-                            with perf_cols[1]:
-                                st.metric("MAE", f"{metrics.mae:.4f}" if hasattr(metrics, 'mae') else "N/A")
-                            with perf_cols[2]:
-                                st.metric("Training Time", f"{metrics.training_time:.2f}s" if hasattr(metrics, 'training_time') else "N/A")
-                            with perf_cols[3]:
-                                st.metric("Prediction Time", f"{metrics.prediction_time:.4f}s" if hasattr(metrics, 'prediction_time') else "N/A")
-                    except Exception as e:
-                        st.debug(f"Metrics display error: {e}")
+            # CRITICAL: Force Streamlit to stop executing after displaying recommendations
+            # This prevents continuous spinner and releases execution context
+            st.stop()
                 
         except Exception as e:
             st.error(f"❌ Error generating recommendations: {str(e)}")
@@ -450,26 +487,9 @@ try:
     st.markdown("## 🎭 Genre Distribution")
     st.markdown("Explore the most popular movie genres in our catalog:")
     
-    # Use cached computation
+    # Use cached computation and chart
     genre_counts = compute_genre_distribution(movies_df)
-    
-    # Create bar chart
-    fig_genres = px.bar(
-        x=genre_counts.values,
-        y=genre_counts.index,
-        orientation='h',
-        labels={'x': 'Number of Movies', 'y': 'Genre'},
-        title='Top 15 Movie Genres',
-        color=genre_counts.values,
-        color_continuous_scale='Viridis'
-    )
-    
-    fig_genres.update_layout(
-        height=500,
-        showlegend=False,
-        xaxis_title="Number of Movies",
-        yaxis_title="Genre"
-    )
+    fig_genres = create_genre_chart(genre_counts)
     
     st.plotly_chart(fig_genres, width="stretch")
     
@@ -483,19 +503,10 @@ try:
     with col1:
         st.markdown("### Distribution of User Ratings")
         
-        # Use cached computation
+        # Use cached computation and chart
         rating_counts = compute_rating_distribution(ratings_df)
+        fig_ratings = create_rating_chart(rating_counts)
         
-        fig_ratings = px.bar(
-            x=rating_counts.index,
-            y=rating_counts.values,
-            labels={'x': 'Rating', 'y': 'Count'},
-            title='How users rate movies',
-            color=rating_counts.index,
-            color_continuous_scale='RdYlGn'
-        )
-        
-        fig_ratings.update_layout(height=400)
         st.plotly_chart(fig_ratings, width="stretch")
     
     with col2:
@@ -541,20 +552,9 @@ try:
     with col1:
         st.markdown("### Ratings per User")
         
-        # Use cached computation
+        # Use cached computation and chart
         user_rating_counts = compute_user_engagement_stats(ratings_df)
-        
-        fig_user_engagement = px.histogram(
-            user_rating_counts,
-            nbins=50,
-            labels={'value': 'Number of Ratings', 'count': 'Number of Users'},
-            title='Distribution of user activity'
-        )
-        
-        fig_user_engagement.update_layout(
-            height=400,
-            showlegend=False
-        )
+        fig_user_engagement = create_engagement_chart(user_rating_counts)
         
         st.plotly_chart(fig_user_engagement, width="stretch")
     
