@@ -501,53 +501,53 @@ if get_recs_button or 'current_recommendations' in st.session_state:
                 with rec_col:
                     # Display recommendations with defensive coding
                     for idx, row in recommendations.iterrows():
-                    try:
-                        movie_id = row['movieId']
-                        title = row.get('title', 'Unknown Movie')
-                        genres = row.get('genres', '')
-                        predicted_rating = float(row.get('predicted_rating', 0.0))
-                        
-                        # Movie card with simplified layout
-                        st.markdown(f"""
-                        <div class="movie-card">
-                            <h3 style="color: white; margin: 0.5rem 0;">#{idx+1}. {title}</h3>
-                            <p style="color: #ccc;"><strong>Genres:</strong> {format_genres(genres)}</p>
-                            <p style="color: #ddd;"><strong>Predicted Rating:</strong> {create_rating_stars(predicted_rating)}</p>
-                        </div>
-                        """, unsafe_allow_html=True)
-                        
-                        # Simplified buttons layout (no nested columns)
-                        col_left, col_right = st.columns(2)
-                        
-                        with col_left:
-                            # Explanation button
-                            if st.button(f"💡 Why this movie?", key=f"explain_{idx}_{movie_id}"):
-                                try:
-                                    explanation = manager.get_recommendation_explanation(
-                                        selected_algorithm, user_id, movie_id
-                                    )
-                                    st.markdown(f"""
-                                    <div class="explanation-box">
-                                        <strong>Why this recommendation?</strong><br>
-                                        {explanation}
-                                    </div>
-                                    """, unsafe_allow_html=True)
-                                except Exception as exp_error:
-                                    st.warning(f"⚠️ Could not generate explanation: {str(exp_error)}")
-                        
-                        with col_right:
-                            # Feedback buttons in single row
-                            if st.button("👍 Like", key=f"like_{idx}_{movie_id}"):
-                                st.success("Thanks for the feedback! 👍")
-                            if st.button("👎 Not interested", key=f"dislike_{idx}_{movie_id}"):
-                                st.info("Feedback noted! 👎")
-                        
-                        st.markdown("---")
-                        
-                    except Exception as card_error:
-                        # Log error but continue rendering other recommendations
-                        st.error(f"❌ Error displaying movie #{idx+1}: {str(card_error)}")
-                        st.markdown("---")
+                        try:
+                            movie_id = row['movieId']
+                            title = row.get('title', 'Unknown Movie')
+                            genres = row.get('genres', '')
+                            predicted_rating = float(row.get('predicted_rating', 0.0))
+                            
+                            # Movie card with simplified layout
+                            st.markdown(f"""
+                            <div class="movie-card">
+                                <h3 style="color: white; margin: 0.5rem 0;">#{idx+1}. {title}</h3>
+                                <p style="color: #ccc;"><strong>Genres:</strong> {format_genres(genres)}</p>
+                                <p style="color: #ddd;"><strong>Predicted Rating:</strong> {create_rating_stars(predicted_rating)}</p>
+                            </div>
+                            """, unsafe_allow_html=True)
+                            
+                            # Simplified buttons layout (no nested columns)
+                            col_left, col_right = st.columns(2)
+                            
+                            with col_left:
+                                # Explanation button
+                                if st.button(f"💡 Why this movie?", key=f"explain_{idx}_{movie_id}"):
+                                    try:
+                                        explanation = manager.get_recommendation_explanation(
+                                            selected_algorithm, user_id, movie_id
+                                        )
+                                        st.markdown(f"""
+                                        <div class="explanation-box">
+                                            <strong>Why this recommendation?</strong><br>
+                                            {explanation}
+                                        </div>
+                                        """, unsafe_allow_html=True)
+                                    except Exception as exp_error:
+                                        st.warning(f"⚠️ Could not generate explanation: {str(exp_error)}")
+                            
+                            with col_right:
+                                # Feedback buttons in single row
+                                if st.button("👍 Like", key=f"like_{idx}_{movie_id}"):
+                                    st.success("Thanks for the feedback! 👍")
+                                if st.button("👎 Not interested", key=f"dislike_{idx}_{movie_id}"):
+                                    st.info("Feedback noted! 👎")
+                            
+                            st.markdown("---")
+                            
+                        except Exception as card_error:
+                            # Log error but continue rendering other recommendations
+                            st.error(f"❌ Error displaying movie #{idx+1}: {str(card_error)}")
+                            st.markdown("---")
                 
                 with profile_col:
                     # User taste profile (if user exists)
