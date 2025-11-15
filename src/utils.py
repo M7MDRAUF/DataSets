@@ -187,17 +187,26 @@ def format_genres(genres: str, max_genres: int = 3) -> str:
     Returns:
         Formatted genre string (e.g., "Action, Sci-Fi, Thriller")
     """
-    if pd.isna(genres) or genres == "(no genres listed)":
+    # Defensive: handle None, empty, or invalid input
+    if not genres or pd.isna(genres) or genres == "(no genres listed)" or str(genres).strip() == "":
         return "Unknown"
     
-    genre_list = genres.split('|')
-    
-    if len(genre_list) <= max_genres:
-        return ", ".join(genre_list)
-    else:
-        displayed = ", ".join(genre_list[:max_genres])
-        remaining = len(genre_list) - max_genres
-        return f"{displayed} (+{remaining} more)"
+    try:
+        genre_list = str(genres).split('|')
+        # Filter empty strings
+        genre_list = [g.strip() for g in genre_list if g.strip()]
+        
+        if not genre_list:
+            return "Unknown"
+        
+        if len(genre_list) <= max_genres:
+            return ", ".join(genre_list)
+        else:
+            displayed = ", ".join(genre_list[:max_genres])
+            remaining = len(genre_list) - max_genres
+            return f"{displayed} (+{remaining} more)"
+    except Exception:
+        return "Unknown"
 
 
 def format_rating(rating: float, style: str = "stars") -> str:
@@ -392,6 +401,14 @@ def create_rating_stars(rating: float) -> str:
     Returns:
         HTML string with star rating
     """
+    # Defensive: handle invalid ratings
+    try:
+        rating = float(rating)
+        # Clamp to valid range
+        rating = max(0.0, min(5.0, rating))
+    except (ValueError, TypeError):
+        rating = 0.0
+    
     full_stars = int(rating)
     half_star = 1 if (rating - full_stars) >= 0.5 else 0
     empty_stars = 5 - full_stars - half_star
