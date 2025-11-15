@@ -453,7 +453,7 @@ if get_recs_button or 'current_recommendations' in st.session_state:
         logger.info(f"Generating recommendations for user {user_id}")
         with st.spinner("🎯 Generating personalized recommendations..."):
             recommendations = algorithm.get_recommendations(user_id, n=10, exclude_rated=True)
-        logger.info(f"Generated {len(recommendations) if recommendations is not None else 0} recommendations")
+            logger.info(f"Generated {len(recommendations) if recommendations is not None else 0} recommendations")
             
             # Get user history if exists
             user_history = ratings_df[ratings_df['userId'] == user_id] if user_exists else pd.DataFrame()
