@@ -352,64 +352,70 @@ with col2:
         current_algo = None
     
     if current_algo is not None:
-        # Get metrics from algorithm manager (will calculate if needed)
-        print(f"[DEBUG] Calling get_algorithm_metrics for {selected_algorithm}...")
-        metrics_data = manager.get_algorithm_metrics(selected_algorithm)
-        print(f"[DEBUG] Metrics data returned: {metrics_data}")
-        # Safe attribute access in case old cached models don't have 'mae'
-        mae_value = getattr(current_algo.metrics, 'mae', 0.0)
-        print(f"[DEBUG] Current algo metrics object: rmse={current_algo.metrics.rmse}, mae={mae_value}, coverage={current_algo.metrics.coverage}")
-        
-        # Single column metrics display (no nesting)
-        if metrics_data.get('status') == 'Trained':
-            metrics = metrics_data.get('metrics', {})
-            print(f"[DEBUG] Metrics dict from get_algorithm_metrics: {metrics}")
+        try:
+            # Get metrics from algorithm manager (will calculate if needed)
+            print(f"[DEBUG] Calling get_algorithm_metrics for {selected_algorithm}...")
+            metrics_data = manager.get_algorithm_metrics(selected_algorithm)
+            print(f"[DEBUG] Metrics data returned: {metrics_data}")
+            # Safe attribute access in case old cached models don't have 'mae'
+            mae_value = getattr(current_algo.metrics, 'mae', 0.0)
+            print(f"[DEBUG] Current algo metrics object: rmse={current_algo.metrics.rmse}, mae={mae_value}, coverage={current_algo.metrics.coverage}")
             
-            # Display RMSE
-            rmse_value = metrics.get('rmse', current_algo.metrics.rmse)
-            print(f"[DEBUG] RMSE display value: {rmse_value} (from metrics dict: {metrics.get('rmse')}, from algo object: {current_algo.metrics.rmse})")
-            if rmse_value > 0:
-                st.metric(
-                    "RMSE", 
-                    f"{rmse_value:.4f}",
-                    help="Lower is better (Root Mean Square Error)"
-                )
+            # Single column metrics display (no nesting)
+            if metrics_data.get('status') == 'Trained':
+                metrics = metrics_data.get('metrics', {})
+                print(f"[DEBUG] Metrics dict from get_algorithm_metrics: {metrics}")
+                
+                # Display RMSE
+                rmse_value = metrics.get('rmse', current_algo.metrics.rmse)
+                print(f"[DEBUG] RMSE display value: {rmse_value} (from metrics dict: {metrics.get('rmse')}, from algo object: {current_algo.metrics.rmse})")
+                if rmse_value > 0:
+                    st.metric(
+                        "RMSE", 
+                        f"{rmse_value:.4f}",
+                        help="Lower is better (Root Mean Square Error)"
+                    )
+                else:
+                    st.metric("RMSE", "N/A", help="Metrics not yet calculated")
+                
+                # Display Coverage
+                coverage_value = metrics.get('coverage', current_algo.metrics.coverage)
+                if coverage_value > 0:
+                    st.metric(
+                        "Coverage", 
+                        f"{coverage_value:.1f}%",
+                        help="Percentage of movies that can be recommended"
+                    )
+                else:
+                    st.metric("Coverage", "N/A", help="Coverage not yet calculated")
+                
+                # Display Training Time
+                training_time = metrics_data.get('training_time', current_algo.metrics.training_time)
+                if training_time != 'Unknown' and (isinstance(training_time, (int, float)) and training_time > 0):
+                    st.metric(
+                        "Training Time", 
+                        f"{training_time:.1f}s" if isinstance(training_time, (int, float)) else training_time,
+                        help="Time taken to train the algorithm"
+                    )
+                else:
+                    st.metric("Training Time", "N/A", help="Training time not recorded")
+                
+                # Display Memory Usage
+                if current_algo.metrics.memory_usage_mb > 0:
+                    st.metric(
+                        "Memory Usage", 
+                        f"{current_algo.metrics.memory_usage_mb:.1f}MB",
+                        help="Memory footprint of the algorithm"
+                    )
+                else:
+                    st.metric("Memory Usage", "N/A", help="Memory usage not recorded")
             else:
-                st.metric("RMSE", "N/A", help="Metrics not yet calculated")
-            
-            # Display Coverage
-            coverage_value = metrics.get('coverage', current_algo.metrics.coverage)
-            if coverage_value > 0:
-                st.metric(
-                    "Coverage", 
-                    f"{coverage_value:.1f}%",
-                    help="Percentage of movies that can be recommended"
-                )
-            else:
-                st.metric("Coverage", "N/A", help="Coverage not yet calculated")
-            
-            # Display Training Time
-            training_time = metrics_data.get('training_time', current_algo.metrics.training_time)
-            if training_time != 'Unknown' and (isinstance(training_time, (int, float)) and training_time > 0):
-                st.metric(
-                    "Training Time", 
-                    f"{training_time:.1f}s" if isinstance(training_time, (int, float)) else training_time,
-                    help="Time taken to train the algorithm"
-                )
-            else:
-                st.metric("Training Time", "N/A", help="Training time not recorded")
-            
-            # Display Memory Usage
-            if current_algo.metrics.memory_usage_mb > 0:
-                st.metric(
-                    "Memory Usage", 
-                    f"{current_algo.metrics.memory_usage_mb:.1f}MB",
-                    help="Memory footprint of the algorithm"
-                )
-            else:
-                st.metric("Memory Usage", "N/A", help="Memory usage not recorded")
-        else:
-            st.info("📊 Metrics will be calculated on first load")
+                st.info("📊 Metrics will be calculated on first load")
+        except Exception as metrics_error:
+            print(f"[DEBUG] Error displaying metrics: {metrics_error}")
+            import traceback
+            traceback.print_exc()
+            st.warning("⚠️ Metrics unavailable - algorithm is still loading")
     else:
         st.info("📊 Select an algorithm to view performance metrics")
 
