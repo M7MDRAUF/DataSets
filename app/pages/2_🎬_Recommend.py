@@ -356,7 +356,9 @@ with col2:
         print(f"[DEBUG] Calling get_algorithm_metrics for {selected_algorithm}...")
         metrics_data = manager.get_algorithm_metrics(selected_algorithm)
         print(f"[DEBUG] Metrics data returned: {metrics_data}")
-        print(f"[DEBUG] Current algo metrics object: rmse={current_algo.metrics.rmse}, mae={current_algo.metrics.mae}, coverage={current_algo.metrics.coverage}")
+        # Safe attribute access in case old cached models don't have 'mae'
+        mae_value = getattr(current_algo.metrics, 'mae', 0.0)
+        print(f"[DEBUG] Current algo metrics object: rmse={current_algo.metrics.rmse}, mae={mae_value}, coverage={current_algo.metrics.coverage}")
         
         # Single column metrics display (no nesting)
         if metrics_data.get('status') == 'Trained':
