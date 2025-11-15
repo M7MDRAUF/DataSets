@@ -740,6 +740,97 @@ ports:
 - Reduce sample sizes
 - Use Docker with resource limits
 
+#### 6. Page Crashes When Changing Slider Values
+
+**Problem**: Page reloads/crashes when changing "Number of recommendations" slider
+
+**Root Cause**: Streamlit widget state conflicts due to missing unique keys
+
+**Solution**: ✅ FIXED in v2.1.2
+- All widgets now have unique keys (`user_id_input`, `num_recommendations_slider`, `generate_button`)
+- Added `step=1` parameters for better state management
+- Widget values persist correctly during reruns
+
+**Manual Fix** (if building from older version):
+```python
+# Add unique keys to all widgets in 1_🏠_Home.py
+st.number_input(..., key="user_id_input")
+st.slider(..., key="num_recommendations_slider")
+st.button(..., key="generate_button")
+```
+
+#### 7. Missing Page Sections (Dataset Overview, Genre Distribution, etc.)
+
+**Problem**: Content below recommendations section doesn't render
+
+**Root Cause**: Inappropriate `st.stop()` terminating entire script execution
+
+**Solution**: ✅ FIXED in v2.1.2
+- Removed `st.stop()` at line 438 that was killing page rendering
+- Button handler already properly scoped, st.stop() was unnecessary
+- All sections now render correctly (Dataset Overview, Genre Distribution, Rating Distribution, Top Movies, User Engagement, About Project)
+
+**Manual Fix** (if building from older version):
+```python
+# Remove st.stop() after recommendation generation in 1_🏠_Home.py
+# Line 438: DELETE the st.stop() call
+```
+
+#### 8. Invalid User ID Errors
+
+**Problem**: Entering non-existent user IDs causes errors
+
+**Solution**: ✅ FIXED in v2.1.2
+- User ID validation added before recommendation generation
+- Shows friendly error: "User ID {id} not found in dataset!"
+- Displays valid range: "Please enter a valid User ID between {min} and {max}"
+
+**Testing**: Use user IDs between 1 and 200948 (dataset range)
+
+---
+
+## 🧪 Testing
+
+### Automated Test Suite (v2.1.2+)
+
+CineMatch includes 40+ automated tests covering UI rendering, model loading, and end-to-end workflows.
+
+**Run All Tests:**
+```bash
+pytest tests/ -v
+```
+
+**Test Categories:**
+1. **UI Rendering Tests** (`test_ui_rendering.py`)
+   - Widget key presence
+   - st.stop() usage validation
+   - Required sections rendering
+   - Cached function decorators
+
+2. **Model Loading Tests** (`test_model_loading.py`)
+   - AlgorithmManager singleton
+   - Model loader utilities
+   - Memory management
+   - All 5 algorithm implementations
+
+3. **End-to-End Tests** (`test_end_to_end_flow.py`)
+   - Data loading functions
+   - SVD/KNN training and prediction
+   - Recommendation generation
+   - User validation
+
+**Run Specific Test File:**
+```bash
+pytest tests/test_ui_rendering.py -v
+pytest tests/test_model_loading.py -v
+pytest tests/test_end_to_end_flow.py -v
+```
+
+**Coverage Report:**
+```bash
+pytest tests/ --cov=src --cov=app --cov-report=html
+```
+
 ---
 
 ## Demo Script (Professor Presentation)

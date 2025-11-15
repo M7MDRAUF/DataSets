@@ -6,6 +6,107 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2.1.2] - 2025-11-15 - UI Rendering Fix & Test Suite
+
+### 🐛 Critical Bug Fixes
+
+#### UI Rendering Block (All Sections Missing Below Recommendations)
+- **Fixed** `st.stop()` at line 438 terminating entire script execution
+- **Root Cause** st.stop() prevented Dataset Overview, Genre Distribution, Rating Distribution, Top Movies, User Engagement, and About sections from rendering
+- **Solution** Removed st.stop() - button handler already properly scoped
+- **Impact** Restored 170+ lines of page content (50% of page)
+- **Modified** `app/pages/1_🏠_Home.py` line 438 (removed 4 lines)
+
+#### Widget Stability (Page Crashes on Slider Change)
+- **Fixed** Page crashing when changing "Number of recommendations" slider
+- **Root Cause** Missing unique keys caused Streamlit state conflicts
+- **Solution** Added unique keys to all widgets: `user_id_input`, `num_recommendations_slider`, `generate_button`
+- **Added** `step=1` parameter to number_input and slider for better state management
+- **Result** Widgets now stable during value changes, no crashes
+
+#### User Validation
+- **Added** Validation to check user ID exists before generating recommendations
+- **Shows** Friendly error message: "User ID {id} not found in dataset!"
+- **Displays** Valid range: "Please enter a valid User ID between {min} and {max}"
+- **Uses** st.stop() only in error path (appropriate use case)
+
+### 🧪 Test Suite (40+ Automated Tests)
+
+#### UI Rendering Tests (`test_ui_rendering.py`)
+- **Added** Test for no inappropriate st.stop() usage
+- **Added** Test for all required sections present
+- **Added** Test for widget keys present
+- **Added** Test for user validation implementation
+- **Added** Test for cached functions with decorators
+- **Added** Test for no print() statements blocking UI
+- **Coverage** 10 tests covering UI components and rendering
+
+#### Model Loading Tests (`test_model_loading.py`)
+- **Added** AlgorithmManager singleton pattern tests
+- **Added** AlgorithmType enumeration validation
+- **Added** Model loader utility tests
+- **Added** Memory manager function tests
+- **Added** BaseRecommender interface verification
+- **Added** Pre-trained model existence checks
+- **Added** All 5 algorithm implementation tests
+- **Coverage** 15 tests covering model loading and caching
+
+#### End-to-End Integration Tests (`test_end_to_end_flow.py`)
+- **Added** Data loading function tests
+- **Added** SVD fit/predict/recommend workflow tests
+- **Added** User KNN fit/predict tests
+- **Added** Item KNN fit tests
+- **Added** Full recommendation workflow tests
+- **Added** User validation and fallback tests
+- **Added** DataFrame operations tests
+- **Added** Performance metrics calculation tests
+- **Coverage** 15 tests covering complete workflows
+
+#### Test Configuration
+- **Added** `conftest.py` with project path setup
+- **Added** Fixtures for sample ratings and movies data
+- **Setup** Pytest configuration for easy test execution
+
+### 📚 Documentation
+
+#### Debug Report (`debug_report.md`)
+- **Created** Comprehensive 696-line audit report
+- **Documented** Line-by-line verification of 6,500+ lines across 13 files
+- **Included** Root cause analysis with file+line references
+- **Added** Testing strategy and verification steps
+- **Provided** Ultra-expert TODO list
+- **Listed** Follow-up recommendations
+
+### 🔧 Technical Improvements
+
+#### Streamlit Execution Model Understanding
+- **Documented** Script runs top-to-bottom on every interaction
+- **Clarified** st.stop() terminates ENTIRE script (not just current block)
+- **Explained** Button handlers create scoped execution blocks
+- **Noted** Code outside handlers ALWAYS executes (unless st.stop() kills it)
+
+#### Widget State Management
+- **Pattern** All interactive widgets now have unique keys
+- **Benefit** Prevents state loss during Streamlit reruns
+- **Example** `st.number_input(..., key="user_id_input")`
+
+### ✅ Verification
+
+#### Manual Testing Completed
+- ✅ All page sections render correctly
+- ✅ Recommendations display in grid
+- ✅ Spinner exits cleanly
+- ✅ Widget value changes work without crashes
+- ✅ User validation prevents invalid IDs
+- ✅ Algorithm caching working (instant 2nd click)
+
+#### Automated Testing Ready
+- ⏳ 40+ tests created and ready to run
+- ⏳ Execute with: `pytest tests/ -v`
+- ⏳ Expected: All tests pass
+
+---
+
 ## [2.1.1] - 2025-11-14 - Memory Optimization & Production Hardening
 
 ### 🔥 Critical Fixes
