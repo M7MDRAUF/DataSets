@@ -298,11 +298,20 @@ with col1:
 
 with col2:
     # Algorithm Performance Metrics (live)
-    if selected_algorithm in manager.get_cached_algorithms():
+    st.markdown("### ⚡ Algorithm Performance")
+    
+    # Load the algorithm if not cached (to get metrics)
+    if selected_algorithm not in manager.get_cached_algorithms():
+        with st.spinner(f"Loading {selected_algorithm.value}..."):
+            try:
+                current_algo = manager.get_algorithm(selected_algorithm)
+            except Exception as e:
+                st.warning(f"Algorithm not yet loaded. Metrics will appear after generating recommendations.")
+                current_algo = None
+    else:
         current_algo = manager.get_algorithm(selected_algorithm)
-        
-        st.markdown("### ⚡ Algorithm Performance")
-        
+    
+    if current_algo is not None:
         # Get metrics from algorithm manager (will calculate if needed)
         metrics_data = manager.get_algorithm_metrics(selected_algorithm)
         
@@ -353,7 +362,9 @@ with col2:
             else:
                 st.metric("Memory Usage", "N/A", help="Memory usage not recorded")
         else:
-            st.info("📊 Metrics will be calculated after first use")
+            st.info("📊 Metrics will be calculated on first load")
+    else:
+        st.info("📊 Select an algorithm to view performance metrics")
 
 # Advanced Options (if toggled)
 if show_advanced:
