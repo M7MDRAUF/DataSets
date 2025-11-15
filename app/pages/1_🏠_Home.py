@@ -339,16 +339,16 @@ try:
                             <span style="font-weight: bold; font-size: 1.1rem;">#{idx + 1}</span>
                             <span style="color: #ffd700; font-size: 1.2rem;">⭐ {movie.get('predicted_rating', 'N/A')}</span>
                         </div>
-                            <h4 style="margin: 0.5rem 0; color: white;">{movie['title']}</h4>
-                            <p style="color: #ccc; font-size: 0.9rem; margin: 0.25rem 0;">
-                                <strong>Genres:</strong> {movie['genres']}
-                            </p>
-                            {f'<p style="color: #ddd; font-size: 0.8rem; margin-top: 0.5rem;"><strong>Why recommended:</strong> {movie.get("explanation", "Based on your preferences")}</p>' if movie.get("explanation") else ''}
-                        </div>
-                        """, unsafe_allow_html=True)
-                
-                # Show algorithm performance metrics if available
-                if hasattr(manager, 'get_algorithm_metrics'):
+                        <h4 style="margin: 0.5rem 0; color: white;">{movie['title']}</h4>
+                        <p style="color: #ccc; font-size: 0.9rem; margin: 0.25rem 0;">
+                            <strong>Genres:</strong> {movie['genres']}
+                        </p>
+                        {f'<p style="color: #ddd; font-size: 0.8rem; margin-top: 0.5rem;"><strong>Why recommended:</strong> {movie.get("explanation", "Based on your preferences")}</p>' if movie.get("explanation") else ''}
+                    </div>
+                    """, unsafe_allow_html=True)
+            
+            # Show algorithm performance metrics if available
+            if hasattr(manager, 'get_algorithm_metrics'):
                     try:
                         metrics = manager.get_algorithm_metrics(algorithm_type)
                         if metrics:
