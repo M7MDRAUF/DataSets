@@ -273,25 +273,51 @@ try:
             </div>
             """, unsafe_allow_html=True)
     
+    # Show algorithm status before button
+    algorithm_cache_key = f'algorithm_{selected_algorithm}'
+    if algorithm_cache_key in st.session_state:
+        st.success(f"✅ {selected_algorithm} algorithm ready (cached in memory)")
+    else:
+        load_time_estimates = {
+            "Item KNN": "~7-8 seconds",
+            "User KNN": "~6-7 seconds",
+            "SVD": "~3-4 seconds",
+            "Content-Based": "~8-9 seconds",
+            "Hybrid": "~25-30 seconds"
+        }
+        estimate = load_time_estimates.get(selected_algorithm, "a few seconds")
+        st.info(f"💡 {selected_algorithm} will load on first use (approximately {estimate})")
+    
+    st.caption("💡 Tip: Scroll down to explore dataset insights, genres, and ratings while you decide!")
+    
     # Generate recommendations button
     if st.button("🎬 Generate Recommendations", type="primary", width="stretch"):
         try:
-            with st.spinner(f"Loading {selected_algorithm} algorithm and generating recommendations..."):
-                
-                # Map selected algorithm to AlgorithmType
-                algorithm_map = {
-                    "SVD": AlgorithmType.SVD,
-                    "User KNN": AlgorithmType.USER_KNN,
-                    "Item KNN": AlgorithmType.ITEM_KNN,
-                    "Content-Based": AlgorithmType.CONTENT_BASED,
-                    "Hybrid": AlgorithmType.HYBRID
-                }
-                
-                # Get the algorithm instance
-                algorithm_type = algorithm_map[selected_algorithm]
-                algorithm = manager.switch_algorithm(algorithm_type)
-                
-                # Generate recommendations
+            # Map selected algorithm to AlgorithmType
+            algorithm_map = {
+                "SVD": AlgorithmType.SVD,
+                "User KNN": AlgorithmType.USER_KNN,
+                "Item KNN": AlgorithmType.ITEM_KNN,
+                "Content-Based": AlgorithmType.CONTENT_BASED,
+                "Hybrid": AlgorithmType.HYBRID
+            }
+            
+            algorithm_type = algorithm_map[selected_algorithm]
+            algorithm_cache_key = f'algorithm_{selected_algorithm}'
+            
+            # Check if algorithm is already cached
+            if algorithm_cache_key not in st.session_state:
+                # First time loading - show loading spinner
+                with st.spinner(f"🔄 Loading {selected_algorithm} algorithm... (first time only)"):
+                    algorithm = manager.switch_algorithm(algorithm_type)
+                    st.session_state[algorithm_cache_key] = algorithm
+                st.success(f"✅ {selected_algorithm} loaded and cached!")
+            else:
+                # Already cached - instant retrieval
+                algorithm = st.session_state[algorithm_cache_key]
+            
+            # Generate recommendations (separate spinner for clarity)
+            with st.spinner(f"🎬 Generating {num_recommendations} recommendations..."):
                 recommendations = algorithm.get_recommendations(user_id, n=num_recommendations, exclude_rated=True)
                 
                 st.success(f"✅ Generated {len(recommendations)} recommendations using {selected_algorithm}!")

@@ -26,6 +26,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY src/ ./src/
 COPY app/ ./app/
 COPY *.py ./
+COPY .streamlit/ ./.streamlit/
 
 # Create directories for data and models
 RUN mkdir -p data/ml-32m data/processed models
