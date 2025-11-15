@@ -431,10 +431,6 @@ try:
                         {f'<p style="color: #ddd; font-size: 0.8rem; margin-top: 0.5rem;"><strong>Why recommended:</strong> {movie.get("explanation", "Based on your preferences")}</p>' if movie.get("explanation") else ''}
                     </div>
                     """, unsafe_allow_html=True)
-            
-            # CRITICAL: Force Streamlit to stop executing after displaying recommendations
-            # This prevents continuous spinner and releases execution context
-            st.stop()
                 
         except Exception as e:
             st.error(f"❌ Error generating recommendations: {str(e)}")
