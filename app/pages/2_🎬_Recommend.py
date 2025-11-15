@@ -379,7 +379,21 @@ st.markdown("---")
 # Recommendation Generation
 if get_recs_button or 'current_recommendations' in st.session_state:
     
-    # Validate user ID
+    # Validate user ID (defensive check even though number_input has constraints)
+    if user_id is None or user_id <= 0:
+        st.error("❌ Invalid User ID. Please enter a positive number.")
+        st.stop()
+    
+    # Validate user ID is within dataset range
+    min_user_id = int(ratings_df['userId'].min())
+    max_user_id = int(ratings_df['userId'].max())
+    
+    if user_id < min_user_id or user_id > max_user_id:
+        st.error(f"❌ User ID {user_id} is out of range. Valid range: {min_user_id:,} - {max_user_id:,}")
+        st.info(f"💡 **Suggestion**: Try User ID {min_user_id}, {max(min_user_id, 10)}, or {max_user_id}")
+        st.stop()
+    
+    # Check if user exists in dataset
     user_exists = user_id in ratings_df['userId'].values
     
     if not user_exists:
