@@ -598,6 +598,13 @@ class AlgorithmManager:
                     "sample_size": len(predictions),
                     "coverage": round(len(predictions) / len(test_sample) * 100, 1)
                 }
+                
+                # Update algorithm's metrics object if it's empty
+                if algorithm.metrics.rmse == 0.0:
+                    algorithm.metrics.rmse = round(rmse, 4)
+                    algorithm.metrics.coverage = round(len(predictions) / len(test_sample) * 100, 1)
+                    if not _is_streamlit_context():
+                        print(f"    ✓ Updated {algorithm_type.value} metrics: RMSE={rmse:.4f}, Coverage={algorithm.metrics.coverage:.1f}%")
             else:
                 print(f"    ❌ Insufficient predictions: got {len(predictions)}, need at least 2")
                 metrics = {

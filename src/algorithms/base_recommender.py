@@ -257,8 +257,14 @@ class BaseRecommender(ABC):
         
         self.name = model_data['name']
         self.params = model_data['params']
-        self.metrics = model_data['metrics']
+        self.metrics = model_data.get('metrics', AlgorithmMetrics())
         self.is_trained = model_data['is_trained']
+        
+        # If metrics are empty/default (from old model files), mark for recalculation
+        if self.metrics.rmse == 0.0 and self.metrics.training_time == 0.0:
+            # Reset metrics to trigger recalculation when needed
+            self.metrics = AlgorithmMetrics()
+            self.metrics.name = self.name
         
         self._set_model_state(model_data['model_state'])
         print(f"✓ Model loaded from {path}")

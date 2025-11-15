@@ -303,27 +303,57 @@ with col2:
         
         st.markdown("### ⚡ Algorithm Performance")
         
+        # Get metrics from algorithm manager (will calculate if needed)
+        metrics_data = manager.get_algorithm_metrics(selected_algorithm)
+        
         # Single column metrics display (no nesting)
-        st.metric(
-            "RMSE", 
-            f"{current_algo.metrics.rmse:.4f}",
-            help="Lower is better (Root Mean Square Error)"
-        )
-        st.metric(
-            "Coverage", 
-            f"{current_algo.metrics.coverage:.1f}%",
-            help="Percentage of movies that can be recommended"
-        )
-        st.metric(
-            "Training Time", 
-            f"{current_algo.metrics.training_time:.1f}s",
-            help="Time taken to train the algorithm"
-        )
-        st.metric(
-            "Memory Usage", 
-            f"{current_algo.metrics.memory_usage_mb:.1f}MB",
-            help="Memory footprint of the algorithm"
-        )
+        if metrics_data.get('status') == 'Trained':
+            metrics = metrics_data.get('metrics', {})
+            
+            # Display RMSE
+            rmse_value = metrics.get('rmse', current_algo.metrics.rmse)
+            if rmse_value > 0:
+                st.metric(
+                    "RMSE", 
+                    f"{rmse_value:.4f}",
+                    help="Lower is better (Root Mean Square Error)"
+                )
+            else:
+                st.metric("RMSE", "N/A", help="Metrics not yet calculated")
+            
+            # Display Coverage
+            coverage_value = metrics.get('coverage', current_algo.metrics.coverage)
+            if coverage_value > 0:
+                st.metric(
+                    "Coverage", 
+                    f"{coverage_value:.1f}%",
+                    help="Percentage of movies that can be recommended"
+                )
+            else:
+                st.metric("Coverage", "N/A", help="Coverage not yet calculated")
+            
+            # Display Training Time
+            training_time = metrics_data.get('training_time', current_algo.metrics.training_time)
+            if training_time != 'Unknown' and (isinstance(training_time, (int, float)) and training_time > 0):
+                st.metric(
+                    "Training Time", 
+                    f"{training_time:.1f}s" if isinstance(training_time, (int, float)) else training_time,
+                    help="Time taken to train the algorithm"
+                )
+            else:
+                st.metric("Training Time", "N/A", help="Training time not recorded")
+            
+            # Display Memory Usage
+            if current_algo.metrics.memory_usage_mb > 0:
+                st.metric(
+                    "Memory Usage", 
+                    f"{current_algo.metrics.memory_usage_mb:.1f}MB",
+                    help="Memory footprint of the algorithm"
+                )
+            else:
+                st.metric("Memory Usage", "N/A", help="Memory usage not recorded")
+        else:
+            st.info("📊 Metrics will be calculated after first use")
 
 # Advanced Options (if toggled)
 if show_advanced:
