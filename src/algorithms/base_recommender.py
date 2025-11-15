@@ -141,6 +141,20 @@ class BaseRecommender(ABC):
         """
         pass
     
+    @abstractmethod
+    def get_explanation_context(self, user_id: int, movie_id: int) -> Dict[str, Any]:
+        """
+        Get context information for explaining a recommendation.
+        
+        Args:
+            user_id: User ID
+            movie_id: Movie ID
+            
+        Returns:
+            Dictionary with explanation context (algorithm-specific)
+        """
+        pass
+    
     def get_user_history(self, user_id: int) -> pd.DataFrame:
         """
         Get user's rating history.
