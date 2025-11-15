@@ -276,7 +276,7 @@ try:
     # Generate recommendations button
     if st.button("🎬 Generate Recommendations", type="primary", width="stretch"):
         try:
-            with st.spinner(f"Training {selected_algorithm} algorithm and generating recommendations..."):
+            with st.spinner(f"Loading {selected_algorithm} algorithm and generating recommendations..."):
                 
                 # Map selected algorithm to AlgorithmType
                 algorithm_map = {
