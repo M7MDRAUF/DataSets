@@ -121,7 +121,7 @@ def get_manager():
 @st.cache_data
 def load_data(sample_size):
     """Load and cache the dataset with configurable sampling"""
-    print("Loading MovieLens dataset...")
+    # Note: Removed print statement to prevent UI blocking (v2.1.2)
     ratings_df = load_ratings(sample_size=sample_size)
     movies_df = load_movies()
     return ratings_df, movies_df
