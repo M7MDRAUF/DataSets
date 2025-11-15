@@ -320,7 +320,9 @@ try:
             min_value=int(min_user_id),
             max_value=int(max_user_id),
             value=default_user_id,
-            help=f"Choose any user ID to see personalized recommendations"
+            step=1,
+            help=f"Choose any user ID to see personalized recommendations",
+            key="user_id_input"
         )
         
         # Number of recommendations
@@ -329,7 +331,9 @@ try:
             min_value=5,
             max_value=20,
             value=10,
-            help="How many movie recommendations to generate"
+            step=1,
+            help="How many movie recommendations to generate",
+            key="num_recommendations_slider"
         )
     
     with col2:
@@ -374,7 +378,13 @@ try:
     st.caption("💡 Tip: Scroll down to explore dataset insights, genres, and ratings while you decide!")
     
     # Generate recommendations button
-    if st.button("🎬 Generate Recommendations", type="primary", width="stretch"):
+    if st.button("🎬 Generate Recommendations", type="primary", width="stretch", key="generate_button"):
+        # Validate user ID exists in dataset
+        if user_id not in ratings_df['userId'].values:
+            st.error(f"❌ User ID {user_id} not found in dataset!")
+            st.info(f"Please enter a valid User ID between {min_user_id} and {max_user_id}")
+            st.stop()
+        
         try:
             # Map selected algorithm to AlgorithmType
             algorithm_map = {
