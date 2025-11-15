@@ -645,12 +645,6 @@ class AlgorithmManager:
         return all_metrics
 
 
-# Global singleton instance
-algorithm_manager = None
-
 def get_algorithm_manager() -> AlgorithmManager:
-    """Get the global algorithm manager instance"""
-    global algorithm_manager
-    if algorithm_manager is None:
-        algorithm_manager = AlgorithmManager.get_instance()
-    return algorithm_manager
+    """Get the algorithm manager instance (from Streamlit session state)"""
+    return AlgorithmManager.get_instance()
