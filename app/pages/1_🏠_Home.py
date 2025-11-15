@@ -440,11 +440,15 @@ try:
                 col = cols[idx % 2]
                 
                 with col:
+                    # Format rating to 1 decimal place
+                    rating = movie.get('predicted_rating', 'N/A')
+                    rating_display = f"{float(rating):.1f}" if rating != 'N/A' else 'N/A'
+                    
                     st.markdown(f"""
                     <div class="movie-card">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
                             <span style="font-weight: bold; font-size: 1.1rem;">#{idx + 1}</span>
-                            <span style="color: #ffd700; font-size: 1.2rem;">⭐ {movie.get('predicted_rating', 'N/A')}</span>
+                            <span style="color: #ffd700; font-size: 1.2rem;">⭐ {rating_display}</span>
                         </div>
                         <h4 style="margin: 0.5rem 0; color: white;">{movie['title']}</h4>
                         <p style="color: #ccc; font-size: 0.9rem; margin: 0.25rem 0;">
