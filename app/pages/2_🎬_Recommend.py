@@ -621,6 +621,11 @@ else:
     - Use Advanced Options to fine-tune algorithm parameters
     """)
 
+# TEST MARKER: Highly visible section to confirm rendering
+st.markdown("---")
+st.success("✅ **PAGE RENDERING COMPLETE** - If you see this, the page loaded successfully!")
+st.info("📍 Scroll down to see the footer with CineMatch branding")
+
 # Footer with algorithm information
 print("[DEBUG] Rendering footer section...")
 sys.stdout.flush()
