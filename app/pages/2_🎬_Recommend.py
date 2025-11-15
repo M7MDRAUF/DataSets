@@ -561,23 +561,34 @@ if get_recs_button or 'current_recommendations' in st.session_state:
                         
                         # Top genres
                         st.markdown("#### 🎭 Top Genres")
-                        # Get genre distribution
+                        # Get genre distribution with defensive coding
                         genre_counts = {}
-                        for _, movie_row in user_history.iterrows():
-                            movie_info = movies_df[movies_df['movieId'] == movie_row['movieId']]
-                            if len(movie_info) > 0:
-                                genres = movie_info.iloc[0]['genres'].split('|')
-                                for genre in genres:
-                                    genre_counts[genre] = genre_counts.get(genre, 0) + 1
-                        
-                        # Show top 5 genres
-                        top_genres = sorted(genre_counts.items(), key=lambda x: x[1], reverse=True)[:5]
-                        total_ratings = len(user_history)
-                        
-                        for genre, count in top_genres:
-                            percentage = (count / total_ratings) * 100
-                            emoji = get_genre_emoji(genre)
-                            st.markdown(f"{emoji} **{genre}**: {percentage:.1f}%")
+                        try:
+                            for _, movie_row in user_history.iterrows():
+                                movie_info = movies_df[movies_df['movieId'] == movie_row['movieId']]
+                                if len(movie_info) > 0:
+                                    genres_str = movie_info.iloc[0].get('genres', '')
+                                    if genres_str and pd.notna(genres_str):
+                                        genres = str(genres_str).split('|')
+                                        for genre in genres:
+                                            genre = genre.strip()
+                                            if genre:  # Only count non-empty genres
+                                                genre_counts[genre] = genre_counts.get(genre, 0) + 1
+                            
+                            # Show top 5 genres
+                            if genre_counts:
+                                top_genres = sorted(genre_counts.items(), key=lambda x: x[1], reverse=True)[:5]
+                                total_ratings = len(user_history)
+                                
+                                for genre, count in top_genres:
+                                    percentage = (count / total_ratings) * 100
+                                    emoji = get_genre_emoji(genre)
+                                    st.markdown(f"{emoji} **{genre}**: {percentage:.1f}%")
+                            else:
+                                st.info("Genre preferences not available")
+                        except Exception as genre_error:
+                            logger.warning(f"Error calculating genre distribution: {genre_error}")
+                            st.info("Unable to calculate genre preferences")
                         
                     else:
                         st.markdown("### 🆕 New User")
@@ -598,6 +609,7 @@ if get_recs_button or 'current_recommendations' in st.session_state:
         
         with recovery_col1:
             if st.button("🔄 Clear Cache & Retry", help="Clear all cached data and restart"):
+                logger.info("User clicked: Clear Cache & Retry")
                 st.cache_data.clear()
                 if 'last_dataset_size' in st.session_state:
                     del st.session_state.last_dataset_size
@@ -605,16 +617,20 @@ if get_recs_button or 'current_recommendations' in st.session_state:
         
         with recovery_col2:
             if st.button("🎲 Try Different User", help="Test with a guaranteed valid user ID"):
+                logger.info("User clicked: Try Different User")
                 st.session_state.suggested_user_id = 10  # Valid in all datasets
                 st.info("Try User ID 10 - it's valid in all dataset sizes.")
         
         with recovery_col3:
             if st.button("📊 Check System Status", help="View current system state"):
+                logger.info("User clicked: Check System Status")
+                cached_algos = manager.get_cached_algorithms()
                 st.info(f"""
                 **Current Status:**
                 - Dataset Size: {len(ratings_df):,} ratings
-                - Available Algorithms: {len(manager.get_cached_algorithms())}
+                - Cached Algorithms: {len(cached_algos)} ({', '.join([a.value for a in cached_algos])})
                 - Selected Algorithm: {selected_algorithm.value}
+                - User ID: {user_id}
                 """)
         
         st.markdown("""
