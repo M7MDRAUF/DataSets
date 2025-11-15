@@ -53,7 +53,6 @@ The V2.1.1 system includes all 5 recommendation algorithms:
 📈 **Live Metrics** - See RMSE, training time, memory usage  
 🎨 **Professional UI** - Netflix-style interface (clean, no debug spam)  
 🧠 **Explainable AI** - Understand why movies were recommended  
-⚙️ **Advanced Options** - Tune dataset size and parameters  
 📊 **Analytics Dashboard** - 5 tabs with comprehensive benchmarking  
 🚀 **Memory Optimized** - 98.6% reduction (13.2GB → 185MB runtime)
 

@@ -261,7 +261,7 @@ col1, col2 = st.columns([2, 1])
 with col1:
     st.markdown("## 👤 User Input")
     
-    input_col1, input_col2, input_col3 = st.columns([2, 1, 1])
+    input_col1, input_col2 = st.columns([3, 1])
     
     with input_col1:
         # Get actual user ID range from the dataset
@@ -284,14 +284,7 @@ with col1:
         get_recs_button = st.button(
             "🎯 Get Recommendations", 
             type="primary", 
-            width="stretch"
-        )
-    
-    with input_col3:
-        # Advanced options toggle
-        show_advanced = st.button(
-            "⚙️ Advanced Options",
-            width="stretch"
+            use_container_width=True
         )
 
 with col2:
@@ -381,23 +374,6 @@ with col2:
             st.warning("⚠️ Metrics unavailable - algorithm is still loading")
     else:
         st.info("📊 Select an algorithm to view performance metrics")
-
-# Advanced Options (if toggled)
-if show_advanced:
-    with st.expander("⚙️ Advanced Algorithm Settings", expanded=True):
-        st.markdown("### Algorithm Parameters")
-        
-        if selected_algorithm == AlgorithmType.SVD:
-            n_components = st.slider("SVD Components", 50, 200, 100, 
-                                    help="Number of latent factors (higher = more complex)")
-        elif selected_algorithm == AlgorithmType.USER_KNN:
-            n_neighbors = st.slider("Number of Similar Users", 20, 100, 50,
-                                   help="How many similar users to consider")
-        elif selected_algorithm == AlgorithmType.ITEM_KNN:
-            n_neighbors = st.slider("Number of Similar Items", 10, 50, 30,
-                                   help="How many similar movies to consider")
-            min_ratings = st.slider("Minimum Ratings per Movie", 3, 20, 5,
-                                   help="Movies with fewer ratings are excluded")
 
 st.markdown("---")
 
@@ -581,7 +557,6 @@ else:
     
     - Different algorithms may suggest different movies - try them all!
     - New users (not in dataset) get content-based recommendations
-    - Use Advanced Options to fine-tune algorithm parameters
     """)
 
 # Footer with algorithm information

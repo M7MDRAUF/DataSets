@@ -363,7 +363,6 @@ The trained SVD model will be saved to `models/svd_model.pkl` (~200 MB).
 2. **Enter User ID**: (1 to 200,000) or try sample IDs: 66954, 123, 1000
 3. **Click "Get Recommendations"**: See personalized results with algorithm-specific explanations
 4. **Compare Performance**: View real-time RMSE, training time, memory usage
-5. **Advanced Options**: Fine-tune dataset size (100K/500K/1M/Full 32M)
 
 #### Algorithm Switching
 - **Live Switching**: Change algorithms instantly with cached models
