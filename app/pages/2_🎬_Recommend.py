@@ -300,27 +300,45 @@ with col2:
     # Algorithm Performance Metrics (live)
     st.markdown("### ⚡ Algorithm Performance")
     
+    # Debug: Log cached algorithms
+    print(f"[DEBUG] Cached algorithms: {manager.get_cached_algorithms()}")
+    print(f"[DEBUG] Selected algorithm: {selected_algorithm}")
+    
     # Load the algorithm if not cached (to get metrics)
     if selected_algorithm not in manager.get_cached_algorithms():
+        print(f"[DEBUG] Algorithm {selected_algorithm} not cached, loading...")
         with st.spinner(f"Loading {selected_algorithm.value}..."):
             try:
                 current_algo = manager.get_algorithm(selected_algorithm)
+                print(f"[DEBUG] Algorithm loaded: {current_algo is not None}")
+                if current_algo:
+                    print(f"[DEBUG] Algorithm metrics AFTER load: rmse={current_algo.metrics.rmse}, coverage={current_algo.metrics.coverage}")
             except Exception as e:
+                print(f"[DEBUG] Failed to load algorithm: {e}")
                 st.warning(f"Algorithm not yet loaded. Metrics will appear after generating recommendations.")
                 current_algo = None
     else:
+        print(f"[DEBUG] Algorithm {selected_algorithm} already cached")
         current_algo = manager.get_algorithm(selected_algorithm)
+        print(f"[DEBUG] Algorithm retrieved from cache: {current_algo is not None}")
+        if current_algo:
+            print(f"[DEBUG] Cached algorithm metrics: rmse={current_algo.metrics.rmse}, coverage={current_algo.metrics.coverage}")
     
     if current_algo is not None:
         # Get metrics from algorithm manager (will calculate if needed)
+        print(f"[DEBUG] Calling get_algorithm_metrics for {selected_algorithm}...")
         metrics_data = manager.get_algorithm_metrics(selected_algorithm)
+        print(f"[DEBUG] Metrics data returned: {metrics_data}")
+        print(f"[DEBUG] Current algo metrics object: rmse={current_algo.metrics.rmse}, mae={current_algo.metrics.mae}, coverage={current_algo.metrics.coverage}")
         
         # Single column metrics display (no nesting)
         if metrics_data.get('status') == 'Trained':
             metrics = metrics_data.get('metrics', {})
+            print(f"[DEBUG] Metrics dict from get_algorithm_metrics: {metrics}")
             
             # Display RMSE
             rmse_value = metrics.get('rmse', current_algo.metrics.rmse)
+            print(f"[DEBUG] RMSE display value: {rmse_value} (from metrics dict: {metrics.get('rmse')}, from algo object: {current_algo.metrics.rmse})")
             if rmse_value > 0:
                 st.metric(
                     "RMSE", 
