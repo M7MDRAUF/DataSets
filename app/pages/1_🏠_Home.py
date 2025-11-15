@@ -56,19 +56,19 @@ st.markdown("""
 }
 
 .movie-card {
-    background: linear-gradient(135deg, #000000 0%, #c3cfe2 100%);
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
     border-radius: 10px;
     padding: 1.5rem;
     margin: 1rem 0;
     border-left: 5px solid #E50914;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
     transition: transform 0.2s;
     color: white;
 }
 
 .movie-card:hover {
     transform: translateY(-5px);
-    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    box-shadow: 0 6px 12px rgba(229, 9, 20, 0.4);
 }
 
 .algorithm-card {
@@ -81,20 +81,12 @@ st.markdown("""
 }
 
 .metrics-container {
-    background: #f8f9fa;
-    padding: 1rem;
-    border-radius: 8px;
-    margin: 1rem 0;
-}
-
-.movie-card {
-    background: linear-gradient(135deg, #000000 0%, #c3cfe2 100%);
-    border-radius: 10px;
+    background: linear-gradient(135deg, #1e1e2e 0%, #2a2a3e 100%);
     padding: 1.5rem;
+    border-radius: 10px;
     margin: 1rem 0;
-    border-left: 5px solid #E50914;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    color: white;
+    border: 1px solid #E50914;
+    box-shadow: 0 4px 8px rgba(229, 9, 20, 0.3);
 }
 
 .recommendation-header {
@@ -133,6 +125,47 @@ def load_data(sample_size):
     ratings_df = load_ratings(sample_size=sample_size)
     movies_df = load_movies()
     return ratings_df, movies_df
+
+# PERFORMANCE FIX: Cache expensive DataFrame operations
+@st.cache_data
+def compute_genre_distribution(movies_df):
+    """Compute and cache genre distribution statistics"""
+    genres_exploded = movies_df['genres'].str.split('|', expand=True).stack()
+    genre_counts = genres_exploded.value_counts().head(15)
+    return genre_counts
+
+@st.cache_data
+def compute_movie_ratings_stats(_ratings_df, movies_df):
+    """Compute and cache movie ratings aggregations"""
+    movie_ratings = _ratings_df.groupby('movieId').agg({
+        'rating': ['mean', 'count']
+    }).reset_index()
+    movie_ratings.columns = ['movieId', 'avg_rating', 'num_ratings']
+    
+    # Filter movies with at least 100 ratings
+    popular_movies = movie_ratings[movie_ratings['num_ratings'] >= 100]
+    
+    # Merge with movie info
+    popular_movies = popular_movies.merge(
+        movies_df[['movieId', 'title', 'genres']],
+        on='movieId'
+    )
+    
+    # Sort by average rating
+    top_movies = popular_movies.nlargest(10, 'avg_rating')
+    return top_movies
+
+@st.cache_data
+def compute_user_engagement_stats(_ratings_df):
+    """Compute and cache user engagement statistics"""
+    user_rating_counts = _ratings_df.groupby('userId').size()
+    return user_rating_counts
+
+@st.cache_data
+def compute_rating_distribution(_ratings_df):
+    """Compute and cache rating distribution"""
+    rating_counts = _ratings_df['rating'].value_counts().sort_index()
+    return rating_counts
 
 # V2.0 Performance Settings and Algorithm Selection
 st.markdown("## ⚙️ Algorithm & Performance Settings")
@@ -413,13 +446,12 @@ try:
     
     st.markdown("---")
     
-    # Genre distribution
+    # Genre distribution (CACHED - computed once)
     st.markdown("## 🎭 Genre Distribution")
     st.markdown("Explore the most popular movie genres in our catalog:")
     
-    # Process genres
-    genres_exploded = movies_df['genres'].str.split('|', expand=True).stack()
-    genre_counts = genres_exploded.value_counts().head(15)
+    # Use cached computation
+    genre_counts = compute_genre_distribution(movies_df)
     
     # Create bar chart
     fig_genres = px.bar(
@@ -451,7 +483,8 @@ try:
     with col1:
         st.markdown("### Distribution of User Ratings")
         
-        rating_counts = ratings_df['rating'].value_counts().sort_index()
+        # Use cached computation
+        rating_counts = compute_rating_distribution(ratings_df)
         
         fig_ratings = px.bar(
             x=rating_counts.index,
@@ -480,28 +513,12 @@ try:
     
     st.markdown("---")
     
-    # Top rated movies
+    # Top rated movies (CACHED - computed once)
     st.markdown("## 🏆 Top Rated Movies")
     st.markdown("Movies with the highest average ratings (minimum 100 ratings):")
     
-    # Calculate average rating per movie
-    movie_ratings = ratings_df.groupby('movieId').agg({
-        'rating': ['mean', 'count']
-    }).reset_index()
-    
-    movie_ratings.columns = ['movieId', 'avg_rating', 'num_ratings']
-    
-    # Filter movies with at least 100 ratings
-    popular_movies = movie_ratings[movie_ratings['num_ratings'] >= 100]
-    
-    # Merge with movie info
-    popular_movies = popular_movies.merge(
-        movies_df[['movieId', 'title', 'genres']],
-        on='movieId'
-    )
-    
-    # Sort by average rating
-    top_movies = popular_movies.nlargest(10, 'avg_rating')
+    # Use cached computation
+    top_movies = compute_movie_ratings_stats(ratings_df, movies_df)
     
     # Display as table
     display_df = top_movies[['title', 'genres', 'avg_rating', 'num_ratings']].copy()
@@ -524,7 +541,8 @@ try:
     with col1:
         st.markdown("### Ratings per User")
         
-        user_rating_counts = ratings_df.groupby('userId').size()
+        # Use cached computation
+        user_rating_counts = compute_user_engagement_stats(ratings_df)
         
         fig_user_engagement = px.histogram(
             user_rating_counts,
