@@ -315,7 +315,7 @@ try:
         # Use a safe default value that's within the valid range
         default_user_id = max(int(min_user_id), 10)  # Prefer 10 if valid, otherwise use min
         
-        user_id = st.number_input(
+        user_id_raw = st.number_input(
             f"Enter User ID ({min_user_id} - {max_user_id}):",
             min_value=int(min_user_id),
             max_value=int(max_user_id),
@@ -325,8 +325,11 @@ try:
             key="user_id_input"
         )
         
-        # Clamp user_id to valid range (safety check)
-        user_id = max(int(min_user_id), min(int(user_id), int(max_user_id)))
+        # Validate and clamp user_id to valid range
+        user_id = int(user_id_raw)
+        if user_id < min_user_id or user_id > max_user_id:
+            st.warning(f"⚠️ User ID must be between {min_user_id} and {max_user_id}")
+            user_id = max(int(min_user_id), min(user_id, int(max_user_id)))
         
         # Number of recommendations
         num_recommendations = st.slider(
@@ -382,6 +385,12 @@ try:
     
     # Generate recommendations button
     if st.button("🎬 Generate Recommendations", type="primary", width="stretch", key="generate_button"):
+        # CRITICAL: Validate user ID is within valid range
+        if user_id < min_user_id or user_id > max_user_id:
+            st.error(f"❌ Invalid User ID! Must be between {min_user_id} and {max_user_id}")
+            st.info(f"💡 You entered: {user_id_raw}. Please enter a valid User ID.")
+            st.stop()
+        
         # Validate user ID exists in dataset
         if user_id not in ratings_df['userId'].values:
             st.error(f"❌ User ID {user_id} not found in dataset!")
