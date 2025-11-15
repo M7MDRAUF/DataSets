@@ -22,6 +22,7 @@ class AlgorithmMetrics:
     def __init__(self):
         self.name: str = ""
         self.rmse: float = 0.0
+        self.mae: float = 0.0  # ✅ ADDED: Mean Absolute Error - critical metric for evaluation
         self.training_time: float = 0.0
         self.prediction_time: float = 0.0
         self.memory_usage_mb: float = 0.0
@@ -34,6 +35,7 @@ class AlgorithmMetrics:
         return {
             'Algorithm': self.name,
             'RMSE': f"{self.rmse:.4f}",
+            'MAE': f"{self.mae:.4f}",  # ✅ ADDED: Display MAE in metrics table
             'Training Time': f"{self.training_time:.1f}s",
             'Prediction Time': f"{self.prediction_time:.3f}s",
             'Memory Usage': f"{self.memory_usage_mb:.1f} MB",

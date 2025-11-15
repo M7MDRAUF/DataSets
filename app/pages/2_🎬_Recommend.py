@@ -177,11 +177,19 @@ try:
     # Initialize algorithm manager (singleton pattern)
     manager = get_algorithm_manager()
     
+    # Debug: Check manager state
+    import sys
+    print(f"[DEBUG] Manager ID: {id(manager)}")
+    print(f"[DEBUG] Manager _is_initialized: {manager._is_initialized}")
+    print(f"[DEBUG] Manager _training_data is None: {manager._training_data is None}")
+    sys.stdout.flush()
+    
     # Initialize data ONLY if not already initialized or dataset size changed
     # This prevents creating 3.3GB copies on every Streamlit rerun
     if not manager._is_initialized or manager._training_data is None:
         manager.initialize_data(ratings_df, movies_df)
         print(f"🎯 Initialized manager with {len(ratings_df):,} ratings")
+        sys.stdout.flush()
     elif 'last_dataset_size' in st.session_state:
         # Dataset size changed - reinitialize
         current_size = len(ratings_df)
@@ -300,29 +308,48 @@ with col2:
     # Algorithm Performance Metrics (live)
     st.markdown("### ⚡ Algorithm Performance")
     
-    # Debug: Log cached algorithms
-    print(f"[DEBUG] Cached algorithms: {manager.get_cached_algorithms()}")
-    print(f"[DEBUG] Selected algorithm: {selected_algorithm}")
-    
-    # Load the algorithm if not cached (to get metrics)
-    if selected_algorithm not in manager.get_cached_algorithms():
-        print(f"[DEBUG] Algorithm {selected_algorithm} not cached, loading...")
-        with st.spinner(f"Loading {selected_algorithm.value}..."):
-            try:
-                current_algo = manager.get_algorithm(selected_algorithm)
-                print(f"[DEBUG] Algorithm loaded: {current_algo is not None}")
-                if current_algo:
-                    print(f"[DEBUG] Algorithm metrics AFTER load: rmse={current_algo.metrics.rmse}, coverage={current_algo.metrics.coverage}")
-            except Exception as e:
-                print(f"[DEBUG] Failed to load algorithm: {e}")
-                st.warning(f"Algorithm not yet loaded. Metrics will appear after generating recommendations.")
-                current_algo = None
-    else:
-        print(f"[DEBUG] Algorithm {selected_algorithm} already cached")
-        current_algo = manager.get_algorithm(selected_algorithm)
-        print(f"[DEBUG] Algorithm retrieved from cache: {current_algo is not None}")
-        if current_algo:
-            print(f"[DEBUG] Cached algorithm metrics: rmse={current_algo.metrics.rmse}, coverage={current_algo.metrics.coverage}")
+    try:
+        import sys
+        # Debug: Log cached algorithms
+        print(f"[DEBUG] Cached algorithms: {manager.get_cached_algorithms()}")
+        sys.stdout.flush()
+        print(f"[DEBUG] Selected algorithm: {selected_algorithm}")
+        sys.stdout.flush()
+        
+        # Load the algorithm if not cached (to get metrics)
+        if selected_algorithm not in manager.get_cached_algorithms():
+            print(f"[DEBUG] Algorithm {selected_algorithm} not cached, loading...")
+            sys.stdout.flush()
+            with st.spinner(f"Loading {selected_algorithm.value}..."):
+                try:
+                    current_algo = manager.get_algorithm(selected_algorithm)
+                    print(f"[DEBUG] Algorithm loaded: {current_algo is not None}")
+                    sys.stdout.flush()
+                    if current_algo:
+                        print(f"[DEBUG] Algorithm metrics AFTER load: rmse={current_algo.metrics.rmse}, coverage={current_algo.metrics.coverage}")
+                        sys.stdout.flush()
+                except Exception as e:
+                    print(f"[DEBUG] Failed to load algorithm: {e}")
+                    sys.stdout.flush()
+                    import traceback
+                    traceback.print_exc()
+                    st.warning(f"Algorithm not yet loaded. Metrics will appear after generating recommendations.")
+                    current_algo = None
+        else:
+            print(f"[DEBUG] Algorithm {selected_algorithm} already cached")
+            sys.stdout.flush()
+            current_algo = manager.get_algorithm(selected_algorithm)
+            print(f"[DEBUG] Algorithm retrieved from cache: {current_algo is not None}")
+            sys.stdout.flush()
+            if current_algo:
+                print(f"[DEBUG] Cached algorithm metrics: rmse={current_algo.metrics.rmse}, coverage={current_algo.metrics.coverage}")
+                sys.stdout.flush()
+    except Exception as e:
+        print(f"[DEBUG] EXCEPTION in metrics section: {e}")
+        sys.stdout.flush()
+        import traceback
+        traceback.print_exc()
+        current_algo = None
     
     if current_algo is not None:
         # Get metrics from algorithm manager (will calculate if needed)
