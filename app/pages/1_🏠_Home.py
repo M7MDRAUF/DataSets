@@ -325,6 +325,9 @@ try:
             key="user_id_input"
         )
         
+        # Clamp user_id to valid range (safety check)
+        user_id = max(int(min_user_id), min(int(user_id), int(max_user_id)))
+        
         # Number of recommendations
         num_recommendations = st.slider(
             "Number of recommendations:",
