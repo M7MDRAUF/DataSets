@@ -482,10 +482,17 @@ class ContentBasedRecommender(BaseRecommender):
             # Compute similarity with user profile (vectorized)
             similarities = candidate_features @ user_profile
             
+            # Ensure similarities is 1D array (flatten if needed)
+            if hasattr(similarities, 'toarray'):
+                similarities = similarities.toarray().flatten()
+            elif hasattr(similarities, 'flatten'):
+                similarities = similarities.flatten()
+            
             # Get user's mean rating for scaling
             user_mean = user_ratings['rating'].mean()
             
             # Convert similarities to predicted ratings
+            # Map similarity [0, 1] to rating boost [-2, +2] around user mean
             predicted_ratings = user_mean + (similarities - 0.5) * 4
             predicted_ratings = np.clip(predicted_ratings, 1.0, 5.0)
             
