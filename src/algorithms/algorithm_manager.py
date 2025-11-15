@@ -553,69 +553,13 @@ class AlgorithmManager:
         # Get basic algorithm info
         info = self.get_algorithm_info(algorithm_type)
         
-        # Create a sample of test data for metrics calculation
-        if self._training_data is not None and len(self._training_data[0]) > 1000:
-            ratings_df = self._training_data[0]
-            # Use a small sample for quick metrics calculation
-            sample_size = min(1000, len(ratings_df) // 10)
-            test_sample = ratings_df.sample(n=sample_size, random_state=42)
-            
-            predictions = []
-            actuals = []
-            
-            # Suppress verbose output in Streamlit UI
-            if not _is_streamlit_context():
-                print(f"🔍 Testing {len(test_sample)} samples for {algorithm_type.value}")
-            
-            for i, (_, row) in enumerate(test_sample.iterrows()):
-                try:
-                    pred = algorithm.predict(row['userId'], row['movieId'])
-                    if pred is not None and pred > 0:
-                        predictions.append(pred)
-                        actuals.append(row['rating'])
-                except Exception as e:
-                    # Skip failed predictions silently (only log in non-Streamlit context)
-                    if not _is_streamlit_context() and i < 5:
-                        print(f"    ❌ Prediction failed for user {row['userId']}, movie {row['movieId']}: {e}")
-                    continue
-            
-            # Only show in terminal/logs, not in Streamlit UI
-            if not _is_streamlit_context():
-                print(f"    ✓ Got {len(predictions)} valid predictions out of {len(test_sample)} samples")
-            
-            # Calculate metrics if we have predictions
-            metrics = {}
-            if predictions and len(predictions) > 1:  # Reduced threshold from 10 to 1
-                import numpy as np
-                from sklearn.metrics import mean_squared_error, mean_absolute_error
-                
-                rmse = np.sqrt(mean_squared_error(actuals, predictions))
-                mae = mean_absolute_error(actuals, predictions)
-                
-                metrics = {
-                    "rmse": round(rmse, 3),
-                    "mae": round(mae, 3),
-                    "sample_size": len(predictions),
-                    "coverage": round(len(predictions) / len(test_sample) * 100, 1)
-                }
-                
-                # Update algorithm's metrics object if it's empty
-                if algorithm.metrics.rmse == 0.0:
-                    algorithm.metrics.rmse = round(rmse, 4)
-                    algorithm.metrics.coverage = round(len(predictions) / len(test_sample) * 100, 1)
-                    if not _is_streamlit_context():
-                        print(f"    ✓ Updated {algorithm_type.value} metrics: RMSE={rmse:.4f}, Coverage={algorithm.metrics.coverage:.1f}%")
-            else:
-                print(f"    ❌ Insufficient predictions: got {len(predictions)}, need at least 2")
-                metrics = {
-                    "error": f"Insufficient valid predictions for metrics calculation (got {len(predictions)})",
-                    "predictions_count": len(predictions),
-                    "sample_size": len(test_sample)
-                }
-        else:
-            metrics = {
-                "error": "Insufficient data for metrics calculation"
-            }
+        # Use pre-computed metrics from algorithm object (fast!)
+        # Don't recompute on-demand as it's too slow (1000 predictions)
+        metrics = {
+            "rmse": round(algorithm.metrics.rmse, 3),
+            "mae": round(getattr(algorithm.metrics, 'mae', 0.0), 3),
+            "coverage": round(algorithm.metrics.coverage, 1)
+        }
         
         return {
             "algorithm": algorithm_type.value,
