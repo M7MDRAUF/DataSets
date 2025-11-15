@@ -128,14 +128,14 @@ def load_data(sample_size):
 
 # PERFORMANCE FIX: Cache expensive DataFrame operations
 @st.cache_data
-def compute_genre_distribution(movies_df):
+def compute_genre_distribution(_movies_df):
     """Compute and cache genre distribution statistics"""
-    genres_exploded = movies_df['genres'].str.split('|', expand=True).stack()
+    genres_exploded = _movies_df['genres'].str.split('|', expand=True).stack()
     genre_counts = genres_exploded.value_counts().head(15)
     return genre_counts
 
 @st.cache_data
-def compute_movie_ratings_stats(_ratings_df, movies_df):
+def compute_movie_ratings_stats(_ratings_df, _movies_df):
     """Compute and cache movie ratings aggregations"""
     movie_ratings = _ratings_df.groupby('movieId').agg({
         'rating': ['mean', 'count']
@@ -147,7 +147,7 @@ def compute_movie_ratings_stats(_ratings_df, movies_df):
     
     # Merge with movie info
     popular_movies = popular_movies.merge(
-        movies_df[['movieId', 'title', 'genres']],
+        _movies_df[['movieId', 'title', 'genres']],
         on='movieId'
     )
     
