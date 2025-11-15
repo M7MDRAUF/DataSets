@@ -319,25 +319,26 @@ try:
             # Generate recommendations (separate spinner for clarity)
             with st.spinner(f"🎬 Generating {num_recommendations} recommendations..."):
                 recommendations = algorithm.get_recommendations(user_id, n=num_recommendations, exclude_rated=True)
+            
+            # Success message AFTER spinner exits
+            st.success(f"✅ Generated {len(recommendations)} recommendations using {selected_algorithm}!")
+            
+            # Display recommendations
+            st.markdown(f"### 🎬 Recommendations for User {user_id}")
+            st.markdown(f"*Powered by {selected_algorithm} algorithm*")
+            
+            # Show recommendations in a nice grid
+            cols = st.columns(2)
+            for idx, (_, movie) in enumerate(recommendations.iterrows()):
+                col = cols[idx % 2]
                 
-                st.success(f"✅ Generated {len(recommendations)} recommendations using {selected_algorithm}!")
-                
-                # Display recommendations
-                st.markdown(f"### 🎬 Recommendations for User {user_id}")
-                st.markdown(f"*Powered by {selected_algorithm} algorithm*")
-                
-                # Show recommendations in a nice grid
-                cols = st.columns(2)
-                for idx, (_, movie) in enumerate(recommendations.iterrows()):
-                    col = cols[idx % 2]
-                    
-                    with col:
-                        st.markdown(f"""
-                        <div class="movie-card">
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                                <span style="font-weight: bold; font-size: 1.1rem;">#{idx + 1}</span>
-                                <span style="color: #ffd700; font-size: 1.2rem;">⭐ {movie.get('predicted_rating', 'N/A')}</span>
-                            </div>
+                with col:
+                    st.markdown(f"""
+                    <div class="movie-card">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                            <span style="font-weight: bold; font-size: 1.1rem;">#{idx + 1}</span>
+                            <span style="color: #ffd700; font-size: 1.2rem;">⭐ {movie.get('predicted_rating', 'N/A')}</span>
+                        </div>
                             <h4 style="margin: 0.5rem 0; color: white;">{movie['title']}</h4>
                             <p style="color: #ccc; font-size: 0.9rem; margin: 0.25rem 0;">
                                 <strong>Genres:</strong> {movie['genres']}
