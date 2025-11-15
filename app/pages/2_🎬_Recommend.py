@@ -12,7 +12,16 @@ import streamlit as st
 import pandas as pd
 import sys
 import traceback
+import logging
 from pathlib import Path
+from datetime import datetime
+
+# Configure logging for debugging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 # Add src to path
 sys.path.append(str(Path(__file__).parent.parent.parent))
@@ -153,9 +162,10 @@ with st.expander("⚙️ Performance Settings", expanded=False):
 @st.cache_data
 def load_data(sample_size):
     """Load and cache the dataset with configurable sampling"""
-    print("Loading MovieLens dataset...")
+    logger.info(f"Loading MovieLens dataset with sample_size={sample_size}")
     ratings_df = load_ratings(sample_size=sample_size)
     movies_df = load_movies()
+    logger.info(f"Loaded {len(ratings_df):,} ratings and {len(movies_df):,} movies")
     return ratings_df, movies_df
 
 try:
@@ -190,13 +200,43 @@ try:
             manager.initialize_data(ratings_df, movies_df)
     
 except Exception as e:
+    logger.critical(f"Failed to load dataset: {e}", exc_info=True)
     st.error(f"❌ Error loading data: {e}")
-    st.info("""
-    **Please ensure:**
-    1. Dataset files are in `data/ml-32m/` directory
-    2. All dependencies are installed
-    3. Sufficient memory available (>4GB recommended)
-    """)
+    
+    # Provide specific troubleshooting based on error type
+    error_type = type(e).__name__
+    if "FileNotFound" in error_type or "No such file" in str(e):
+        st.error("**Dataset files not found**")
+        st.info("""
+        📁 **Missing Dataset Files**
+        
+        Please ensure MovieLens dataset files exist:
+        - `data/ml-32m/ratings.csv`
+        - `data/ml-32m/movies.csv`
+        - `data/ml-32m/tags.csv`
+        - `data/ml-32m/links.csv`
+        """)
+    elif "Memory" in str(e) or "MemoryError" in error_type:
+        st.error("**Insufficient Memory**")
+        st.info("""
+        💾 **Memory Issue**
+        
+        Try these solutions:
+        1. Use **Fast Demo** or **Balanced** mode (Performance Settings)
+        2. Close other applications
+        3. Ensure system has >4GB available RAM
+        4. Restart Docker container if using Docker
+        """)
+    else:
+        st.info("""
+        🛠️ **Troubleshooting Steps**
+        
+        1. Dataset files in `data/ml-32m/` directory
+        2. All dependencies installed (`pip install -r requirements.txt`)
+        3. Sufficient memory available (>4GB recommended)
+        4. Check file permissions
+        5. Verify CSV files are not corrupted
+        """)
     st.stop()
 
 # Sidebar: Algorithm Selection & Information
@@ -379,8 +419,11 @@ st.markdown("---")
 # Recommendation Generation
 if get_recs_button or 'current_recommendations' in st.session_state:
     
+    logger.info(f"Recommendation request: user_id={user_id}, algorithm={selected_algorithm.value}")
+    
     # Validate user ID (defensive check even though number_input has constraints)
     if user_id is None or user_id <= 0:
+        logger.warning(f"Invalid user ID: {user_id}")
         st.error("❌ Invalid User ID. Please enter a positive number.")
         st.stop()
     
@@ -401,12 +444,16 @@ if get_recs_button or 'current_recommendations' in st.session_state:
     
     try:
         # Get the selected algorithm
+        logger.info(f"Loading algorithm: {selected_algorithm.value}")
         with st.spinner(f"🤖 Loading {selected_algorithm.value} algorithm..."):
             algorithm = manager.switch_algorithm(selected_algorithm)
+        logger.info(f"Algorithm loaded successfully: {algorithm.name}")
         
         # Generate recommendations
+        logger.info(f"Generating recommendations for user {user_id}")
         with st.spinner("🎯 Generating personalized recommendations..."):
             recommendations = algorithm.get_recommendations(user_id, n=10, exclude_rated=True)
+        logger.info(f"Generated {len(recommendations) if recommendations is not None else 0} recommendations")
             
             # Get user history if exists
             user_history = ratings_df[ratings_df['userId'] == user_id] if user_exists else pd.DataFrame()
@@ -542,6 +589,7 @@ if get_recs_button or 'current_recommendations' in st.session_state:
                     st.info(f"💡 **Try the Hybrid algorithm** for potentially better recommendations that combine multiple approaches!")
     
     except Exception as e:
+        logger.error(f"Error generating recommendations: {e}", exc_info=True)
         st.error(f"❌ Error generating recommendations: {e}")
         
         # Enhanced error recovery options
