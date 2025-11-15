@@ -177,26 +177,16 @@ try:
     # Initialize algorithm manager (singleton pattern)
     manager = get_algorithm_manager()
     
-    # Debug: Check manager state
-    import sys
-    print(f"[DEBUG] Manager ID: {id(manager)}")
-    print(f"[DEBUG] Manager _is_initialized: {manager._is_initialized}")
-    print(f"[DEBUG] Manager _training_data is None: {manager._training_data is None}")
-    sys.stdout.flush()
-    
     # Initialize data ONLY if not already initialized or dataset size changed
     # This prevents creating 3.3GB copies on every Streamlit rerun
     if not manager._is_initialized or manager._training_data is None:
         manager.initialize_data(ratings_df, movies_df)
-        print(f"🎯 Initialized manager with {len(ratings_df):,} ratings")
-        sys.stdout.flush()
     elif 'last_dataset_size' in st.session_state:
         # Dataset size changed - reinitialize
         current_size = len(ratings_df)
         stored_size = len(manager._training_data[0]) if manager._training_data else 0
         if current_size != stored_size:
             manager.initialize_data(ratings_df, movies_df)
-            print(f"🔄 Reinitialized manager (dataset changed: {stored_size:,} → {current_size:,})")
     
     st.success(f"✅ System ready! Loaded {len(ratings_df):,} ratings and {len(movies_df):,} movies")
     
@@ -309,66 +299,31 @@ with col2:
     st.markdown("### ⚡ Algorithm Performance")
     
     try:
-        import sys
-        # Debug: Log cached algorithms
-        print(f"[DEBUG] Cached algorithms: {manager.get_cached_algorithms()}")
-        sys.stdout.flush()
-        print(f"[DEBUG] Selected algorithm: {selected_algorithm}")
-        sys.stdout.flush()
-        
         # Load the algorithm if not cached (to get metrics)
         if selected_algorithm not in manager.get_cached_algorithms():
-            print(f"[DEBUG] Algorithm {selected_algorithm} not cached, loading...")
-            sys.stdout.flush()
             with st.spinner(f"Loading {selected_algorithm.value}..."):
                 try:
                     current_algo = manager.get_algorithm(selected_algorithm)
-                    print(f"[DEBUG] Algorithm loaded: {current_algo is not None}")
-                    sys.stdout.flush()
-                    if current_algo:
-                        print(f"[DEBUG] Algorithm metrics AFTER load: rmse={current_algo.metrics.rmse}, coverage={current_algo.metrics.coverage}")
-                        sys.stdout.flush()
                 except Exception as e:
-                    print(f"[DEBUG] Failed to load algorithm: {e}")
-                    sys.stdout.flush()
-                    import traceback
-                    traceback.print_exc()
                     st.warning(f"Algorithm not yet loaded. Metrics will appear after generating recommendations.")
                     current_algo = None
         else:
-            print(f"[DEBUG] Algorithm {selected_algorithm} already cached")
-            sys.stdout.flush()
             current_algo = manager.get_algorithm(selected_algorithm)
-            print(f"[DEBUG] Algorithm retrieved from cache: {current_algo is not None}")
-            sys.stdout.flush()
-            if current_algo:
-                print(f"[DEBUG] Cached algorithm metrics: rmse={current_algo.metrics.rmse}, coverage={current_algo.metrics.coverage}")
-                sys.stdout.flush()
     except Exception as e:
-        print(f"[DEBUG] EXCEPTION in metrics section: {e}")
-        sys.stdout.flush()
-        import traceback
         traceback.print_exc()
         current_algo = None
     
     if current_algo is not None:
         try:
-            # Get metrics from algorithm manager (will calculate if needed)
-            print(f"[DEBUG] Calling get_algorithm_metrics for {selected_algorithm}...")
+            # Get metrics from algorithm manager (uses cached pre-computed values)
             metrics_data = manager.get_algorithm_metrics(selected_algorithm)
-            print(f"[DEBUG] Metrics data returned: {metrics_data}")
-            # Safe attribute access in case old cached models don't have 'mae'
-            mae_value = getattr(current_algo.metrics, 'mae', 0.0)
-            print(f"[DEBUG] Current algo metrics object: rmse={current_algo.metrics.rmse}, mae={mae_value}, coverage={current_algo.metrics.coverage}")
             
             # Single column metrics display (no nesting)
             if metrics_data.get('status') == 'Trained':
                 metrics = metrics_data.get('metrics', {})
-                print(f"[DEBUG] Metrics dict from get_algorithm_metrics: {metrics}")
                 
                 # Display RMSE
                 rmse_value = metrics.get('rmse', current_algo.metrics.rmse)
-                print(f"[DEBUG] RMSE display value: {rmse_value} (from metrics dict: {metrics.get('rmse')}, from algo object: {current_algo.metrics.rmse})")
                 if rmse_value > 0:
                     st.metric(
                         "RMSE", 
@@ -377,6 +332,17 @@ with col2:
                     )
                 else:
                     st.metric("RMSE", "N/A", help="Metrics not yet calculated")
+                
+                # Display MAE (Mean Absolute Error)
+                mae_value = metrics.get('mae', 0.0)
+                if mae_value > 0:
+                    st.metric(
+                        "MAE", 
+                        f"{mae_value:.4f}",
+                        help="Mean Absolute Error (lower is better)"
+                    )
+                else:
+                    st.metric("MAE", "N/A", help="Not yet calculated")
                 
                 # Display Coverage
                 coverage_value = metrics.get('coverage', current_algo.metrics.coverage)
@@ -412,9 +378,6 @@ with col2:
             else:
                 st.info("📊 Metrics will be calculated on first load")
         except Exception as metrics_error:
-            print(f"[DEBUG] Error displaying metrics: {metrics_error}")
-            import traceback
-            traceback.print_exc()
             st.warning("⚠️ Metrics unavailable - algorithm is still loading")
     else:
         st.info("📊 Select an algorithm to view performance metrics")
@@ -621,14 +584,7 @@ else:
     - Use Advanced Options to fine-tune algorithm parameters
     """)
 
-# TEST MARKER: Highly visible section to confirm rendering
-st.markdown("---")
-st.success("✅ **PAGE RENDERING COMPLETE** - If you see this, the page loaded successfully!")
-st.info("📍 Scroll down to see the footer with CineMatch branding")
-
 # Footer with algorithm information
-print("[DEBUG] Rendering footer section...")
-sys.stdout.flush()
 st.markdown("---")
 st.markdown("""
 <div style='text-align: center; color: #666; padding: 1rem;'>
@@ -637,5 +593,3 @@ st.markdown("""
     <p>Trained on 32+ million ratings for maximum accuracy and diversity</p>
 </div>
 """, unsafe_allow_html=True)
-print("[DEBUG] Footer rendered successfully!")
-sys.stdout.flush()
