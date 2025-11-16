@@ -169,34 +169,42 @@ def load_data(sample_size):
     return ratings_df, movies_df
 
 try:
-    with st.spinner(f"🚀 Loading MovieLens dataset... ({dataset_size[0]} mode)"):
-        ratings_df, movies_df = load_data(selected_sample_size)
-    
-    # Show dataset statistics
-    st.success(f"✅ System ready! Loaded {len(ratings_df):,} ratings and {len(movies_df):,} movies")
-    
-    # Display performance expectation
-    if selected_sample_size and selected_sample_size <= 100000:
-        st.info("⚡ **Fast Demo Mode**: Algorithms will train in seconds!")
-    elif selected_sample_size and selected_sample_size <= 500000:
-        st.info("🔥 **Balanced Mode**: Good balance of speed and accuracy")
-    elif selected_sample_size and selected_sample_size <= 1000000:
-        st.info("🎯 **High Quality Mode**: Excellent accuracy with reasonable speed")
-    else:
-        st.warning("🐌 **Full Dataset Mode**: Maximum accuracy but slow training times")
-    
-    # Initialize algorithm manager (singleton pattern)
+    # CRITICAL FIX: Check if we're in a rerun triggered by button click
+    # If manager is already initialized, skip the spinner to prevent UI flicker
     manager = get_algorithm_manager()
+    
+    if manager._is_initialized and manager._training_data is not None:
+        # Already initialized - just get cached data silently
+        ratings_df, movies_df = load_data(selected_sample_size)
+    else:
+        # First load - show spinner
+        with st.spinner(f"🚀 Loading MovieLens dataset... ({dataset_size[0]} mode)"):
+            ratings_df, movies_df = load_data(selected_sample_size)
+        
+        # Show dataset statistics
+        st.success(f"✅ System ready! Loaded {len(ratings_df):,} ratings and {len(movies_df):,} movies")
+        
+        # Display performance expectation
+        if selected_sample_size and selected_sample_size <= 100000:
+            st.info("⚡ **Fast Demo Mode**: Algorithms will train in seconds!")
+        elif selected_sample_size and selected_sample_size <= 500000:
+            st.info("🔥 **Balanced Mode**: Good balance of speed and accuracy")
+        elif selected_sample_size and selected_sample_size <= 1000000:
+            st.info("🎯 **High Quality Mode**: Excellent accuracy with reasonable speed")
+        else:
+            st.warning("🐌 **Full Dataset Mode**: Maximum accuracy but slow training times")
     
     # Initialize data ONLY if not already initialized or dataset size changed
     # This prevents creating 3.3GB copies on every Streamlit rerun
     if not manager._is_initialized or manager._training_data is None:
         manager.initialize_data(ratings_df, movies_df)
+        logger.info("Initialized algorithm manager with data")
     elif 'last_dataset_size' in st.session_state:
         # Dataset size changed - reinitialize
         current_size = len(ratings_df)
         stored_size = len(manager._training_data[0]) if manager._training_data else 0
         if current_size != stored_size:
+            logger.info(f"Dataset size changed from {stored_size} to {current_size} - reinitializing")
             manager.initialize_data(ratings_df, movies_df)
     
 except Exception as e:
@@ -331,18 +339,13 @@ with col2:
     st.markdown("### ⚡ Algorithm Performance")
     
     try:
-        # Load the algorithm if not cached (to get metrics)
-        if selected_algorithm not in manager.get_cached_algorithms():
-            with st.spinner(f"Loading {selected_algorithm.value}..."):
-                try:
-                    current_algo = manager.get_algorithm(selected_algorithm)
-                except Exception as e:
-                    st.warning(f"Algorithm not yet loaded. Metrics will appear after generating recommendations.")
-                    current_algo = None
-        else:
+        # Only show metrics if algorithm is already cached (don't load it just for metrics)
+        if selected_algorithm in manager.get_cached_algorithms():
             current_algo = manager.get_algorithm(selected_algorithm)
+        else:
+            current_algo = None
     except Exception as e:
-        traceback.print_exc()
+        logger.error(f"Error accessing cached algorithm: {e}")
         current_algo = None
     
     if current_algo is not None:
@@ -417,7 +420,8 @@ with col2:
 st.markdown("---")
 
 # Recommendation Generation
-if get_recs_button or 'current_recommendations' in st.session_state:
+# Only generate NEW recommendations when button is clicked
+if get_recs_button:
     
     logger.info(f"Recommendation request: user_id={user_id}, algorithm={selected_algorithm.value}")
     
@@ -443,11 +447,17 @@ if get_recs_button or 'current_recommendations' in st.session_state:
         st.warning(f"⚠️ User {user_id} not found in dataset. Generating recommendations for new user profile.")
     
     try:
-        # Get the selected algorithm
+        # Get the selected algorithm (use cached if available)
         logger.info(f"Loading algorithm: {selected_algorithm.value}")
-        with st.spinner(f"🤖 Loading {selected_algorithm.value} algorithm..."):
-            algorithm = manager.switch_algorithm(selected_algorithm)
-        logger.info(f"Algorithm loaded successfully: {algorithm.name}")
+        
+        # Check if algorithm is already cached to avoid reloading
+        if selected_algorithm in manager.get_cached_algorithms():
+            algorithm = manager.get_algorithm(selected_algorithm)
+            logger.info(f"Using cached {algorithm.name}")
+        else:
+            with st.spinner(f"🤖 Loading {selected_algorithm.value} algorithm..."):
+                algorithm = manager.switch_algorithm(selected_algorithm)
+            logger.info(f"Algorithm loaded successfully: {algorithm.name}")
         
         # Generate recommendations
         logger.info(f"Generating recommendations for user {user_id}")
@@ -463,13 +473,41 @@ if get_recs_button or 'current_recommendations' in st.session_state:
             st.session_state.current_user_id = user_id
             st.session_state.current_algorithm = selected_algorithm
             st.session_state.user_history = user_history
+            
+    except Exception as e:
+        logger.error(f"Error generating recommendations: {e}", exc_info=True)
+        st.error(f"❌ Error generating recommendations: {e}")
+        traceback.print_exc()
+        st.stop()
+
+# Display recommendations (if they exist in session state)
+if 'current_recommendations' in st.session_state:
+    try:
+        # Get algorithm instance for display (from cache, don't reload)
+        if st.session_state.current_algorithm in manager.get_cached_algorithms():
+            algorithm = manager.get_algorithm(st.session_state.current_algorithm)
+        else:
+            # Fallback to current selected algorithm
+            algorithm = manager.get_algorithm(selected_algorithm)
         
-        # Display results
+        # Get stored data with comprehensive validation
         recommendations = st.session_state.current_recommendations
         user_history = st.session_state.user_history
+        displayed_user_id = st.session_state.current_user_id
         
-        # Validate recommendations DataFrame structure
-        if recommendations is None or len(recommendations) == 0:
+        # DEFENSIVE VALIDATION: Check data integrity
+        if recommendations is None:
+            logger.error("Recommendations is None despite being in session_state")
+            st.error("❌ Recommendation generation failed. Please try again.")
+            st.stop()
+        
+        if not isinstance(recommendations, pd.DataFrame):
+            logger.error(f"Recommendations is not a DataFrame: {type(recommendations)}")
+            st.error("❌ Invalid recommendation format. Please refresh the page.")
+            st.stop()
+        
+        if len(recommendations) == 0:
+            logger.warning("Recommendations DataFrame is empty")
             st.warning("⚠️ No recommendations found for this user. This could happen if:")
             st.info("""
             - User is new (not in dataset)
@@ -478,126 +516,202 @@ if get_recs_button or 'current_recommendations' in st.session_state:
             
             **Try**: Different algorithm or different user ID
             """)
-        else:
-            # Validate required columns exist
-            required_columns = ['movieId', 'title', 'genres', 'predicted_rating']
-            missing_columns = [col for col in required_columns if col not in recommendations.columns]
-            
-            if missing_columns:
-                st.error(f"❌ Invalid recommendations format - missing columns: {', '.join(missing_columns)}")
-                st.info("This is likely a data processing issue. Please contact support.")
-            else:
-                # Main recommendations display
-                st.markdown(f"""
-                <div class="recommendation-header">
-                    <h2>🎬 Recommendations for User {user_id}</h2>
-                    <p>Generated by {algorithm.name} • Based on {len(user_history)} ratings</p>
-                </div>
-                """, unsafe_allow_html=True)
-                
-                # Layout: Recommendations + User Profile
-                rec_col, profile_col = st.columns([2.5, 1])
-                
-                with rec_col:
-                    # Display recommendations with defensive coding
-                    for idx, row in recommendations.iterrows():
-                        try:
-                            movie_id = row['movieId']
-                            title = row.get('title', 'Unknown Movie')
-                            genres = row.get('genres', '')
-                            predicted_rating = float(row.get('predicted_rating', 0.0))
-                            
-                            # Movie card with simplified layout
-                            st.markdown(f"""
-                            <div class="movie-card">
-                                <h3 style="color: white; margin: 0.5rem 0;">#{idx+1}. {title}</h3>
-                                <p style="color: #ccc;"><strong>Genres:</strong> {format_genres(genres)}</p>
-                                <p style="color: #ddd;"><strong>Predicted Rating:</strong> {create_rating_stars(predicted_rating)}</p>
-                            </div>
-                            """, unsafe_allow_html=True)
-                            
-                            # Simplified buttons layout (no nested columns)
-                            col_left, col_right = st.columns(2)
-                            
-                            with col_left:
-                                # Explanation button
-                                if st.button(f"💡 Why this movie?", key=f"explain_{idx}_{movie_id}"):
-                                    try:
-                                        explanation = manager.get_recommendation_explanation(
-                                            selected_algorithm, user_id, movie_id
-                                        )
-                                        st.markdown(f"""
-                                        <div class="explanation-box">
-                                            <strong>Why this recommendation?</strong><br>
-                                            {explanation}
-                                        </div>
-                                        """, unsafe_allow_html=True)
-                                    except Exception as exp_error:
-                                        st.warning(f"⚠️ Could not generate explanation: {str(exp_error)}")
-                            
-                            with col_right:
-                                # Feedback buttons in single row
-                                if st.button("👍 Like", key=f"like_{idx}_{movie_id}"):
-                                    st.success("Thanks for the feedback! 👍")
-                                if st.button("👎 Not interested", key=f"dislike_{idx}_{movie_id}"):
-                                    st.info("Feedback noted! 👎")
-                            
-                            st.markdown("---")
-                            
-                        except Exception as card_error:
-                            # Log error but continue rendering other recommendations
-                            st.error(f"❌ Error displaying movie #{idx+1}: {str(card_error)}")
-                            st.markdown("---")
-                
-                with profile_col:
-                    # User taste profile (if user exists)
-                    if len(user_history) > 0:
-                        st.markdown("### 👤 Your Profile")
-                        
-                        # Basic stats
-                        avg_rating = user_history['rating'].mean()
-                        st.metric("Total Ratings", len(user_history))
-                        st.metric("Average Rating", f"{avg_rating:.1f} ⭐")
-                        
-                        # Top genres
-                        st.markdown("#### 🎭 Top Genres")
-                        # Get genre distribution with defensive coding
-                        genre_counts = {}
-                        try:
-                            for _, movie_row in user_history.iterrows():
-                                movie_info = movies_df[movies_df['movieId'] == movie_row['movieId']]
-                                if len(movie_info) > 0:
-                                    genres_str = movie_info.iloc[0].get('genres', '')
-                                    if genres_str and pd.notna(genres_str):
-                                        genres = str(genres_str).split('|')
-                                        for genre in genres:
-                                            genre = genre.strip()
-                                            if genre:  # Only count non-empty genres
-                                                genre_counts[genre] = genre_counts.get(genre, 0) + 1
-                            
-                            # Show top 5 genres
-                            if genre_counts:
-                                top_genres = sorted(genre_counts.items(), key=lambda x: x[1], reverse=True)[:5]
-                                total_ratings = len(user_history)
-                                
-                                for genre, count in top_genres:
-                                    percentage = (count / total_ratings) * 100
-                                    emoji = get_genre_emoji(genre)
-                                    st.markdown(f"{emoji} **{genre}**: {percentage:.1f}%")
-                            else:
-                                st.info("Genre preferences not available")
-                        except Exception as genre_error:
-                            logger.warning(f"Error calculating genre distribution: {genre_error}")
-                            st.info("Unable to calculate genre preferences")
-                        
-                    else:
-                        st.markdown("### 🆕 New User")
-                        st.info("As a new user, recommendations are based on popular movies and content-based filtering.")
-                
-                # Algorithm comparison suggestion
-                if selected_algorithm != AlgorithmType.HYBRID:
+            st.stop()
+        
+        # Validate required columns exist
+        required_columns = ['movieId', 'title', 'genres', 'predicted_rating']
+        missing_columns = [col for col in required_columns if col not in recommendations.columns]
+        
+        if missing_columns:
+            logger.error(f"Missing required columns: {missing_columns}")
+            logger.error(f"Available columns: {recommendations.columns.tolist()}")
+            st.error(f"❌ Invalid recommendations format - missing columns: {', '.join(missing_columns)}")
+            st.info("This is likely a data processing issue. Please contact support.")
+            st.stop()
+        
+        # Main recommendations display
+        st.markdown(f"""
+        <div class="recommendation-header">
+            <h2>🎬 Recommendations for User {displayed_user_id}</h2>
+            <p>Generated by {algorithm.name} • Based on {len(user_history)} ratings</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # DEBUG: Log recommendation data structure
+        logger.info(f"Displaying {len(recommendations)} recommendations")
+        logger.info(f"Columns: {recommendations.columns.tolist()}")
+        logger.info(f"User history size: {len(user_history)}")
+        
+        # Layout: Recommendations + User Profile
+        rec_col, profile_col = st.columns([2.5, 1])
+        
+        with rec_col:
+            logger.info("Entering rec_col block")
+            # Display recommendations with defensive coding
+            for idx, row in recommendations.iterrows():
+                logger.info(f"Rendering recommendation #{idx+1}")
+                try:
+                    movie_id = row['movieId']
+                    title = row.get('title', 'Unknown Movie')
+                    genres = row.get('genres', '')
+                    predicted_rating = float(row.get('predicted_rating', 0.0))
+                    
+                    # Movie card with simplified layout
+                    st.markdown(f"""
+                    <div class="movie-card">
+                        <h3 style="color: white; margin: 0.5rem 0;">#{idx+1}. {title}</h3>
+                        <p style="color: #ccc;"><strong>Genres:</strong> {format_genres(genres)}</p>
+                        <p style="color: #ddd;"><strong>Predicted Rating:</strong> {create_rating_stars(predicted_rating)}</p>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    # Feedback buttons with explanation
+                    col_like, col_dislike, col_explain, col_info = st.columns([1, 1, 1, 2])
+                    with col_like:
+                        if st.button("👍 Like", key=f"like_{idx}_{movie_id}", help="Like this recommendation"):
+                            st.toast("👍 Liked!", icon="✅")
+                    with col_dislike:
+                        if st.button("👎 Dislike", key=f"dislike_{idx}_{movie_id}", help="Not interested"):
+                            st.toast("👎 Not interested", icon="ℹ️")
+                    with col_explain:
+                        if st.button("💡 Explain", key=f"explain_{idx}_{movie_id}", help="Why was this recommended?"):
+                            # Toggle explanation visibility
+                            explain_key = f"show_explain_{idx}_{movie_id}"
+                            if explain_key not in st.session_state:
+                                st.session_state[explain_key] = False
+                            st.session_state[explain_key] = not st.session_state[explain_key]
+                            st.rerun()
+                    with col_info:
+                        st.caption(f"Movie ID: {movie_id}")
+                    
+                    # Show explanation if toggled
+                    explain_key = f"show_explain_{idx}_{movie_id}"
+                    if explain_key in st.session_state and st.session_state[explain_key]:
+                        with st.expander("🔍 Why this recommendation?", expanded=True):
+                            try:
+                                # Get explanation from algorithm
+                                if hasattr(algorithm, 'get_explanation_context'):
+                                    explanation_context = algorithm.get_explanation_context(user_id, movie_id)
+                                    
+                                    if explanation_context and explanation_context.get('method'):
+                                        method = explanation_context.get('method', 'unknown')
+                                        
+                                        if method == 'latent_factors':
+                                            n_components = getattr(algorithm, 'n_components', 100)
+                                            st.info(f"""
+                                            **SVD Matrix Factorization** discovered hidden patterns:
+                                            - Predicted rating: **{explanation_context.get('prediction', 0):.2f}/5.0**
+                                            - Your rating bias: **{explanation_context.get('user_bias', 0):+.2f}**
+                                            - Movie quality score: **{explanation_context.get('movie_bias', 0):+.2f}**
+                                            - Using {n_components} latent factors to match your taste
+                                            """)
+                                        
+                                        elif method == 'similar_users':
+                                            similar_count = explanation_context.get('similar_users_count', 0)
+                                            st.info(f"""
+                                            **User-Based Filtering** found {similar_count} users with similar taste who loved this movie.
+                                            - Your ratings align with their preferences
+                                            - Community-validated recommendation
+                                            """)
+                                        
+                                        elif method == 'similar_items':
+                                            similar_count = explanation_context.get('similar_movies_count', 0)
+                                            st.info(f"""
+                                            **Item-Based Filtering** found {similar_count} movies similar to ones you rated highly.
+                                            - Based on rating patterns across all users
+                                            - Reliable similarity matching
+                                            """)
+                                        
+                                        elif method == 'content_based':
+                                            st.info(f"""
+                                            **Content-Based Filtering** matched movie features to your preferences:
+                                            - Analyzed genres and themes from your top-rated movies
+                                            - Found similar characteristics in this recommendation
+                                            """)
+                                        
+                                        elif method == 'hybrid_ensemble':
+                                            weights = explanation_context.get('algorithm_weights', {})
+                                            primary = explanation_context.get('primary_algorithm', 'multiple')
+                                            st.info(f"""
+                                            **Hybrid Algorithm** combined multiple approaches:
+                                            - Primary method: **{primary}**
+                                            - SVD: {weights.get('svd', 0):.0%} | User KNN: {weights.get('user_knn', 0):.0%}
+                                            - Item KNN: {weights.get('item_knn', 0):.0%} | Content: {weights.get('content_based', 0):.0%}
+                                            """)
+                                        else:
+                                            st.info(f"**{selected_algorithm}** analyzed your viewing history and preferences.")
+                                    else:
+                                        st.info(f"**{selected_algorithm}** analyzed your viewing history and preferences.")
+                                else:
+                                    st.info(f"**{selected_algorithm}** analyzed your viewing history and preferences to generate this recommendation.")
+                            except Exception as explain_error:
+                                logger.error(f"Error getting explanation: {str(explain_error)}")
+                                st.info(f"**{selected_algorithm}** recommended this based on your viewing patterns.")
+                    
                     st.markdown("---")
-                    st.info(f"💡 **Try the Hybrid algorithm** for potentially better recommendations that combine multiple approaches!")
+                    
+                except Exception as card_error:
+                    # Log error but continue rendering other recommendations
+                    logger.error(f"Error rendering card #{idx+1}: {str(card_error)}", exc_info=True)
+                    st.error(f"❌ Error displaying movie #{idx+1}: {str(card_error)}")
+                    st.markdown("---")
+            
+            logger.info("Completed rec_col block")
+        
+        with profile_col:
+            logger.info("Entering profile_col block")
+            # User taste profile (if user exists)
+            if len(user_history) > 0:
+                st.markdown("### 👤 Your Profile")
+                
+                # Basic stats
+                avg_rating = user_history['rating'].mean()
+                st.metric("Total Ratings", len(user_history))
+                st.metric("Average Rating", f"{avg_rating:.1f} ⭐")
+                
+                # Top genres
+                st.markdown("#### 🎭 Top Genres")
+                # Get genre distribution with defensive coding
+                genre_counts = {}
+                try:
+                    for _, movie_row in user_history.iterrows():
+                        movie_info = movies_df[movies_df['movieId'] == movie_row['movieId']]
+                        if len(movie_info) > 0:
+                            genres_str = movie_info.iloc[0].get('genres', '')
+                            if genres_str and pd.notna(genres_str):
+                                genres = str(genres_str).split('|')
+                                for genre in genres:
+                                    genre = genre.strip()
+                                    if genre:  # Only count non-empty genres
+                                        genre_counts[genre] = genre_counts.get(genre, 0) + 1
+                    
+                    # Show top 5 genres
+                    if genre_counts:
+                        top_genres = sorted(genre_counts.items(), key=lambda x: x[1], reverse=True)[:5]
+                        total_ratings = len(user_history)
+                        
+                        for genre, count in top_genres:
+                            percentage = (count / total_ratings) * 100
+                            emoji = get_genre_emoji(genre)
+                            st.markdown(f"{emoji} **{genre}**: {percentage:.1f}%")
+                    else:
+                        st.info("Genre preferences not available")
+                except Exception as genre_error:
+                    logger.warning(f"Error calculating genre distribution: {genre_error}")
+                    st.info("Unable to calculate genre preferences")
+                
+            else:
+                st.markdown("### 🆕 New User")
+                st.info("As a new user, recommendations are based on popular movies and content-based filtering.")
+            
+            logger.info("Completed profile_col block")
+        
+        # Algorithm comparison suggestion
+        if st.session_state.current_algorithm != AlgorithmType.HYBRID:
+            st.markdown("---")
+            st.info(f"💡 **Try the Hybrid algorithm** for potentially better recommendations that combine multiple approaches!")
+        
+        logger.info("Display section completed successfully")
     
     except Exception as e:
         logger.error(f"Error generating recommendations: {e}", exc_info=True)

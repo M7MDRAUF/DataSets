@@ -184,6 +184,10 @@ class SVDRecommender(BaseRecommender):
         finally:
             self._end_prediction_timer()
     
+    def recommend(self, user_id: int, n: int = 10, exclude_rated: bool = True) -> pd.DataFrame:
+        """Alias for get_recommendations() for consistency with other algorithms"""
+        return self.get_recommendations(user_id, n, exclude_rated)
+    
     def _get_popular_movies(self, n: int) -> pd.DataFrame:
         """Fallback: return most popular movies for new users"""
         movie_ratings = self.ratings_df.groupby('movieId').agg({

@@ -92,12 +92,9 @@ class HybridRecommender(BaseRecommender):
             self.movies_df['genres_list'] = self.movies_df['genres'].str.split('|')
         
         print("\n📊 Loading/Training SVD algorithm...")
-        # Try to load pre-trained SVD model (use sklearn version - faster loading)
-        svd_loaded = self._try_load_svd(ratings_df, movies_df)
-        if not svd_loaded:
+        if not self._try_load_algorithm("SVD", "svd_model.pkl", "svd_model", ratings_df, movies_df):
             print("  • No pre-trained model found, training from scratch...")
             self.svd_model.fit(ratings_df, movies_df)
-        
         self.algorithm_performance['svd'] = {
             'rmse': self.svd_model.metrics.rmse,
             'training_time': self.svd_model.metrics.training_time,
@@ -105,12 +102,9 @@ class HybridRecommender(BaseRecommender):
         }
         
         print("\n👥 Loading/Training User KNN algorithm...")
-        # Try to load pre-trained User KNN model
-        user_knn_loaded = self._try_load_user_knn(ratings_df, movies_df)
-        if not user_knn_loaded:
+        if not self._try_load_algorithm("User KNN", "user_knn_model.pkl", "user_knn_model", ratings_df, movies_df):
             print("  • No pre-trained model found, training from scratch...")
             self.user_knn_model.fit(ratings_df, movies_df)
-        
         self.algorithm_performance['user_knn'] = {
             'rmse': self.user_knn_model.metrics.rmse,
             'training_time': self.user_knn_model.metrics.training_time,
@@ -118,12 +112,9 @@ class HybridRecommender(BaseRecommender):
         }
         
         print("\n🎬 Loading/Training Item KNN algorithm...")
-        # Try to load pre-trained Item KNN model
-        item_knn_loaded = self._try_load_item_knn(ratings_df, movies_df)
-        if not item_knn_loaded:
+        if not self._try_load_algorithm("Item KNN", "item_knn_model.pkl", "item_knn_model", ratings_df, movies_df):
             print("  • No pre-trained model found, training from scratch...")
             self.item_knn_model.fit(ratings_df, movies_df)
-        
         self.algorithm_performance['item_knn'] = {
             'rmse': self.item_knn_model.metrics.rmse,
             'training_time': self.item_knn_model.metrics.training_time,
@@ -131,12 +122,9 @@ class HybridRecommender(BaseRecommender):
         }
         
         print("\n🔍 Loading/Training Content-Based algorithm...")
-        # Try to load pre-trained Content-Based model
-        content_based_loaded = self._try_load_content_based(ratings_df, movies_df)
-        if not content_based_loaded:
+        if not self._try_load_algorithm("Content-Based", "content_based_model.pkl", "content_based_model", ratings_df, movies_df):
             print("  • No pre-trained model found, training from scratch...")
             self.content_based_model.fit(ratings_df, movies_df)
-        
         self.algorithm_performance['content_based'] = {
             'rmse': self.content_based_model.metrics.rmse,
             'training_time': self.content_based_model.metrics.training_time,
@@ -181,150 +169,65 @@ class HybridRecommender(BaseRecommender):
         print(f"  • Combined coverage: {self.metrics.coverage:.1f}%")
         print(f"  • Total memory usage: {self.metrics.memory_usage_mb:.1f} MB")
     
-    def _try_load_user_knn(self, ratings_df: pd.DataFrame, movies_df: pd.DataFrame) -> bool:
-        """Try to load pre-trained User KNN model"""
+    def _try_load_algorithm(
+        self, 
+        algorithm_name: str, 
+        model_filename: str, 
+        model_attr: str,
+        ratings_df: pd.DataFrame, 
+        movies_df: pd.DataFrame
+    ) -> bool:
+        """
+        Generic method to load any pre-trained algorithm model.
+        
+        Args:
+            algorithm_name: Display name for logging (e.g., "User KNN")
+            model_filename: Model file name (e.g., "user_knn_model.pkl")
+            model_attr: Attribute name to set (e.g., "user_knn_model")
+            ratings_df: Ratings DataFrame for data context
+            movies_df: Movies DataFrame for data context
+        
+        Returns:
+            bool: True if loading succeeded, False otherwise
+        """
         from pathlib import Path
         from src.utils import load_model_safe
         
-        model_path = Path("models/user_knn_model.pkl")
+        # Special handling for SVD: try sklearn version first
+        if algorithm_name == "SVD":
+            sklearn_path = Path("models/svd_model_sklearn.pkl")
+            if sklearn_path.exists():
+                model_filename = "svd_model_sklearn.pkl"
+        
+        model_path = Path(f"models/{model_filename}")
         if not model_path.exists():
             return False
             
         try:
-            print("  • Loading pre-trained User KNN model...")
+            print(f"  • Loading pre-trained {algorithm_name} model...")
             start_time = time.time()
             
-            # Use load_model_safe to handle both pickle and joblib formats
+            # Load the model
             loaded_model = load_model_safe(str(model_path))
             
-            # Replace the user_knn_model with the loaded instance
-            self.user_knn_model = loaded_model
+            # Set the model on this instance
+            setattr(self, model_attr, loaded_model)
             
-            # Provide data context (shallow reference - model is already trained)
-            # Pre-trained models only need data for metadata lookups, not training
-            self.user_knn_model.ratings_df = ratings_df  # Shallow reference instead of copy()
-            self.user_knn_model.movies_df = movies_df    # Shallow reference instead of copy()
-            if 'genres_list' not in self.user_knn_model.movies_df.columns:
-                self.user_knn_model.movies_df['genres_list'] = self.user_knn_model.movies_df['genres'].str.split('|')
+            # Provide data context (shallow references for metadata lookups)
+            model = getattr(self, model_attr)
+            model.ratings_df = ratings_df
+            model.movies_df = movies_df
+            
+            # Ensure genres_list column exists
+            if 'genres_list' not in model.movies_df.columns:
+                model.movies_df['genres_list'] = model.movies_df['genres'].str.split('|')
             
             load_time = time.time() - start_time
-            print(f"  ✓ Pre-trained User KNN loaded in {load_time:.2f}s")
+            print(f"  ✓ Pre-trained {algorithm_name} loaded in {load_time:.2f}s")
             return True
             
         except Exception as e:
-            print(f"  ❌ Failed to load pre-trained User KNN: {e}")
-            import traceback
-            traceback.print_exc()
-            return False
-    
-    def _try_load_item_knn(self, ratings_df: pd.DataFrame, movies_df: pd.DataFrame) -> bool:
-        """Try to load pre-trained Item KNN model"""
-        from pathlib import Path
-        from src.utils import load_model_safe
-        
-        model_path = Path("models/item_knn_model.pkl")
-        if not model_path.exists():
-            return False
-            
-        try:
-            print("  • Loading pre-trained Item KNN model...")
-            start_time = time.time()
-            
-            # Use load_model_safe to handle both pickle and joblib formats
-            loaded_model = load_model_safe(str(model_path))
-            
-            # Replace the item_knn_model with the loaded instance
-            self.item_knn_model = loaded_model
-            
-            # Provide data context (shallow reference - model is already trained)
-            # Pre-trained models only need data for metadata lookups, not training
-            self.item_knn_model.ratings_df = ratings_df  # Shallow reference instead of copy()
-            self.item_knn_model.movies_df = movies_df    # Shallow reference instead of copy()
-            if 'genres_list' not in self.item_knn_model.movies_df.columns:
-                self.item_knn_model.movies_df['genres_list'] = self.item_knn_model.movies_df['genres'].str.split('|')
-            
-            load_time = time.time() - start_time
-            print(f"  ✓ Pre-trained Item KNN loaded in {load_time:.2f}s")
-            return True
-            
-        except Exception as e:
-            print(f"  ❌ Failed to load pre-trained Item KNN: {e}")
-            import traceback
-            traceback.print_exc()
-            return False
-    
-    def _try_load_content_based(self, ratings_df: pd.DataFrame, movies_df: pd.DataFrame) -> bool:
-        """Try to load pre-trained Content-Based model"""
-        from pathlib import Path
-        from src.utils import load_model_safe
-        
-        model_path = Path("models/content_based_model.pkl")
-        if not model_path.exists():
-            return False
-            
-        try:
-            print("  • Loading pre-trained Content-Based model...")
-            start_time = time.time()
-            
-            # Use load_model_safe to handle both pickle and joblib formats
-            loaded_model = load_model_safe(str(model_path))
-            
-            # Replace the content_based_model with the loaded instance
-            self.content_based_model = loaded_model
-            
-            # Provide data context (shallow reference - model is already trained)
-            # Pre-trained models only need data for metadata lookups, not training
-            self.content_based_model.ratings_df = ratings_df  # Shallow reference instead of copy()
-            self.content_based_model.movies_df = movies_df    # Shallow reference instead of copy()
-            if 'genres_list' not in self.content_based_model.movies_df.columns:
-                self.content_based_model.movies_df['genres_list'] = self.content_based_model.movies_df['genres'].str.split('|')
-            
-            load_time = time.time() - start_time
-            print(f"  ✓ Pre-trained Content-Based loaded in {load_time:.2f}s")
-            return True
-            
-        except Exception as e:
-            print(f"  ❌ Failed to load pre-trained Content-Based: {e}")
-            import traceback
-            traceback.print_exc()
-            return False
-    
-    def _try_load_svd(self, ratings_df: pd.DataFrame, movies_df: pd.DataFrame) -> bool:
-        """Try to load pre-trained SVD model (using sklearn version for faster loading)"""
-        from pathlib import Path
-        from src.utils import load_model_safe
-        
-        # Try sklearn version first (faster loading, less memory)
-        model_path = Path("models/svd_model_sklearn.pkl")
-        if not model_path.exists():
-            # Fallback to Surprise version if sklearn not available
-            model_path = Path("models/svd_model.pkl")
-            if not model_path.exists():
-                return False
-            
-        try:
-            print(f"  • Loading pre-trained SVD model ({model_path.name})...")
-            start_time = time.time()
-            
-            # Use load_model_safe to handle both pickle and joblib formats
-            loaded_model = load_model_safe(str(model_path))
-            
-            # Replace the svd_model with the loaded instance
-            self.svd_model = loaded_model
-            
-            # Provide data context (shallow reference - model is already trained)
-            # Pre-trained models only need data for metadata lookups, not training
-            self.svd_model.ratings_df = ratings_df  # Shallow reference instead of copy()
-            self.svd_model.movies_df = movies_df    # Shallow reference instead of copy()
-            if 'genres_list' not in self.svd_model.movies_df.columns:
-                self.svd_model.movies_df['genres_list'] = self.svd_model.movies_df['genres'].str.split('|')
-            
-            load_time = time.time() - start_time
-            print(f"  ✓ Pre-trained SVD loaded in {load_time:.2f}s")
-            return True
-            
-        except Exception as e:
-            print(f"  ❌ Failed to load pre-trained SVD: {e}")
+            print(f"  ❌ Failed to load pre-trained {algorithm_name}: {e}")
             import traceback
             traceback.print_exc()
             return False
@@ -387,11 +290,11 @@ class HybridRecommender(BaseRecommender):
         item_knn_rmse = self.algorithm_performance['item_knn']['rmse']
         content_based_rmse = self.algorithm_performance['content_based']['rmse']
         
-        # Get MAE values (use default if not available)
-        svd_mae = self.svd_model.metrics.mae if self.svd_model.metrics.mae > 0 else svd_rmse * 0.78
-        user_knn_mae = self.user_knn_model.metrics.mae if self.user_knn_model.metrics.mae > 0 else user_knn_rmse * 0.78
-        item_knn_mae = self.item_knn_model.metrics.mae if self.item_knn_model.metrics.mae > 0 else item_knn_rmse * 0.78
-        content_based_mae = self.content_based_model.metrics.mae if self.content_based_model.metrics.mae > 0 else content_based_rmse * 0.78
+        # Get MAE values (use default if not available - backward compatibility)
+        svd_mae = getattr(self.svd_model.metrics, 'mae', 0.0) or svd_rmse * 0.78
+        user_knn_mae = getattr(self.user_knn_model.metrics, 'mae', 0.0) or user_knn_rmse * 0.78
+        item_knn_mae = getattr(self.item_knn_model.metrics, 'mae', 0.0) or item_knn_rmse * 0.78
+        content_based_mae = getattr(self.content_based_model.metrics, 'mae', 0.0) or content_based_rmse * 0.78
         
         # Calculate weighted average RMSE (mathematical approximation)
         estimated_rmse = (
@@ -430,46 +333,59 @@ class HybridRecommender(BaseRecommender):
             self._end_prediction_timer()
     
     def _predict_hybrid_rating(self, user_id: int, movie_id: int) -> float:
-        """Internal hybrid rating prediction logic"""
+        """
+        Internal hybrid rating prediction logic with proper error handling.
+        
+        Attempts to get predictions from all algorithms and combines them using
+        dynamic weights. Logs warnings for failed predictions but continues with
+        available algorithms.
+        """
         predictions = {}
         weights = self._get_dynamic_weights(user_id, movie_id)
         
-        # Get predictions from each algorithm
-        try:
-            predictions['svd'] = self.svd_model.predict(user_id, movie_id)
-        except:
-            predictions['svd'] = None
-        
-        try:
-            predictions['user_knn'] = self.user_knn_model.predict(user_id, movie_id)
-        except:
-            predictions['user_knn'] = None
-        
-        try:
-            predictions['item_knn'] = self.item_knn_model.predict(user_id, movie_id)
-        except:
-            predictions['item_knn'] = None
-        
-        try:
-            predictions['content_based'] = self.content_based_model.predict(user_id, movie_id)
-        except:
-            predictions['content_based'] = None
+        # Attempt to get predictions from each algorithm
+        # Only catch expected exceptions, let critical errors propagate
+        for algo_name, model in [
+            ('svd', self.svd_model),
+            ('user_knn', self.user_knn_model),
+            ('item_knn', self.item_knn_model),
+            ('content_based', self.content_based_model)
+        ]:
+            try:
+                predictions[algo_name] = model.predict(user_id, movie_id)
+            except (ValueError, KeyError, AttributeError, IndexError) as e:
+                # Expected errors: missing data, untrained model, invalid IDs
+                # Log warning but continue with other algorithms
+                import warnings
+                warnings.warn(
+                    f"{algo_name} prediction failed for user {user_id}, movie {movie_id}: {type(e).__name__}: {e}",
+                    RuntimeWarning
+                )
+                predictions[algo_name] = None
+            # Note: SystemExit, KeyboardInterrupt, MemoryError will still propagate
         
         # Filter valid predictions and normalize weights
         valid_predictions = {k: v for k, v in predictions.items() if v is not None}
         
         if not valid_predictions:
             # Fallback to global average
-            return self.ratings_df['rating'].mean()
+            fallback = self.ratings_df['rating'].mean()
+            import warnings
+            warnings.warn(
+                f"All algorithms failed to predict for user {user_id}, movie {movie_id}. "
+                f"Using global average: {fallback:.2f}",
+                RuntimeWarning
+            )
+            return fallback
         
-        # Normalize weights for valid predictions
+        # Normalize weights for valid predictions only
         total_weight = sum(weights[k] for k in valid_predictions.keys())
         
         # Calculate weighted prediction
-        weighted_prediction = 0.0
-        for algo, prediction in valid_predictions.items():
-            weight = weights[algo] / total_weight
-            weighted_prediction += weight * prediction
+        weighted_prediction = sum(
+            (weights[algo] / total_weight) * pred 
+            for algo, pred in valid_predictions.items()
+        )
         
         return np.clip(weighted_prediction, 0.5, 5.0)
     
@@ -610,113 +526,128 @@ class HybridRecommender(BaseRecommender):
         finally:
             self._end_prediction_timer()
     
+    def recommend(self, user_id: int, n: int = 10, exclude_rated: bool = True) -> pd.DataFrame:
+        """Alias for get_recommendations() for consistency with other algorithms"""
+        return self.get_recommendations(user_id, n, exclude_rated)
+    
     def _aggregate_recommendations(self, all_recs: pd.DataFrame, n: int) -> pd.DataFrame:
-        """Aggregate recommendations from multiple algorithms"""
+        """
+        Aggregate recommendations from multiple algorithms using weighted averaging.
+        
+        Uses pandas groupby for optimal performance. Falls back to manual aggregation
+        only if pandas operations fail due to data structure issues.
+        
+        Args:
+            all_recs: DataFrame with columns [movieId, predicted_rating, title, genres, genres_list, weight]
+            n: Number of top recommendations to return
+            
+        Returns:
+            DataFrame with top N aggregated recommendations
+        """
         if len(all_recs) == 0:
             return pd.DataFrame(columns=['movieId', 'predicted_rating', 'title', 'genres', 'genres_list'])
         
         print(f"  • Aggregating {len(all_recs)} recommendations from multiple algorithms")
         
-        # Ensure all dataframes have consistent column names
-        if 'predicted_rating' not in all_recs.columns:
-            print(f"  ❌ Missing 'predicted_rating' column. Available: {list(all_recs.columns)}")
-            # Try to find alternative column names
-            rating_columns = [col for col in all_recs.columns if 'rating' in col.lower()]
-            if rating_columns:
-                print(f"  • Found rating column: {rating_columns[0]}, renaming to 'predicted_rating'")
-                all_recs = all_recs.rename(columns={rating_columns[0]: 'predicted_rating'})
-            else:
-                print(f"  ❌ No rating column found, returning original recommendations")
-                return all_recs.head(n)
+        # Validate required columns
+        required_cols = ['movieId', 'predicted_rating', 'title', 'genres', 'genres_list']
+        missing_cols = [col for col in required_cols if col not in all_recs.columns]
         
-        # Add missing weight column if not present
+        if missing_cols:
+            raise ValueError(f"Missing required columns: {missing_cols}. Available: {list(all_recs.columns)}")
+        
+        # Add default weight if missing
         if 'weight' not in all_recs.columns:
             print(f"  • Adding default weight of 1.0 to all recommendations")
+            all_recs = all_recs.copy()
             all_recs['weight'] = 1.0
         
-        # Group by movieId and calculate weighted average  
+        # Attempt pandas-optimized aggregation first
         try:
-            # Create aggregation functions that handle both Series and DataFrame inputs
-            def safe_weighted_mean(values):
-                """Compute weighted average handling both Series and DataFrame inputs"""
-                if hasattr(values, 'index'):  # Series input from agg()
-                    # Get corresponding weights for these values
-                    indices = values.index
-                    corresponding_weights = all_recs.loc[indices, 'weight']
-                    if len(values) == 1:
-                        return float(values.iloc[0])
-                    return float(np.average(values.values, weights=corresponding_weights.values))
-                else:  # Direct values (shouldn't happen but safe fallback)
-                    return float(values[0]) if len(values) == 1 else float(np.mean(values))
-            
-            def safe_first(values):
-                """Safe first value extraction"""
-                return values.iloc[0] if hasattr(values, 'iloc') else values[0]
-                
-            def safe_sum_weights(values):
-                """Safe weight sum"""
-                return float(values.sum()) if hasattr(values, 'sum') else float(sum(values))
-            
-            # Perform the aggregation
-            aggregated = all_recs.groupby('movieId').agg({
-                'predicted_rating': safe_weighted_mean,
-                'title': safe_first,
-                'genres': safe_first, 
-                'genres_list': safe_first,
-                'weight': safe_sum_weights
-            }).reset_index()
-            
-            # Sort by weighted rating and total weight
-            aggregated['final_score'] = aggregated['predicted_rating'] + 0.1 * np.log1p(aggregated['weight'])
-            aggregated = aggregated.sort_values('final_score', ascending=False)
-            
-            # Select top N and clean up
-            top_recommendations = aggregated.head(n)
-            
-            print(f"  ✓ Successfully aggregated to {len(top_recommendations)} recommendations")
-            return top_recommendations[['movieId', 'predicted_rating', 'title', 'genres', 'genres_list']]
-            
-        except Exception as e:
-            print(f"  • Using fallback aggregation method")
-            
-            # Manual aggregation fallback
-            movie_groups = {}
-            for _, row in all_recs.iterrows():
-                movie_id = row['movieId']
-                if movie_id not in movie_groups:
-                    movie_groups[movie_id] = {
-                        'ratings': [],
-                        'weights': [],
-                        'title': row['title'],
-                        'genres': row['genres'],
-                        'genres_list': row['genres_list']
-                    }
-                movie_groups[movie_id]['ratings'].append(row['predicted_rating'])
-                movie_groups[movie_id]['weights'].append(row['weight'])
-            
-            # Calculate weighted averages manually
-            result_rows = []
-            for movie_id, data in movie_groups.items():
-                if len(data['ratings']) == 1:
-                    weighted_rating = data['ratings'][0]
-                else:
-                    weighted_rating = np.average(data['ratings'], weights=data['weights'])
-                
-                result_rows.append({
-                    'movieId': movie_id,
-                    'predicted_rating': float(weighted_rating),
-                    'title': data['title'],
-                    'genres': data['genres'],
-                    'genres_list': data['genres_list'],
-                    'final_score': float(weighted_rating) + 0.1 * np.log1p(sum(data['weights']))
+            aggregated = all_recs.groupby('movieId').apply(
+                lambda group: pd.Series({
+                    'predicted_rating': np.average(
+                        group['predicted_rating'].values,
+                        weights=group['weight'].values
+                    ),
+                    'title': group['title'].iloc[0],
+                    'genres': group['genres'].iloc[0],
+                    'genres_list': group['genres_list'].iloc[0],
+                    'weight': group['weight'].sum()
                 })
+            ).reset_index()
             
-            # Convert to DataFrame and sort
-            manual_result = pd.DataFrame(result_rows)
-            manual_result = manual_result.sort_values('final_score', ascending=False)
+            # Calculate final score (rating + small bonus for multiple algorithm agreement)
+            aggregated['final_score'] = (
+                aggregated['predicted_rating'] + 
+                0.1 * np.log1p(aggregated['weight'])
+            )
             
-            print(f"  ✓ Fallback aggregation successful: {len(manual_result)} unique movies")
-            return manual_result.head(n)[['movieId', 'predicted_rating', 'title', 'genres', 'genres_list']]
+            result = (
+                aggregated
+                .sort_values('final_score', ascending=False)
+                .head(n)
+                [['movieId', 'predicted_rating', 'title', 'genres', 'genres_list']]
+            )
+            
+            print(f"  ✓ Successfully aggregated to {len(result)} recommendations (pandas method)")
+            return result
+            
+        except (ValueError, TypeError, AttributeError) as e:
+            # pandas aggregation failed, use manual fallback
+            import warnings
+            warnings.warn(
+                f"Pandas aggregation failed ({type(e).__name__}: {e}). "
+                f"Using slower manual aggregation.",
+                RuntimeWarning
+            )
+            return self._manual_aggregate_recommendations(all_recs, n)
+    
+    def _manual_aggregate_recommendations(self, all_recs: pd.DataFrame, n: int) -> pd.DataFrame:
+        """
+        Manual aggregation fallback for when pandas operations fail.
+        
+        This is slower than pandas but more robust to unusual data structures.
+        """
+        print(f"  • Using manual aggregation fallback")
+        
+        movie_groups = {}
+        for _, row in all_recs.iterrows():
+            movie_id = row['movieId']
+            if movie_id not in movie_groups:
+                movie_groups[movie_id] = {
+                    'ratings': [],
+                    'weights': [],
+                    'title': row['title'],
+                    'genres': row['genres'],
+                    'genres_list': row['genres_list']
+                }
+            movie_groups[movie_id]['ratings'].append(row['predicted_rating'])
+            movie_groups[movie_id]['weights'].append(row['weight'])
+        
+        # Calculate weighted averages manually
+        result_rows = []
+        for movie_id, data in movie_groups.items():
+            if len(data['ratings']) == 1:
+                weighted_rating = data['ratings'][0]
+            else:
+                weighted_rating = np.average(data['ratings'], weights=data['weights'])
+            
+            result_rows.append({
+                'movieId': movie_id,
+                'predicted_rating': float(weighted_rating),
+                'title': data['title'],
+                'genres': data['genres'],
+                'genres_list': data['genres_list'],
+                'final_score': float(weighted_rating) + 0.1 * np.log1p(sum(data['weights']))
+            })
+        
+        # Convert to DataFrame and sort
+        manual_result = pd.DataFrame(result_rows)
+        manual_result = manual_result.sort_values('final_score', ascending=False)
+        
+        print(f"  ✓ Fallback aggregation successful: {len(manual_result)} unique movies")
+        return manual_result.head(n)[['movieId', 'predicted_rating', 'title', 'genres', 'genres_list']]
     
     def get_similar_items(self, item_id: int, n: int = 10) -> pd.DataFrame:
         """Find similar items using the best-performing algorithm for similarity"""

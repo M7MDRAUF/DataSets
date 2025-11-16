@@ -106,28 +106,29 @@ with col1:
         "Fast Demo (100K ratings)": 100_000,
         "Balanced (500K ratings)": 500_000, 
         "High Quality (1M ratings)": 1_000_000,
-        "Full Dataset (32M ratings)": None
+        "Large (5M ratings)": 5_000_000
     }
     
     selected_option = st.selectbox(
         "Choose dataset size:",
         options=list(dataset_options.keys()),
         index=1,  # Default to Balanced
-        help="Larger datasets provide better insights but take longer to process"
+        help="Larger datasets provide better insights but take longer to process",
+        key="analytics_dataset_size"
     )
     
     selected_sample_size = dataset_options[selected_option]
 
 with col2:
     # Performance indicator
-    if selected_sample_size and selected_sample_size <= 100_000:
-        st.info("⚡ **Fast Mode**")
-    elif selected_sample_size and selected_sample_size <= 500_000:
-        st.info("🔥 **Balanced Mode**")
-    elif selected_sample_size and selected_sample_size <= 1_000_000:
-        st.info("🎯 **High Quality Mode**")
+    if selected_sample_size <= 100_000:
+        st.info("⚡ **Fast Mode**\n~5-10s load")
+    elif selected_sample_size <= 500_000:
+        st.info("🔥 **Balanced Mode**\n~15-30s load")
+    elif selected_sample_size <= 1_000_000:
+        st.info("🎯 **High Quality**\n~1-2min load")
     else:
-        st.warning("🐌 **Full Dataset Mode**")
+        st.warning("⚠️ **Large Dataset**\n~5-10min load")
 
 # Load data with caching and V2.1.0 manager
 @st.cache_data
@@ -143,26 +144,37 @@ def get_manager():
     return get_algorithm_manager()
 
 try:
-    with st.spinner("Loading dataset and initializing V2.1.0 analytics..."):
-        ratings_df, movies_df = load_data(selected_sample_size)
-        manager = get_manager()
-        manager.initialize_data(ratings_df, movies_df)
+    # Initialize data once per session
+    if 'analytics_data_loaded' not in st.session_state:
+        with st.spinner("Loading dataset and initializing V2.1.0 analytics..."):
+            ratings_df, movies_df = load_data(selected_sample_size)
+            manager = get_manager()
+            manager.initialize_data(ratings_df, movies_df)
+            st.session_state.analytics_data_loaded = True
+            st.session_state.ratings_df = ratings_df
+            st.session_state.movies_df = movies_df
+            st.session_state.manager = manager
+    else:
+        # Reuse from session state
+        ratings_df = st.session_state.ratings_df
+        movies_df = st.session_state.movies_df
+        manager = st.session_state.manager
     
     st.success(f"✅ Analytics ready! Loaded {len(ratings_df):,} ratings and {len(movies_df):,} movies")
     
-    # Performance mode indicator
-    if selected_sample_size and selected_sample_size <= 100_000:
-        st.info("⚡ **Fast Demo Mode**: Quick analytics processing!")
-    elif selected_sample_size and selected_sample_size <= 500_000:
-        st.info("🔥 **Balanced Mode**: Good balance of speed and comprehensive analysis")
-    elif selected_sample_size and selected_sample_size <= 1_000_000:
-        st.info("🎯 **High Quality Mode**: Detailed analysis with rich insights")
-    else:
-        st.warning("🐌 **Full Dataset Mode**: Most comprehensive analysis but slower processing")
+    # ========== GLOBAL SESSION STATE INITIALIZATION (CRITICAL) ==========
+    # Initialize session state variables BEFORE tab rendering to ensure proper persistence
+    # across Streamlit reruns. This prevents state loss when switching between tabs or
+    # clicking buttons that trigger page refreshes.
+    if 'benchmark_results' not in st.session_state:
+        st.session_state.benchmark_results = None
+    if 'recommendation_results' not in st.session_state:
+        st.session_state.recommendation_results = None
     
     st.markdown("---")
     
-    # Tab navigation
+    # Tab navigation - rendered fresh on every rerun (normal Streamlit behavior)
+    # Note: Tabs may appear duplicated due to spinner text above, but they're actually single instances
     tab1, tab2, tab3, tab4, tab5 = st.tabs([
         "🤖 Algorithm Performance",
         "📈 Genre Analysis", 
@@ -177,101 +189,417 @@ try:
         col1, col2 = st.columns([2, 1])
         
         with col1:
-            st.markdown("### Algorithm Benchmarking")
-            
-            # Run benchmarks button
+            # Run benchmarks button (removed redundant header - tab already says "Algorithm Performance")
             if st.button("🚀 Run Algorithm Benchmark", type="primary"):
-                with st.spinner("Loading algorithm metrics..."):
-                    benchmark_results = []
-                    
-                    # Get metrics for each algorithm WITHOUT forcing training
-                    for algo_type in [AlgorithmType.SVD, AlgorithmType.USER_KNN, AlgorithmType.ITEM_KNN, AlgorithmType.CONTENT_BASED, AlgorithmType.HYBRID]:
-                        try:
-                            # Check if algorithm is already cached/trained
-                            metrics_data = manager.get_algorithm_metrics(algo_type)
-                            
-                            # If not cached, try to load it (will use pre-trained if available)
-                            if not metrics_data or metrics_data.get('status') != 'Trained':
-                                with st.spinner(f"Loading {algo_type.value}..."):
-                                    algorithm = manager.get_algorithm(algo_type)
-                                    metrics_data = manager.get_algorithm_metrics(algo_type)
-                            
-                            if metrics_data and metrics_data.get('status') == 'Trained':
-                                metrics = metrics_data.get('metrics', {})
-                                benchmark_results.append({
-                                    'Algorithm': algo_type.value,
-                                    'RMSE': metrics.get('rmse', 'N/A'),
-                                    'MAE': metrics.get('mae', 'N/A'),
-                                    'Training Time (s)': metrics_data.get('training_time', 'N/A'),
-                                    'Sample Size': metrics.get('sample_size', 'N/A'),
-                                    'Coverage (%)': metrics.get('coverage', 'N/A')
-                                })
-                        except Exception as e:
-                            st.warning(f"Could not benchmark {algo_type.value}: {e}")
-                    
-                    if benchmark_results:
-                        # Display results
-                        df_results = pd.DataFrame(benchmark_results)
-                        st.dataframe(df_results, width="stretch")
+                # Use status container to avoid spinner duplication
+                status_container = st.empty()
+                status_container.info("⏳ Loading algorithm metrics...")
+                
+                benchmark_results = []
+                
+                # Get metrics for each algorithm WITHOUT forcing training
+                for algo_type in [AlgorithmType.SVD, AlgorithmType.USER_KNN, AlgorithmType.ITEM_KNN, AlgorithmType.CONTENT_BASED, AlgorithmType.HYBRID]:
+                    try:
+                        # Check if algorithm is already cached/trained
+                        metrics_data = manager.get_algorithm_metrics(algo_type)
                         
-                        # Performance charts
-                        if not df_results.empty:
-                            # RMSE comparison - filter out non-numeric values
-                            df_numeric = df_results.copy()
-                            df_numeric['RMSE'] = pd.to_numeric(df_numeric['RMSE'], errors='coerce')
-                            df_numeric = df_numeric.dropna(subset=['RMSE'])
-                            
-                            if not df_numeric.empty and 'RMSE' in df_numeric.columns:
-                                fig_rmse = px.bar(
-                                    df_numeric,
-                                    x='Algorithm', 
-                                    y='RMSE',
-                                    title='Algorithm Accuracy Comparison (Lower RMSE = Better)',
-                                    color='RMSE',
-                                    color_continuous_scale='Viridis_r'
-                                )
-                                fig_rmse.update_layout(height=400)
-                                st.plotly_chart(fig_rmse, width="stretch")
-                            
-                            # Coverage comparison
-                            if 'Coverage (%)' in df_results.columns:
-                                df_coverage = df_results.copy()
-                                df_coverage['Coverage (%)'] = pd.to_numeric(df_coverage['Coverage (%)'], errors='coerce')
-                                df_coverage = df_coverage.dropna(subset=['Coverage (%)'])
-                                
-                                if not df_coverage.empty:
-                                    fig_coverage = px.bar(
-                                        df_coverage,
-                                        x='Algorithm',
-                                        y='Coverage (%)', 
-                                        title='Prediction Coverage Comparison (Higher = Better)',
-                                        color='Coverage (%)',
-                                        color_continuous_scale='Greens'
-                                    )
-                                    fig_coverage.update_layout(height=400)
-                                    st.plotly_chart(fig_coverage, width="stretch")
-                    else:
-                        st.warning("No benchmark results available. Please ensure algorithms are properly configured.")
+                        # If not cached, try to load it (will use pre-trained if available)
+                        if not metrics_data or metrics_data.get('status') != 'Trained':
+                            status_container.info(f"⏳ Loading {algo_type.value}...")
+                            algorithm = manager.get_algorithm(algo_type)
+                            metrics_data = manager.get_algorithm_metrics(algo_type)
+                        
+                        if metrics_data and metrics_data.get('status') == 'Trained':
+                            metrics = metrics_data.get('metrics', {})
+                            benchmark_results.append({
+                                'Algorithm': algo_type.value,
+                                'RMSE': metrics.get('rmse', 'N/A'),
+                                'MAE': metrics.get('mae', 'N/A'),
+                                'Training Time (s)': metrics_data.get('training_time', 'N/A'),
+                                'Sample Size': metrics.get('sample_size', 'N/A'),
+                                'Coverage (%)': metrics.get('coverage', 'N/A')
+                            })
+                    except Exception as e:
+                        st.warning(f"Could not benchmark {algo_type.value}: {e}")
+                
+                # Clear status and show results
+                status_container.empty()
+                
+                # Store results in session state
+                if benchmark_results:
+                    st.session_state.benchmark_results = benchmark_results
+                else:
+                    st.session_state.benchmark_results = None
         
-        with col2:
-            st.markdown("### Algorithm Status")
+        # Display benchmark results if available (persistent across reruns)
+        if st.session_state.benchmark_results:
+            # Display results
+            df_results = pd.DataFrame(st.session_state.benchmark_results)
+            st.dataframe(df_results, width="stretch")
             
-            # Show current algorithm status
-            algorithm_info = {
-                "SVD": {"emoji": "🎯", "color": "#1f77b4", "desc": "Matrix Factorization"},
-                "User KNN": {"emoji": "👥", "color": "#ff7f0e", "desc": "User-based Filtering"},
-                "Item KNN": {"emoji": "🎬", "color": "#2ca02c", "desc": "Item-based Filtering"},
-                "Hybrid": {"emoji": "🚀", "color": "#d62728", "desc": "Combined Approach"}
+            # Performance charts
+            if not df_results.empty:
+                # RMSE comparison - filter out non-numeric values
+                df_numeric = df_results.copy()
+                df_numeric['RMSE'] = pd.to_numeric(df_numeric['RMSE'], errors='coerce')
+                df_numeric = df_numeric.dropna(subset=['RMSE'])
+                
+                if not df_numeric.empty and 'RMSE' in df_numeric.columns:
+                    fig_rmse = px.bar(
+                        df_numeric,
+                        x='Algorithm', 
+                        y='RMSE',
+                        title='Algorithm Accuracy Comparison (Lower RMSE = Better)',
+                        color='RMSE',
+                        color_continuous_scale='Viridis_r'
+                    )
+                    fig_rmse.update_layout(height=400)
+                    st.plotly_chart(fig_rmse, width="stretch")
+                
+                # Coverage comparison
+                if 'Coverage (%)' in df_results.columns:
+                    df_coverage = df_results.copy()
+                    df_coverage['Coverage (%)'] = pd.to_numeric(df_coverage['Coverage (%)'], errors='coerce')
+                    df_coverage = df_coverage.dropna(subset=['Coverage (%)'])
+                    
+                    if not df_coverage.empty:
+                        fig_coverage = px.bar(
+                            df_coverage,
+                            x='Algorithm',
+                            y='Coverage (%)', 
+                            title='Prediction Coverage Comparison (Higher = Better)',
+                            color='Coverage (%)',
+                            color_continuous_scale='Greens'
+                        )
+                        fig_coverage.update_layout(height=400)
+                        st.plotly_chart(fig_coverage, width="stretch")
+        
+        # ========== SECTION BELOW BENCHMARK: SAMPLE RECOMMENDATIONS ==========
+        st.markdown("---")
+        st.markdown("### 🎯 Test Algorithm with Sample Recommendations")
+        st.markdown("Generate recommendations for a test user to see how each algorithm performs in practice")
+        
+        # Test user selection and algorithm picker
+        demo_col1, demo_col2, demo_col3 = st.columns([1, 1, 1])
+        
+        with demo_col1:
+            test_user_id = st.number_input(
+                "Test User ID:",
+                min_value=1,
+                max_value=ratings_df['userId'].max(),
+                value=1,
+                help="Enter a user ID to generate sample recommendations"
+            )
+        
+        with demo_col2:
+            demo_algorithm = st.selectbox(
+                "Algorithm to Test:",
+                options=["SVD Matrix Factorization", "KNN User-Based", "KNN Item-Based", "Content-Based Filtering", "Hybrid (Best of All)"],
+                help="Choose which algorithm to generate recommendations from"
+            )
+        
+        with demo_col3:
+            num_recs = st.number_input(
+                "Number of Recommendations:",
+                min_value=5,
+                max_value=20,
+                value=10,
+                help="How many recommendations to generate"
+            )
+        
+        # Generate recommendations button
+        if st.button("🎬 Generate Sample Recommendations", type="primary"):
+            # Map UI selection to AlgorithmType
+            algo_map = {
+                "SVD Matrix Factorization": AlgorithmType.SVD,
+                "KNN User-Based": AlgorithmType.USER_KNN,
+                "KNN Item-Based": AlgorithmType.ITEM_KNN,
+                "Content-Based Filtering": AlgorithmType.CONTENT_BASED,
+                "Hybrid (Best of All)": AlgorithmType.HYBRID
             }
             
-            for algo, info in algorithm_info.items():
+            selected_algo_type = algo_map[demo_algorithm]
+            
+            # ========== SECTION 1: LOAD ALGORITHM & GENERATE RECOMMENDATIONS ==========
+            # Use status container to avoid text appearing above tabs
+            status_container = st.empty()
+            
+            try:
+                # Load/switch to the algorithm
+                status_container.info(f"⏳ Loading {demo_algorithm}...")
+                algorithm = manager.switch_algorithm(selected_algo_type)
+                print(f"[DEBUG] Algorithm loaded: {algorithm.name}")
+                
+                # Check if user exists
+                if test_user_id not in ratings_df['userId'].values:
+                    status_container.empty()
+                    st.error(f"❌ User {test_user_id} not found in dataset. Please try a different user ID.")
+                    st.info(f"Valid user ID range: 1 to {ratings_df['userId'].max()}")
+                    st.stop()
+                
+                # Generate recommendations
+                status_container.info(f"⏳ Generating {num_recs} recommendations for User {test_user_id}...")
+                recommendations = algorithm.recommend(
+                    user_id=test_user_id,
+                    n=num_recs
+                )
+                print(f"[DEBUG] Recommendations generated: {len(recommendations) if recommendations is not None else 'None'}")
+                
+                # Clear status container
+                status_container.empty()
+                
+                # ========== DEFENSIVE VALIDATION ==========
+                if recommendations is None:
+                    st.error(f"❌ Algorithm returned None. This should never happen.")
+                    st.info("Please try a different algorithm or user ID.")
+                    print(f"[ERROR] Algorithm returned None for user {test_user_id}")
+                    st.session_state.recommendation_results = None
+                    st.stop()
+                
+                if not isinstance(recommendations, pd.DataFrame):
+                    st.error(f"❌ Algorithm returned {type(recommendations)} instead of DataFrame.")
+                    st.info("Please report this bug to the development team.")
+                    print(f"[ERROR] Algorithm returned wrong type: {type(recommendations)}")
+                    st.session_state.recommendation_results = None
+                    st.stop()
+                
+                if recommendations.empty:
+                    st.warning(f"⚠️ No recommendations generated for User {test_user_id}.")
+                    st.info("This user might have rated all available movies. Try a different user ID.")
+                    print(f"[WARNING] Empty recommendations for user {test_user_id}")
+                    st.session_state.recommendation_results = None
+                    st.stop()
+                
+                # Check for required columns
+                required_cols = ['movieId', 'predicted_rating', 'title', 'genres']
+                missing_cols = [col for col in required_cols if col not in recommendations.columns]
+                
+                if missing_cols:
+                    st.error(f"❌ Missing required columns: {missing_cols}")
+                    st.info(f"Available columns: {list(recommendations.columns)}")
+                    print(f"[ERROR] Missing columns: {missing_cols}, Available: {list(recommendations.columns)}")
+                    st.session_state.recommendation_results = None
+                    st.stop()
+                
+                # Store in session state
+                st.session_state.recommendation_results = {
+                    'recommendations': recommendations,
+                    'algorithm': demo_algorithm,
+                    'user_id': test_user_id
+                }
+                
+            except Exception as e:
+                status_container.empty()  # Clear loading message on error
+                st.error(f"❌ Error generating recommendations: {e}")
+                st.info("""
+                **Troubleshooting:**
+                1. Try a different user ID
+                2. Try a different algorithm
+                3. Ensure pre-trained models are available in `models/` folder
+                4. Check Docker logs for detailed error information
+                """)
+                import traceback
+                print(f"[ERROR] Recommendation generation failed: {traceback.format_exc()}")
+                with st.expander("🐛 Show detailed error"):
+                    st.code(traceback.format_exc())
+                st.session_state.recommendation_results = None
+        
+        # Display recommendation results if available (persistent across reruns)
+        if st.session_state.recommendation_results:
+            recommendations = st.session_state.recommendation_results['recommendations']
+            demo_algorithm = st.session_state.recommendation_results['algorithm']
+            test_user_id = st.session_state.recommendation_results['user_id']
+            
+            # ========== DISPLAY RECOMMENDATIONS ==========
+            st.success(f"✅ Generated {len(recommendations)} recommendations using {demo_algorithm}!")
+            print(f"[SUCCESS] Displaying {len(recommendations)} recommendations")
+            
+            st.markdown(f"### 🎬 Top {len(recommendations)} Recommendations for User {test_user_id}")
+            st.markdown(f"*Powered by {demo_algorithm}*")
+            
+            # Display each recommendation
+            for idx, row in recommendations.iterrows():
+                # Format genres with color badges
+                genres_list = row['genres'].split('|')
+                genre_badges = ' '.join([f"<span style='background-color: #667eea; color: white; padding: 2px 8px; border-radius: 12px; font-size: 0.8rem; margin-right: 4px;'>{g}</span>" for g in genres_list[:3]])
+                
                 st.markdown(f"""
-                <div class="algorithm-card">
-                    <div style="font-size: 2rem; text-align: center;">{info['emoji']}</div>
-                    <div style="font-weight: bold; text-align: center; margin: 0.5rem 0;">{algo}</div>
-                    <div style="text-align: center; color: #ddd; font-size: 0.9rem;">{info['desc']}</div>
+                <div class="movie-card">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div style="flex: 1;">
+                            <div style="font-weight: bold; font-size: 1.1rem; margin-bottom: 0.5rem;">
+                                {idx + 1}. {row['title']}
+                            </div>
+                            <div style="margin-bottom: 0.5rem;">
+                                {genre_badges}
+                            </div>
+                            <div style="color: #aaa; font-size: 0.9rem;">
+                                <strong>Predicted Rating:</strong> ⭐ {row['predicted_rating']:.2f}/5.0
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 """, unsafe_allow_html=True)
+            
+            # ========== SECTION 2: USER TASTE PROFILE (INDEPENDENT) ==========
+            try:
+                print(f"[DEBUG] Rendering User Taste Profile section...")
+                
+                # ========== USER TASTE PROFILE SECTION ==========
+                st.markdown("---")
+                st.markdown(f"### 👤 User {test_user_id} Taste Profile")
+                
+                user_ratings = ratings_df[ratings_df['userId'] == test_user_id]
+                
+                if not user_ratings.empty:
+                    # User statistics
+                    profile_col1, profile_col2, profile_col3, profile_col4 = st.columns(4)
+                    
+                    with profile_col1:
+                        st.metric("Total Ratings", len(user_ratings))
+                    
+                    with profile_col2:
+                        st.metric("Average Rating", f"{user_ratings['rating'].mean():.2f}")
+                    
+                    with profile_col3:
+                        st.metric("Highest Rating", f"{user_ratings['rating'].max():.1f}")
+                    
+                    with profile_col4:
+                        st.metric("Lowest Rating", f"{user_ratings['rating'].min():.1f}")
+                    
+                    # Top rated movies
+                    st.markdown("#### 🌟 Top 5 Rated Movies")
+                    top_rated = user_ratings.nlargest(5, 'rating').merge(
+                        movies_df[['movieId', 'title', 'genres']],
+                        on='movieId',
+                        how='left'
+                    )
+                    
+                    for idx, row in top_rated.iterrows():
+                        st.markdown(f"**{row['title']}** - ⭐ {row['rating']:.1f}/5.0 - {row['genres']}")
+                    
+                    # Favorite genres
+                    st.markdown("#### 🎭 Favorite Genres")
+                    user_movies = user_ratings.merge(movies_df[['movieId', 'genres']], on='movieId')
+                    all_genres = user_movies['genres'].str.split('|', expand=True).stack()
+                    genre_counts = all_genres.value_counts().head(5)
+                    
+                    genre_col1, genre_col2 = st.columns(2)
+                    with genre_col1:
+                        for genre, count in genre_counts.items():
+                            st.markdown(f"**{genre}**: {count} movies")
+                
+                print(f"[SUCCESS] User Taste Profile section rendered")
+                
+            except Exception as e:
+                st.error(f"⚠️ Could not load user profile: {e}")
+                print(f"[ERROR] User profile section failed: {e}")
+                import traceback
+                print(traceback.format_exc())
+            
+            # ========== SECTION 3: RECOMMENDATION EXPLANATION (INDEPENDENT) ==========
+            try:
+                print(f"[DEBUG] Rendering Recommendation Explanation section...")
+                
+                # ========== RECOMMENDATION EXPLANATION SECTION ==========
+                st.markdown("---")
+                st.markdown(f"### 🔍 Why These Recommendations?")
+                st.markdown(f"*How {demo_algorithm} decided on these movies*")
+                
+                # Get explanation from first recommended movie
+                if len(recommendations) > 0:
+                    first_movie_id = recommendations.iloc[0]['movieId']
+                    
+                    # Get explanation context with comprehensive error handling
+                    explanation_context = None
+                    try:
+                        if hasattr(algorithm, 'get_explanation_context'):
+                            explanation_context = algorithm.get_explanation_context(test_user_id, first_movie_id)
+                            print(f"[DEBUG] Explanation context retrieved: {explanation_context.get('method') if explanation_context else 'None'}")
+                        else:
+                            print(f"[WARNING] Algorithm {algorithm.name} does not have get_explanation_context method")
+                    except Exception as e:
+                        print(f"[ERROR] Failed to get explanation context: {e}")
+                    
+                    # Display explanation based on method
+                    if explanation_context and explanation_context.get('method'):
+                        method = explanation_context.get('method', 'unknown')
+                        
+                        if method == 'latent_factors':
+                            # Safe attribute access with fallback
+                            n_components = getattr(algorithm, 'n_components', 100)
+                            st.info(f"""
+                            **SVD Matrix Factorization** discovered hidden patterns in your rating history:
+                            - Predicted rating: **{explanation_context.get('prediction', 0):.2f}/5.0**
+                            - Your typical rating bias: **{explanation_context.get('user_bias', 0):+.2f}**
+                            - This movie's quality score: **{explanation_context.get('movie_bias', 0):+.2f}**
+                            - Combining {n_components} latent factors to match your taste
+                            """)
+                        
+                        elif method == 'similar_users':
+                            similar_count = explanation_context.get('similar_users_count', 0)
+                            st.info(f"""
+                            **User-Based Collaborative Filtering** found {similar_count} users with similar taste:
+                            - These users loved the recommended movies
+                            - Your ratings align closely with their preferences
+                            - Community-validated recommendations
+                            """)
+                        
+                        elif method == 'similar_items':
+                            similar_count = explanation_context.get('similar_movies_count', 0)
+                            st.info(f"""
+                            **Item-Based Collaborative Filtering** analyzed movie similarity:
+                            - Found {similar_count} movies similar to ones you loved
+                            - Based on rating patterns across all users
+                            - Stable, reliable recommendations
+                            """)
+                        
+                        elif method == 'content_based':
+                            st.info(f"""
+                            **Content-Based Filtering** matched movie features to your preferences:
+                            - Analyzed genres, tags, and themes from your top-rated movies
+                            - Recommended movies with similar characteristics
+                            - No dependency on other users' opinions
+                            """)
+                        
+                        elif method == 'hybrid_ensemble':
+                            weights = explanation_context.get('algorithm_weights', {})
+                            primary = explanation_context.get('primary_algorithm', 'multiple')
+                            st.info(f"""
+                            **Hybrid Algorithm** combined multiple approaches:
+                            - Primary method: **{primary}**
+                            - SVD weight: {weights.get('svd', 0):.2f}
+                            - User KNN weight: {weights.get('user_knn', 0):.2f}
+                            - Item KNN weight: {weights.get('item_knn', 0):.2f}
+                            - Content-Based weight: {weights.get('content_based', 0):.2f}
+                            - Best of all worlds approach!
+                            """)
+                        else:
+                            st.info(f"{demo_algorithm} analyzed your rating history and preferences to generate personalized recommendations.")
+                    else:
+                        # Fallback explanation when context not available
+                        st.info(f"{demo_algorithm} analyzed your rating history and preferences to generate personalized recommendations.")
+                
+                print(f"[SUCCESS] Recommendation Explanation section rendered")
+                
+            except Exception as e:
+                st.warning(f"⚠️ Could not load explanation details: {e}")
+                print(f"[ERROR] Explanation section failed: {e}")
+                import traceback
+                print(traceback.format_exc())
+                # Show generic explanation as fallback
+                st.info(f"{demo_algorithm} analyzed your rating history to generate these recommendations.")
+        
+        with col2:
+            st.info("""
+            **💡 Quick Guide**
+            
+            1. Run benchmark to see metrics
+            2. Select a test user ID
+            3. Choose an algorithm
+            4. Generate recommendations
+            5. Explore results!
+            """)
         
         st.markdown("---")
         
@@ -595,43 +923,43 @@ try:
                                         algo_map = {
                                             "Item KNN": AlgorithmType.ITEM_KNN,
                                             "SVD": AlgorithmType.SVD,
-                                            "Content-Based": AlgorithmType.CONTENT_BASED,
                                             "Hybrid": AlgorithmType.HYBRID
                                         }
                                         
                                         # Switch to the selected algorithm
                                         algorithm = manager.switch_algorithm(algo_map[similarity_algorithm])
                                         
-                                        # Get similar movies (this would need to be implemented in the algorithm)
-                                        # For now, we'll show top movies from the same genres
-                                        movie_genres = row['genres'].split('|')
-                                        similar_movies = movies_df[
-                                            movies_df['genres'].str.contains('|'.join(movie_genres), case=False, na=False)
-                                        ].sample(min(10, len(movies_df))).reset_index(drop=True)
+                                        # Get similar movies using the algorithm's native method
+                                        similar_movies_df = algorithm.get_similar_items(row['movieId'], n=10)
                                     
                                     st.markdown(f"### Movies Similar to **{row['title']}**")
                                     st.markdown(f"*Using {similarity_algorithm} algorithm*")
                                     
                                     # Display similar movies
-                                    for sim_idx, sim_row in similar_movies.iterrows():
-                                        if sim_row['movieId'] != row['movieId']:  # Don't show the same movie
+                                    if similar_movies_df is not None and len(similar_movies_df) > 0:
+                                        for sim_idx, sim_row in similar_movies_df.iterrows():
+                                            similarity_score = sim_row.get('similarity', 0.0)
                                             st.markdown(f"""
                                             <div class="movie-card">
                                                 <div style="font-weight: bold; margin-bottom: 0.5rem;">
-                                                    {sim_idx+1}. {sim_row['title']}
+                                                    {sim_idx+1}. {sim_row['title']} 
+                                                    <span style="color: #4CAF50;">({similarity_score:.2%} match)</span>
                                                 </div>
                                                 <div style="color: #ccc; font-size: 0.9rem;">
                                                     <strong>Genres:</strong> {sim_row['genres']}
                                                 </div>
                                             </div>
                                             """, unsafe_allow_html=True)
-                                        
-                                        if sim_idx >= 8:  # Show max 9 similar movies
-                                            break
+                                            
+                                            if sim_idx >= 9:  # Show max 10 similar movies
+                                                break
+                                    else:
+                                        st.info("No similar movies found. Try a different movie or algorithm.")
                                     
                                 except Exception as e:
                                     st.error(f"Error finding similar movies: {e}")
-                                    st.info("Similarity calculation is being enhanced for V2.1.0. Currently showing genre-based suggestions.")
+                                    import traceback
+                                    st.code(traceback.format_exc())
                 else:
                     st.warning("No movies found. Try a different search term.")
         

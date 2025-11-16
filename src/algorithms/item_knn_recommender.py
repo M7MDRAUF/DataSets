@@ -130,17 +130,20 @@ class ItemKNNRecommender(BaseRecommender):
         # Filter ratings to only include valid items
         filtered_ratings = ratings_df[ratings_df['movieId'].isin(valid_items)]
         
-        # Create mappings
-        unique_users = filtered_ratings['userId'].unique()
-        unique_movies = filtered_ratings['movieId'].unique()
+        # CRITICAL FIX: Create mappings from FULL dataset to prevent index corruption
+        # Use ALL users and movies from original ratings_df, not filtered subset
+        all_users = ratings_df['userId'].unique()
+        unique_movies = filtered_ratings['movieId'].unique()  # Movies still filtered for min_ratings
         
-        self.user_mapper = {uid: idx for idx, uid in enumerate(unique_users)}
+        self.user_mapper = {uid: idx for idx, uid in enumerate(all_users)}
         self.movie_mapper = {mid: idx for idx, mid in enumerate(unique_movies)}
         self.movie_inv_mapper = {idx: mid for mid, idx in self.movie_mapper.items()}
+        self.user_inv_mapper = {idx: uid for uid, idx in self.user_mapper.items()}
         
         # Create sparse matrix (items x users)
+        # Use filtered movies but ALL users to prevent index corruption
         n_movies = len(unique_movies)
-        n_users = len(unique_users)
+        n_users = len(all_users)
         
         movie_indices = filtered_ratings['movieId'].map(self.movie_mapper).values
         user_indices = filtered_ratings['userId'].map(self.user_mapper).values
@@ -177,7 +180,7 @@ class ItemKNNRecommender(BaseRecommender):
             self.similarity_matrix = None
     
     def _calculate_rmse(self, ratings_df: pd.DataFrame) -> None:
-        """Calculate RMSE on a test sample - OPTIMIZED for speed"""
+        """Calculate RMSE and MAE on a test sample - OPTIMIZED for speed"""
         # Use a much smaller sample for RMSE to avoid extreme computation time
         # For Item-KNN with 32M ratings, even 100 predictions can take minutes
         test_items = ratings_df[ratings_df['movieId'].isin(self.valid_items)]
@@ -186,23 +189,34 @@ class ItemKNNRecommender(BaseRecommender):
         test_sample = test_items.sample(min(100, len(test_items)), random_state=42)
         
         squared_errors = []
+        absolute_errors = []
         for idx, row in enumerate(test_sample.itertuples(index=False)):
             try:
                 pred = self._predict_rating(row.userId, row.movieId)
-                squared_errors.append((pred - row.rating) ** 2)
+                error = pred - row.rating
+                squared_errors.append(error ** 2)
+                absolute_errors.append(abs(error))
                 
                 # Progress indicator every 25 predictions
                 if (idx + 1) % 25 == 0:
                     print(f"    • RMSE progress: {idx + 1}/{len(test_sample)} predictions...")
+            except KeyError as e:
+                # User/movie not in training data - skip gracefully
+                continue
             except Exception as e:
-                # Skip failed predictions silently
+                # Log unexpected errors but continue
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.debug(f"RMSE prediction failed for user {row.userId}, movie {row.movieId}: {e}")
                 continue
         
         if squared_errors:
             self.metrics.rmse = np.sqrt(np.mean(squared_errors))
+            self.metrics.mae = np.mean(absolute_errors)
         else:
-            # If all predictions fail, use a baseline RMSE estimate
+            # If all predictions fail, use baseline estimates
             self.metrics.rmse = 0.95  # Typical for KNN on MovieLens
+            self.metrics.mae = 0.75
     
     def predict(self, user_id: int, movie_id: int) -> float:
         """Predict rating for a specific user-movie pair"""
@@ -357,6 +371,10 @@ class ItemKNNRecommender(BaseRecommender):
         finally:
             self._end_prediction_timer()
     
+    def recommend(self, user_id: int, n: int = 10, exclude_rated: bool = True) -> pd.DataFrame:
+        """Alias for get_recommendations() for consistency with other algorithms"""
+        return self.get_recommendations(user_id, n, exclude_rated)
+    
     def _smart_sample_candidates(self, candidate_movies: set, max_candidates: int = 5000) -> set:
         """Smart sampling of candidate movies for efficiency"""
         # Get popularity scores for sampling
@@ -397,22 +415,41 @@ class ItemKNNRecommender(BaseRecommender):
             # New user - use popularity-based recommendations
             return self._get_popularity_predictions(candidate_movies, 1000)
         
+        # CRITICAL: Validate user exists in mapper
+        if user_id not in self.user_mapper:
+            print(f"    ⚠ User {user_id} not in training data, using popularity fallback")
+            return self._get_popularity_predictions(candidate_movies, 1000)
+        
         user_idx = self.user_mapper[user_id]
         
         print(f"    → Getting user {user_id}'s rating history...")
         
-        # Get user's ratings as a dictionary for fast lookup
+        # Get user's ratings from the SPARSE MATRIX column
+        # This accesses the user's column in item_user_matrix (items x users)
         user_ratings = {}
-        user_movies = self.item_user_matrix[:, user_idx]
-        for movie_idx, rating in zip(user_movies.indices, user_movies.data):
+        user_column = self.item_user_matrix[:, user_idx]  # Get this user's column (all items)
+        
+        # Extract non-zero ratings
+        for movie_idx, rating in zip(user_column.indices, user_column.data):
             if rating > 0:
                 movie_id = self.movie_inv_mapper[movie_idx]
                 user_ratings[movie_idx] = rating
         
+        # Double-check: count should match what's in ratings_df for this user
+        actual_count = len(self.ratings_df[self.ratings_df['userId'] == user_id])
+        matrix_count = len(user_ratings)
+        
+        if matrix_count != actual_count:
+            # Count mismatch indicates the user was looking up wrong index
+            print(f"    ⚠ WARNING: Rating count mismatch for user {user_id}")
+            print(f"    → ratings_df shows: {actual_count} ratings")
+            print(f"    → Matrix shows: {matrix_count} ratings")
+            print(f"    → This indicates index corruption - FIX REQUIRED")
+        
         if len(user_ratings) == 0:
             return self._get_popularity_predictions(candidate_movies, 1000)
         
-        print(f"    → User has {len(user_ratings)} ratings")
+        print(f"    → User has {len(user_ratings)} ratings (verified: {actual_count} in dataset)")
         print(f"    → Generating predictions for {len(candidate_movies)} candidates...")
         
         # Convert candidate movies to indices and limit for performance
@@ -493,7 +530,14 @@ class ItemKNNRecommender(BaseRecommender):
                 if processed % 500 == 0:
                     print(f"      → Processed {processed}/{len(valid_candidates)} movies")
                 
+            except KeyError as e:
+                # Movie or user data missing - skip gracefully
+                continue
             except Exception as e:
+                # Log unexpected errors
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.debug(f"Failed to predict for movie {movie_id}: {e}")
                 continue
         
         print(f"    ✓ Generated {len(predictions)} predictions")

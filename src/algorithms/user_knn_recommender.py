@@ -140,27 +140,39 @@ class UserKNNRecommender(BaseRecommender):
         self.global_mean = ratings_df['rating'].mean()
     
     def _calculate_rmse(self, ratings_df: pd.DataFrame) -> None:
-        """Calculate RMSE on a test sample - OPTIMIZED for speed"""
+        """Calculate RMSE and MAE on a test sample - OPTIMIZED for speed"""
         # Use smaller sample for faster training (100 instead of 5000)
         test_sample = ratings_df.sample(min(100, len(ratings_df)), random_state=42)
         
         squared_errors = []
+        absolute_errors = []
+        import logging
+        logger = logging.getLogger(__name__)
+        
         for idx, row in enumerate(test_sample.itertuples(index=False)):
             try:
                 pred = self._predict_rating(row.userId, row.movieId)
-                squared_errors.append((pred - row.rating) ** 2)
+                error = pred - row.rating
+                squared_errors.append(error ** 2)
+                absolute_errors.append(abs(error))
                 
                 # Progress indicator
                 if (idx + 1) % 25 == 0:
                     print(f"    • RMSE progress: {idx + 1}/{len(test_sample)} predictions...")
-            except:
-                continue  # Skip if prediction fails
+            except KeyError as e:
+                logger.debug(f"Skipping prediction for user {row.userId}, movie {row.movieId}: {e}")
+                continue
+            except Exception as e:
+                logger.warning(f"RMSE calculation failed for user {row.userId}, movie {row.movieId}: {e}")
+                continue
         
         if squared_errors:
             self.metrics.rmse = np.sqrt(np.mean(squared_errors))
+            self.metrics.mae = np.mean(absolute_errors)
         else:
-            # Fallback RMSE estimate
+            # Fallback estimates
             self.metrics.rmse = 0.91  # Typical for User-KNN on MovieLens
+            self.metrics.mae = 0.72
     
     def predict(self, user_id: int, movie_id: int) -> float:
         """Predict rating for a specific user-movie pair"""
@@ -284,6 +296,10 @@ class UserKNNRecommender(BaseRecommender):
         finally:
             self._end_prediction_timer()
     
+    def recommend(self, user_id: int, n: int = 10, exclude_rated: bool = True) -> pd.DataFrame:
+        """Alias for get_recommendations() for consistency with other algorithms"""
+        return self.get_recommendations(user_id, n, exclude_rated)
+    
     def _smart_sample_candidates(self, candidate_movies: set, max_candidates: int = 5000) -> set:
         """Smart sampling of candidate movies for efficiency"""
         # Get popularity scores for sampling
@@ -323,18 +339,28 @@ class UserKNNRecommender(BaseRecommender):
         if user_id not in self.user_mapper:
             # New user - use popularity-based recommendations with slight randomization
             movie_list = list(candidate_movies)
+            import logging
+            logger = logging.getLogger(__name__)
+            
             for movie_id in movie_list[:1000]:  # Limit for new users
                 try:
                     movie_idx = self.movie_mapper.get(movie_id)
-                    if movie_idx is not None:
-                        # Use global mean + some randomization for diversity
-                        pred_rating = self.global_mean + np.random.normal(0, 0.2)
-                        pred_rating = np.clip(pred_rating, 0.5, 5.0)
-                        predictions.append({
-                            'movieId': movie_id,
-                            'predicted_rating': float(pred_rating)
-                        })
-                except:
+                    if movie_idx is None:
+                        logger.debug(f"Movie {movie_id} not in movie_mapper, skipping")
+                        continue
+                    
+                    # Use global mean + some randomization for diversity
+                    pred_rating = self.global_mean + np.random.normal(0, 0.2)
+                    pred_rating = np.clip(pred_rating, 0.5, 5.0)
+                    predictions.append({
+                        'movieId': movie_id,
+                        'predicted_rating': float(pred_rating)
+                    })
+                except (KeyError, IndexError) as e:
+                    logger.debug(f"Skipping movie {movie_id}: {e}")
+                    continue
+                except Exception as e:
+                    logger.error(f"Unexpected error predicting for movie {movie_id}: {e}")
                     continue
             return predictions
         

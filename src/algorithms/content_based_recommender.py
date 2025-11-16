@@ -119,6 +119,9 @@ class ContentBasedRecommender(BaseRecommender):
         # User profiles cache
         self.user_profiles = {}
         
+        # Movie similarity cache for fast explanation lookups
+        self.movie_similarity_cache = {}
+        
         # Tags data
         self.tags_df = None
         
@@ -305,6 +308,22 @@ class ContentBasedRecommender(BaseRecommender):
             print(f"    ✓ Similarity matrix computed: {self.similarity_matrix.shape}")
             print(f"    ✓ Sparsity: {sparsity:.2f}%")
             print(f"    ✓ Non-zero entries: {self.similarity_matrix.nnz:,}")
+            
+            # Populate movie similarity cache for top movies (used in explanations)
+            print(f"    • Building similarity cache for top 1000 movies...")
+            cache_size = min(1000, n_movies)
+            for i in range(cache_size):
+                sim_scores = self.similarity_matrix[i].toarray().flatten()
+                movie_id = self.movie_inv_mapper[i]
+                
+                # Cache top 50 most similar movies with similarity > 0.1
+                top_indices = np.argsort(sim_scores)[-51:][::-1][1:]  # Exclude self
+                self.movie_similarity_cache[movie_id] = {
+                    self.movie_inv_mapper[j]: float(sim_scores[j])
+                    for j in top_indices if sim_scores[j] > 0.1
+                }
+            
+            print(f"    ✓ Cached similarities for {len(self.movie_similarity_cache)} movies")
         else:
             # Large dataset: use on-demand computation (no pre-computed matrix)
             print(f"    • Large dataset detected - using on-demand similarity computation")
@@ -523,6 +542,10 @@ class ContentBasedRecommender(BaseRecommender):
             
         finally:
             self._end_prediction_timer()
+    
+    def recommend(self, user_id: int, n: int = 10, exclude_rated: bool = True) -> pd.DataFrame:
+        """Alias for get_recommendations() for consistency with other algorithms"""
+        return self.get_recommendations(user_id, n, exclude_rated)
     
     def get_similar_items(self, item_id: int, n: int = 10) -> pd.DataFrame:
         """

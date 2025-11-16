@@ -17,6 +17,7 @@ import time
 import threading
 from enum import Enum
 import logging
+import gc
 
 # Suppress Streamlit warnings when running outside Streamlit context
 warnings.filterwarnings('ignore', category=UserWarning, module='streamlit')
@@ -36,6 +37,7 @@ from src.algorithms.user_knn_recommender import UserKNNRecommender
 from src.algorithms.item_knn_recommender import ItemKNNRecommender
 from src.algorithms.content_based_recommender import ContentBasedRecommender
 from src.algorithms.hybrid_recommender import HybridRecommender
+from src.utils.error_handlers import safe_execute, validate_dataframe, handle_model_error
 
 
 def _is_streamlit_context() -> bool:
@@ -315,7 +317,45 @@ class AlgorithmManager:
         if 'algorithm_switched' not in st.session_state:
             st.session_state.algorithm_switched = True
         
+        # Clear caches from other algorithms to save memory
+        self.clear_algorithm_cache(keep_current=algorithm_type)
+        
         return algorithm
+    
+    def clear_algorithm_cache(self, keep_current: Optional[AlgorithmType] = None) -> None:
+        """
+        Clear cached data from algorithms to free memory.
+        
+        Args:
+            keep_current: Algorithm to keep in cache, clear all others
+        """
+        cleared_count = 0
+        
+        for algo_type, algorithm in list(self._algorithms.items()):
+            # Skip the current algorithm if specified
+            if keep_current and algo_type == keep_current:
+                continue
+            
+            # Clear algorithm-specific caches
+            if hasattr(algorithm, 'user_profiles') and isinstance(algorithm.user_profiles, dict):
+                algorithm.user_profiles.clear()
+                cleared_count += 1
+            
+            if hasattr(algorithm, 'movie_similarity_cache') and isinstance(algorithm.movie_similarity_cache, dict):
+                algorithm.movie_similarity_cache.clear()
+                cleared_count += 1
+        
+        # Aggressive garbage collection
+        if cleared_count > 0:
+            self.aggressive_gc()
+            if not _is_streamlit_context():
+                print(f"🧹 Cleared {cleared_count} cache(s) to free memory")
+    
+    def aggressive_gc(self) -> None:
+        """Perform aggressive garbage collection to free memory"""
+        gc.collect()
+        gc.collect()  # Call twice for cyclic references
+        gc.collect()
     
     def get_available_algorithms(self) -> List[AlgorithmType]:
         """Get list of all available algorithm types"""
@@ -537,7 +577,9 @@ class AlgorithmManager:
             return {
                 "algorithm": algorithm_type.value,
                 "status": "Not loaded",
-                "metrics": {}
+                "metrics": {},
+                "training_time": "Unknown",
+                "sample_size": "N/A"
             }
         
         # Get cached algorithm (won't trigger training)
@@ -547,27 +589,36 @@ class AlgorithmManager:
             return {
                 "algorithm": algorithm_type.value,
                 "status": "Not trained",
-                "metrics": {}
+                "metrics": {},
+                "training_time": "Unknown",
+                "sample_size": "N/A"
             }
         
-        # Get basic algorithm info
-        info = self.get_algorithm_info(algorithm_type)
+        # Get algorithm metrics object
+        metrics_obj = algorithm.metrics
+        
+        # Extract training time and sample size from metrics object
+        training_time = getattr(metrics_obj, 'training_time', 0.0)
+        
+        # Get sample size from ratings_df if available
+        sample_size = "N/A"
+        if hasattr(algorithm, 'ratings_df') and algorithm.ratings_df is not None:
+            sample_size = len(algorithm.ratings_df)
         
         # Use pre-computed metrics from algorithm object (fast!)
         # Don't recompute on-demand as it's too slow (1000 predictions)
         metrics = {
-            "rmse": round(algorithm.metrics.rmse, 3),
-            "mae": round(getattr(algorithm.metrics, 'mae', 0.0), 3),
-            "coverage": round(algorithm.metrics.coverage, 1)
+            "rmse": round(metrics_obj.rmse, 3),
+            "mae": round(getattr(metrics_obj, 'mae', 0.0), 3),
+            "coverage": round(metrics_obj.coverage, 1),
+            "sample_size": sample_size
         }
         
         return {
             "algorithm": algorithm_type.value,
             "status": "Trained",
-            "training_time": info.get("training_time", "Unknown"),
-            "model_size": info.get("model_size", "Unknown"),
-            "metrics": metrics,
-            "last_updated": info.get("last_updated", "Unknown")
+            "training_time": training_time if training_time > 0 else "Unknown",
+            "metrics": metrics
         }
 
     def get_all_algorithm_metrics(self) -> Dict[str, Dict[str, Any]]:
