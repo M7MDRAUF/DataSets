@@ -81,6 +81,17 @@ TRAINING_*.md
 TESTING_PROCEDURES.md
 training_output.log
 
+# Exclude development/debug reports
+debug_report.md
+*_REPORT.md
+ANALYTICS_MISSING_SECTION_FIX.md
+CODE_RECOVERY_TODO.md
+CODE_REVIEW_*.md
+VALIDATION_REPORT_*.md
+FINAL_VALIDATION_REPORT.md
+PR_V2.*.md
+PR_SUMMARY.md
+
 # Exclude test and diagnostic files
 test_*.py
 diagnose_*.py
@@ -88,6 +99,11 @@ validate_*.py
 monitor_*.py
 simple_test.py
 training_log.txt
+
+# Exclude CSV exports and temporary data
+*_export.csv
+*.csv.bak
+temp_*.csv
 
 # ========================================
 # Model Files (Large binaries)
