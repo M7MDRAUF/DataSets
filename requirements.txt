@@ -21,6 +21,7 @@ streamlit>=1.32.0               # Interactive web interface
 plotly>=5.18.0                  # Interactive charts
 matplotlib>=3.8.0               # Static plots
 seaborn>=0.13.0                 # Statistical visualizations
+pandas
 
 # ========================================
 # Model Serialization & Persistence

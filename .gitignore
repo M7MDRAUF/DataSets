@@ -91,6 +91,7 @@ VALIDATION_REPORT_*.md
 FINAL_VALIDATION_REPORT.md
 PR_V2.*.md
 PR_SUMMARY.md
+full_details.md
 
 # Exclude test and diagnostic files
 test_*.py
