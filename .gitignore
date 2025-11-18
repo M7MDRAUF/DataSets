@@ -92,7 +92,7 @@ FINAL_VALIDATION_REPORT.md
 PR_V2.*.md
 PR_SUMMARY.md
 full_details.md
-
+PR_V2.1.2.md
 # Exclude test and diagnostic files
 test_*.py
 diagnose_*.py
