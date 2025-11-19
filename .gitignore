@@ -39,7 +39,7 @@ data/processed/*.parquet
 # Jupyter Notebook Files (Development Only)
 # ========================================
 # Exclude entire Jupyter folder and all notebooks
-Jupyter/
+
 .ipynb_checkpoints/
 *.ipynb
 
@@ -176,3 +176,7 @@ Desktop.ini
 # ========================================
 .vercel
 Jupyter.rar
+Jupyter
+.Jupyter
+doc
+
