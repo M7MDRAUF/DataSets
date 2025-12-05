@@ -452,29 +452,9 @@ try:
                     explanation_html = ""
                     if explanation and str(explanation).strip():
                         explanation_escaped = html.escape(str(explanation))
-                        explanation_html = f'<p style="color: #ddd; font-size: 0.8rem; margin-top: 0.5rem;"><strong>Why recommended:</strong> {explanation_escaped}</p>'
+                        explanation_html = f'<div style="color: #ddd; font-size: 0.8rem; margin-top: 0.5rem;"><strong>Why recommended:</strong> {explanation_escaped}</div>'
                     
-                    st.markdown(f"""
-                    <div class="movie-card" style="display: flex; gap: 12px; align-items: flex-start;">
-                        <div style="flex-shrink: 0;">
-                            <img src="{poster_url}" alt="{title_escaped}" 
-                                 style="width: 80px; height: 120px; object-fit: cover; border-radius: 6px; 
-                                        box-shadow: 0 2px 6px rgba(0,0,0,0.3);"
-                                 onerror="this.src='{PLACEHOLDER_POSTER}'">
-                        </div>
-                        <div style="flex-grow: 1;">
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                                <span style="font-weight: bold; font-size: 1.1rem;">#{idx + 1}</span>
-                                <span style="color: #ffd700; font-size: 1.2rem;">⭐ {rating_display}</span>
-                            </div>
-                            <h4 style="margin: 0.5rem 0; color: white;">{title_escaped}</h4>
-                            <p style="color: #ccc; font-size: 0.9rem; margin: 0.25rem 0;">
-                                <strong>Genres:</strong> {genres_escaped}
-                            </p>
-                            {explanation_html}
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True)
+                    st.markdown(f"""<div class="movie-card"><div style="display: flex; gap: 12px; align-items: flex-start;"><div style="flex-shrink: 0;"><img src="{poster_url}" alt="{title_escaped}" style="width: 80px; height: 120px; object-fit: cover; border-radius: 6px; box-shadow: 0 2px 6px rgba(0,0,0,0.3);" onerror="this.src='{PLACEHOLDER_POSTER}'"></div><div style="flex-grow: 1;"><div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;"><span style="font-weight: bold; font-size: 1.1rem;">#{idx + 1}</span><span style="color: #ffd700; font-size: 1.2rem;">⭐ {rating_display}</span></div><h4 style="margin: 0.5rem 0; color: white;">{title_escaped}</h4><p style="color: #ccc; font-size: 0.9rem; margin: 0.25rem 0;"><strong>Genres:</strong> {genres_escaped}</p>{explanation_html}</div></div></div>""", unsafe_allow_html=True)
                 
         except Exception as e:
             st.error(f"❌ Error generating recommendations: {str(e)}")
