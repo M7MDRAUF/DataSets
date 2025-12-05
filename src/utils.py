@@ -423,6 +423,340 @@ def create_rating_stars(rating: float) -> str:
     return html
 
 
+# ============================================================================
+# SEARCH PAGE UTILITY FUNCTIONS (Added V2.1.2 - November 20, 2025)
+# ============================================================================
+
+def format_rating_history(
+    user_ratings: pd.DataFrame,
+    max_display: int = 50
+) -> pd.DataFrame:
+    """
+    Format user rating history for display in Search page.
+    
+    Args:
+        user_ratings: DataFrame from search_engine.get_user_ratings()
+        max_display: Maximum number of rows to return
+        
+    Returns:
+        Formatted DataFrame with display-friendly columns
+    """
+    if user_ratings.empty:
+        return pd.DataFrame()
+    
+    display_df = user_ratings.head(max_display).copy()
+    
+    # Format timestamp
+    display_df['Date'] = display_df['timestamp'].dt.strftime('%Y-%m-%d')
+    
+    # Format genres
+    display_df['Genres'] = display_df['genres'].apply(
+        lambda x: format_genres(x, max_genres=3)
+    )
+    
+    # Select and rename columns
+    display_df = display_df[['title', 'Genres', 'rating', 'Date']]
+    display_df.columns = ['Movie Title', 'Genres', 'Rating', 'Rated On']
+    
+    return display_df
+
+
+def calculate_user_engagement_score(stats: Dict) -> float:
+    """
+    Calculate an engagement score (0-100) based on user statistics.
+    
+    Args:
+        stats: Dictionary from search_engine.get_user_statistics()
+        
+    Returns:
+        Engagement score (0-100)
+    """
+    if stats['total_ratings'] == 0:
+        return 0.0
+    
+    # Factors:
+    # 1. Volume: Number of ratings (0-40 points, log scale)
+    # 2. Diversity: Genre variety (0-30 points)
+    # 3. Consistency: Rating std deviation (0-30 points, lower is more consistent)
+    
+    # Volume score (log scale, capped at 1000 ratings)
+    volume_score = min(40, (np.log10(stats['total_ratings'] + 1) / np.log10(1000)) * 40)
+    
+    # Diversity score
+    genre_diversity = len(stats['top_genres'])
+    diversity_score = min(30, (genre_diversity / 20) * 30)  # Max at 20 unique genres
+    
+    # Consistency score (inverse of std dev)
+    consistency_score = max(0, 30 - (stats['std_rating'] * 10))
+    
+    total_score = volume_score + diversity_score + consistency_score
+    return min(100, max(0, total_score))
+
+
+def create_user_profile_summary(stats: Dict, user_id: int) -> str:
+    """
+    Generate a natural language summary of user profile.
+    
+    Args:
+        stats: Dictionary from search_engine.get_user_statistics()
+        user_id: User identifier
+        
+    Returns:
+        HTML-formatted summary string
+    """
+    if stats['total_ratings'] == 0:
+        return f"<p>User {user_id} has not rated any movies yet.</p>"
+    
+    engagement = calculate_user_engagement_score(stats)
+    
+    # Determine user type
+    if stats['total_ratings'] < 20:
+        user_type = "Casual Viewer"
+        type_color = "#FFA500"
+    elif stats['total_ratings'] < 100:
+        user_type = "Regular User"
+        type_color = "#4169E1"
+    elif stats['total_ratings'] < 500:
+        user_type = "Active Cinephile"
+        type_color = "#32CD32"
+    else:
+        user_type = "Power User"
+        type_color = "#E50914"
+    
+    # Determine rating tendency
+    if stats['avg_rating'] >= 4.0:
+        tendency = "generous rater"
+    elif stats['avg_rating'] >= 3.0:
+        tendency = "balanced critic"
+    else:
+        tendency = "selective viewer"
+    
+    # Get top genre
+    top_genre = stats['top_genres'][0][0] if stats['top_genres'] else "Various"
+    top_genre_emoji = get_genre_emoji(top_genre)
+    
+    summary = f"""
+    <div style="background: linear-gradient(135deg, #1e1e2e 0%, #2a2a3e 100%); 
+                padding: 1.5rem; border-radius: 10px; border-left: 4px solid {type_color};">
+        <h3 style="color: {type_color};">👤 {user_type}</h3>
+        <p><strong>Engagement Score:</strong> {engagement:.0f}/100</p>
+        <p><strong>Rating Style:</strong> {tendency.title()} ({stats['avg_rating']:.2f}⭐ average)</p>
+        <p><strong>Favorite Genre:</strong> {top_genre_emoji} {top_genre}</p>
+        <p><strong>Activity Period:</strong> {(stats['last_rating_date'] - stats['first_rating_date']).days if stats['last_rating_date'] and stats['first_rating_date'] else 0} days</p>
+    </div>
+    """
+    
+    return summary
+
+
+# =============================================================================
+# TMDB Image Utilities
+# =============================================================================
+
+# TMDB Image Base URL (w500 is optimal for card displays)
+TMDB_IMAGE_BASE_URL = "https://image.tmdb.org/t/p/w500"
+TMDB_BACKDROP_BASE_URL = "https://image.tmdb.org/t/p/w1280"
+
+# Placeholder image for movies without posters
+PLACEHOLDER_POSTER = "https://via.placeholder.com/200x300/1a1a2e/ffffff?text=No+Poster"
+PLACEHOLDER_BACKDROP = "https://via.placeholder.com/1280x720/1a1a2e/ffffff?text=No+Backdrop"
+
+
+def get_tmdb_poster_url(poster_path: Optional[str], size: str = "w500") -> str:
+    """
+    Generate full TMDB poster URL from path.
+    
+    Args:
+        poster_path: TMDB poster path (e.g., '/uXDfjJbdP4ijW5hWSBrPrlKpxab.jpg')
+        size: Image size (w92, w154, w185, w342, w500, w780, original)
+    
+    Returns:
+        Full URL to poster image or placeholder
+    """
+    if not poster_path or pd.isna(poster_path) or str(poster_path).strip() == '':
+        return PLACEHOLDER_POSTER
+    
+    # Ensure path starts with /
+    path = str(poster_path).strip()
+    if not path.startswith('/'):
+        path = '/' + path
+    
+    return f"https://image.tmdb.org/t/p/{size}{path}"
+
+
+def get_tmdb_backdrop_url(backdrop_path: Optional[str], size: str = "w1280") -> str:
+    """
+    Generate full TMDB backdrop URL from path.
+    
+    Args:
+        backdrop_path: TMDB backdrop path (e.g., '/3Rfvhy1Nl6sSGJwyjb0QiZzZYlB.jpg')
+        size: Image size (w300, w780, w1280, original)
+    
+    Returns:
+        Full URL to backdrop image or placeholder
+    """
+    if not backdrop_path or pd.isna(backdrop_path) or str(backdrop_path).strip() == '':
+        return PLACEHOLDER_BACKDROP
+    
+    # Ensure path starts with /
+    path = str(backdrop_path).strip()
+    if not path.startswith('/'):
+        path = '/' + path
+    
+    return f"https://image.tmdb.org/t/p/{size}{path}"
+
+
+def create_movie_card_html(
+    title: str,
+    genres: str,
+    rating: float = None,
+    poster_path: str = None,
+    movie_id: int = None,
+    explanation: str = None,
+    predicted_rating: float = None,
+    show_poster: bool = True
+) -> str:
+    """
+    Create a styled movie card HTML with poster image.
+    
+    Args:
+        title: Movie title
+        genres: Pipe-separated genre string
+        rating: User's rating or average rating
+        poster_path: TMDB poster path
+        movie_id: Movie ID for linking
+        explanation: XAI explanation text
+        predicted_rating: Predicted rating from algorithm
+        show_poster: Whether to show poster image
+    
+    Returns:
+        HTML string for the movie card
+    """
+    poster_url = get_tmdb_poster_url(poster_path) if show_poster else None
+    formatted_genres = format_genres(genres, max_genres=3)
+    year = extract_year_from_title(title)
+    
+    # Get genre emoji for the first genre
+    first_genre = genres.split('|')[0] if genres and '|' in genres else (genres or 'Drama')
+    genre_emoji = get_genre_emoji(first_genre)
+    
+    # Rating display
+    rating_html = ""
+    if rating is not None:
+        rating_html = f"""
+        <div style="display: flex; align-items: center; gap: 5px; margin-top: 8px;">
+            <span style="color: #FFD700; font-size: 1.1em;">{'⭐' * int(round(rating))}</span>
+            <span style="color: #888;">({rating:.1f})</span>
+        </div>
+        """
+    
+    if predicted_rating is not None:
+        rating_html += f"""
+        <div style="color: #4CAF50; font-size: 0.9em; margin-top: 4px;">
+            📊 Predicted: {predicted_rating:.2f}
+        </div>
+        """
+    
+    # Explanation display
+    explanation_html = ""
+    if explanation:
+        explanation_html = f"""
+        <div style="background: rgba(229, 9, 20, 0.1); padding: 10px; border-radius: 5px; 
+                    margin-top: 10px; border-left: 3px solid #E50914; font-size: 0.85em;">
+            💡 {explanation}
+        </div>
+        """
+    
+    # Poster HTML
+    poster_html = ""
+    if show_poster and poster_url:
+        poster_html = f"""
+        <div style="flex-shrink: 0; width: 120px;">
+            <img src="{poster_url}" alt="{title}" 
+                 style="width: 120px; height: 180px; object-fit: cover; border-radius: 8px; 
+                        box-shadow: 0 4px 8px rgba(0,0,0,0.3);"
+                 onerror="this.src='{PLACEHOLDER_POSTER}'">
+        </div>
+        """
+    
+    card_html = f"""
+    <div style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); 
+                padding: 15px; border-radius: 12px; margin-bottom: 15px;
+                border: 1px solid rgba(255,255,255,0.1);
+                transition: transform 0.3s ease, box-shadow 0.3s ease;
+                display: flex; gap: 15px; align-items: flex-start;">
+        {poster_html}
+        <div style="flex-grow: 1;">
+            <h4 style="margin: 0 0 8px 0; color: #fff; font-size: 1.1em;">
+                🎬 {title}
+            </h4>
+            <div style="color: #aaa; font-size: 0.9em; margin-bottom: 5px;">
+                {genre_emoji} {formatted_genres}
+                {f' • 📅 {year}' if year else ''}
+            </div>
+            {rating_html}
+            {explanation_html}
+        </div>
+    </div>
+    """
+    
+    return card_html
+
+
+def create_compact_movie_card_html(
+    title: str,
+    genres: str,
+    rating: float = None,
+    poster_path: str = None
+) -> str:
+    """
+    Create a compact movie card for grid layouts.
+    
+    Args:
+        title: Movie title
+        genres: Pipe-separated genre string
+        rating: Rating value
+        poster_path: TMDB poster path
+    
+    Returns:
+        HTML string for compact movie card
+    """
+    poster_url = get_tmdb_poster_url(poster_path)
+    formatted_genres = format_genres(genres, max_genres=2)
+    
+    # Truncate title if too long
+    display_title = title if len(title) <= 30 else title[:27] + "..."
+    
+    rating_html = f"""
+        <div style="color: #FFD700; font-size: 0.85em; margin-top: 5px;">
+            ⭐ {rating:.1f}
+        </div>
+    """ if rating else ""
+    
+    card_html = f"""
+    <div style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); 
+                border-radius: 10px; overflow: hidden; text-align: center;
+                border: 1px solid rgba(255,255,255,0.1);
+                transition: transform 0.3s ease;">
+        <img src="{poster_url}" alt="{title}" 
+             style="width: 100%; height: 200px; object-fit: cover;"
+             onerror="this.src='{PLACEHOLDER_POSTER}'">
+        <div style="padding: 10px;">
+            <div style="color: #fff; font-size: 0.9em; font-weight: 500; 
+                        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                {display_title}
+            </div>
+            <div style="color: #888; font-size: 0.75em; margin-top: 3px;">
+                {formatted_genres}
+            </div>
+            {rating_html}
+        </div>
+    </div>
+    """
+    
+    return card_html
+
+
 if __name__ == "__main__":
     """
     Test utility functions.

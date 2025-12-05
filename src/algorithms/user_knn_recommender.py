@@ -284,9 +284,9 @@ class UserKNNRecommender(BaseRecommender):
             # Get top N
             top_predictions = predictions_df.head(n)
             
-            # Merge with movie info
+            # Merge with movie info (including poster_path for TMDB images)
             recommendations = top_predictions.merge(
-                self.movies_df[['movieId', 'title', 'genres', 'genres_list']],
+                self.movies_df[['movieId', 'title', 'genres', 'genres_list', 'poster_path']],
                 on='movieId',
                 how='left'
             )
@@ -482,15 +482,15 @@ class UserKNNRecommender(BaseRecommender):
         movie_ratings['popularity'] = movie_ratings['count'] * movie_ratings['mean_rating']
         popular_movies = movie_ratings.sort_values('popularity', ascending=False).head(n)
         
-        # Format as recommendations
+        # Format as recommendations (including poster_path for TMDB images)
         recommendations = popular_movies.merge(
-            self.movies_df[['movieId', 'title', 'genres', 'genres_list']],
+            self.movies_df[['movieId', 'title', 'genres', 'genres_list', 'poster_path']],
             on='movieId',
             how='left'
         )
         recommendations['predicted_rating'] = recommendations['mean_rating']
         
-        return recommendations[['movieId', 'predicted_rating', 'title', 'genres', 'genres_list']]
+        return recommendations[['movieId', 'predicted_rating', 'title', 'genres', 'genres_list', 'poster_path']]
     
     def get_similar_items(self, item_id: int, n: int = 10) -> pd.DataFrame:
         """
@@ -515,7 +515,7 @@ class UserKNNRecommender(BaseRecommender):
             ]
             
             if len(movie_ratings) == 0:
-                return pd.DataFrame(columns=['movieId', 'similarity', 'title', 'genres'])
+                return pd.DataFrame(columns=['movieId', 'similarity', 'title', 'genres', 'poster_path'])
             
             # For each user who liked this movie, find their other highly-rated movies
             similar_movies = {}
@@ -550,7 +550,7 @@ class UserKNNRecommender(BaseRecommender):
             # Convert to DataFrame and sort
             similarities_df = pd.DataFrame(similarity_scores)
             if len(similarities_df) == 0:
-                return pd.DataFrame(columns=['movieId', 'similarity', 'title', 'genres'])
+                return pd.DataFrame(columns=['movieId', 'similarity', 'title', 'genres', 'poster_path'])
             
             similarities_df = similarities_df.sort_values('similarity', ascending=False)
             
@@ -562,9 +562,9 @@ class UserKNNRecommender(BaseRecommender):
             # Get top N
             top_similar = similarities_df.head(n)
             
-            # Merge with movie info
+            # Merge with movie info (including poster_path for TMDB images)
             similar_movies = top_similar.merge(
-                self.movies_df[['movieId', 'title', 'genres']],
+                self.movies_df[['movieId', 'title', 'genres', 'poster_path']],
                 on='movieId',
                 how='left'
             )

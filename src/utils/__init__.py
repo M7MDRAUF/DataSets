@@ -41,6 +41,16 @@ if _utils_module_path.exists():
     create_genre_color_map = _utils_legacy.create_genre_color_map
     get_genre_emoji = _utils_legacy.get_genre_emoji
     create_rating_stars = _utils_legacy.create_rating_stars
+    
+    # TMDB Image utilities (added for poster support)
+    get_tmdb_poster_url = _utils_legacy.get_tmdb_poster_url
+    get_tmdb_backdrop_url = _utils_legacy.get_tmdb_backdrop_url
+    create_movie_card_html = _utils_legacy.create_movie_card_html
+    create_compact_movie_card_html = _utils_legacy.create_compact_movie_card_html
+    TMDB_IMAGE_BASE_URL = _utils_legacy.TMDB_IMAGE_BASE_URL
+    TMDB_BACKDROP_BASE_URL = _utils_legacy.TMDB_BACKDROP_BASE_URL
+    PLACEHOLDER_POSTER = _utils_legacy.PLACEHOLDER_POSTER
+    PLACEHOLDER_BACKDROP = _utils_legacy.PLACEHOLDER_BACKDROP
 
 __all__ = [
     # Model loading utilities (new)
@@ -62,5 +72,14 @@ __all__ = [
     'format_movie_title',
     'create_genre_color_map',
     'get_genre_emoji',
-    'create_rating_stars'
+    'create_rating_stars',
+    # TMDB Image utilities
+    'get_tmdb_poster_url',
+    'get_tmdb_backdrop_url',
+    'create_movie_card_html',
+    'create_compact_movie_card_html',
+    'TMDB_IMAGE_BASE_URL',
+    'TMDB_BACKDROP_BASE_URL',
+    'PLACEHOLDER_POSTER',
+    'PLACEHOLDER_BACKDROP'
 ]

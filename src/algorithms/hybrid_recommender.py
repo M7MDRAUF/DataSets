@@ -538,19 +538,19 @@ class HybridRecommender(BaseRecommender):
         only if pandas operations fail due to data structure issues.
         
         Args:
-            all_recs: DataFrame with columns [movieId, predicted_rating, title, genres, genres_list, weight]
+            all_recs: DataFrame with columns [movieId, predicted_rating, title, genres, genres_list, poster_path, weight]
             n: Number of top recommendations to return
             
         Returns:
             DataFrame with top N aggregated recommendations
         """
         if len(all_recs) == 0:
-            return pd.DataFrame(columns=['movieId', 'predicted_rating', 'title', 'genres', 'genres_list'])
+            return pd.DataFrame(columns=['movieId', 'predicted_rating', 'title', 'genres', 'genres_list', 'poster_path'])
         
         print(f"  • Aggregating {len(all_recs)} recommendations from multiple algorithms")
         
         # Validate required columns
-        required_cols = ['movieId', 'predicted_rating', 'title', 'genres', 'genres_list']
+        required_cols = ['movieId', 'predicted_rating', 'title', 'genres', 'genres_list', 'poster_path']
         missing_cols = [col for col in required_cols if col not in all_recs.columns]
         
         if missing_cols:
@@ -573,6 +573,7 @@ class HybridRecommender(BaseRecommender):
                     'title': group['title'].iloc[0],
                     'genres': group['genres'].iloc[0],
                     'genres_list': group['genres_list'].iloc[0],
+                    'poster_path': group['poster_path'].iloc[0],
                     'weight': group['weight'].sum()
                 })
             ).reset_index()
@@ -587,7 +588,7 @@ class HybridRecommender(BaseRecommender):
                 aggregated
                 .sort_values('final_score', ascending=False)
                 .head(n)
-                [['movieId', 'predicted_rating', 'title', 'genres', 'genres_list']]
+                [['movieId', 'predicted_rating', 'title', 'genres', 'genres_list', 'poster_path']]
             )
             
             print(f"  ✓ Successfully aggregated to {len(result)} recommendations (pandas method)")
@@ -620,7 +621,8 @@ class HybridRecommender(BaseRecommender):
                     'weights': [],
                     'title': row['title'],
                     'genres': row['genres'],
-                    'genres_list': row['genres_list']
+                    'genres_list': row['genres_list'],
+                    'poster_path': row.get('poster_path', None)
                 }
             movie_groups[movie_id]['ratings'].append(row['predicted_rating'])
             movie_groups[movie_id]['weights'].append(row['weight'])
@@ -639,6 +641,7 @@ class HybridRecommender(BaseRecommender):
                 'title': data['title'],
                 'genres': data['genres'],
                 'genres_list': data['genres_list'],
+                'poster_path': data['poster_path'],
                 'final_score': float(weighted_rating) + 0.1 * np.log1p(sum(data['weights']))
             })
         
@@ -647,7 +650,7 @@ class HybridRecommender(BaseRecommender):
         manual_result = manual_result.sort_values('final_score', ascending=False)
         
         print(f"  ✓ Fallback aggregation successful: {len(manual_result)} unique movies")
-        return manual_result.head(n)[['movieId', 'predicted_rating', 'title', 'genres', 'genres_list']]
+        return manual_result.head(n)[['movieId', 'predicted_rating', 'title', 'genres', 'genres_list', 'poster_path']]
     
     def get_similar_items(self, item_id: int, n: int = 10) -> pd.DataFrame:
         """Find similar items using the best-performing algorithm for similarity"""

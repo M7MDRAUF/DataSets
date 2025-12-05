@@ -13,6 +13,7 @@ import pandas as pd
 import sys
 import traceback
 import logging
+import html
 from pathlib import Path
 from datetime import datetime
 
@@ -30,7 +31,9 @@ from src.algorithms.algorithm_manager import get_algorithm_manager, AlgorithmTyp
 from src.utils import (
     format_genres,
     create_rating_stars,
-    get_genre_emoji
+    get_genre_emoji,
+    get_tmdb_poster_url,
+    PLACEHOLDER_POSTER
 )
 from src.data_processing import load_ratings, load_movies
 
@@ -330,8 +333,7 @@ with col1:
     with input_col2:
         get_recs_button = st.button(
             "🎯 Get Recommendations", 
-            type="primary", 
-            use_container_width=True
+            type="primary"
         )
 
 with col2:
@@ -555,13 +557,29 @@ if 'current_recommendations' in st.session_state:
                     title = row.get('title', 'Unknown Movie')
                     genres = row.get('genres', '')
                     predicted_rating = float(row.get('predicted_rating', 0.0))
+                    poster_path = row.get('poster_path', None)
                     
-                    # Movie card with simplified layout
+                    # HTML escape title and genres for safe rendering
+                    title_escaped = html.escape(str(title))
+                    genres_escaped = html.escape(str(genres))
+                    
+                    # Get poster URL
+                    poster_url = get_tmdb_poster_url(poster_path)
+                    
+                    # Movie card with poster image
                     st.markdown(f"""
-                    <div class="movie-card">
-                        <h3 style="color: white; margin: 0.5rem 0;">#{idx+1}. {title}</h3>
-                        <p style="color: #ccc;"><strong>Genres:</strong> {format_genres(genres)}</p>
-                        <p style="color: #ddd;"><strong>Predicted Rating:</strong> {create_rating_stars(predicted_rating)}</p>
+                    <div class="movie-card" style="display: flex; gap: 15px; align-items: flex-start;">
+                        <div style="flex-shrink: 0;">
+                            <img src="{poster_url}" alt="{title_escaped}" 
+                                 style="width: 100px; height: 150px; object-fit: cover; border-radius: 8px; 
+                                        box-shadow: 0 4px 8px rgba(0,0,0,0.3);"
+                                 onerror="this.src='{PLACEHOLDER_POSTER}'">
+                        </div>
+                        <div style="flex-grow: 1;">
+                            <h3 style="color: white; margin: 0 0 0.5rem 0;">#{idx+1}. {title_escaped}</h3>
+                            <p style="color: #ccc; margin: 0.25rem 0;"><strong>Genres:</strong> {format_genres(genres_escaped)}</p>
+                            <p style="color: #ddd; margin: 0.25rem 0;"><strong>Predicted Rating:</strong> {create_rating_stars(predicted_rating)}</p>
+                        </div>
                     </div>
                     """, unsafe_allow_html=True)
                     

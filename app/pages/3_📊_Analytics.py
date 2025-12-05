@@ -14,6 +14,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import numpy as np
 import sys
+import html
 from pathlib import Path
 
 # Add src to path
@@ -21,7 +22,7 @@ sys.path.append(str(Path(__file__).parent.parent.parent))
 
 from src.data_processing import load_movies, load_ratings
 from src.algorithms.algorithm_manager import get_algorithm_manager, AlgorithmType
-from src.utils import extract_year_from_title, create_genre_color_map
+from src.utils import extract_year_from_title, create_genre_color_map, get_tmdb_poster_url, PLACEHOLDER_POSTER
 
 
 # Page config
@@ -330,12 +331,12 @@ try:
                 algorithm = manager.switch_algorithm(selected_algo_type)
                 print(f"[DEBUG] Algorithm loaded: {algorithm.name}")
                 
-                # Check if user exists
-                if test_user_id not in ratings_df['userId'].values:
+                # Check if user exists in sampled dataset (not blocking - per Recommend.py pattern)
+                user_exists_in_sample = test_user_id in ratings_df['userId'].values
+                if not user_exists_in_sample:
                     status_container.empty()
-                    st.error(f"❌ User {test_user_id} not found in dataset. Please try a different user ID.")
-                    st.info(f"Valid user ID range: 1 to {ratings_df['userId'].max()}")
-                    st.stop()
+                    st.warning(f"⚠️ User {test_user_id} not found in the current sample. Generating recommendations for new user profile.")
+                    st.info(f"💡 Tip: The dataset is sampled for performance. Try a different sample size or user ID.")
                 
                 # Generate recommendations
                 status_container.info(f"⏳ Generating {num_recs} recommendations for User {test_user_id}...")
@@ -421,14 +422,27 @@ try:
             for idx, row in recommendations.iterrows():
                 # Format genres with color badges
                 genres_list = row['genres'].split('|')
-                genre_badges = ' '.join([f"<span style='background-color: #667eea; color: white; padding: 2px 8px; border-radius: 12px; font-size: 0.8rem; margin-right: 4px;'>{g}</span>" for g in genres_list[:3]])
+                genre_badges = ' '.join([f"<span style='background-color: #667eea; color: white; padding: 2px 8px; border-radius: 12px; font-size: 0.8rem; margin-right: 4px;'>{html.escape(g)}</span>" for g in genres_list[:3]])
+                
+                # HTML escape title for safe rendering
+                title_escaped = html.escape(str(row['title']))
+                
+                # Get poster URL
+                poster_path = row.get('poster_path', None)
+                poster_url = get_tmdb_poster_url(poster_path)
                 
                 st.markdown(f"""
                 <div class="movie-card">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div style="display: flex; gap: 15px; align-items: flex-start;">
+                        <div style="flex-shrink: 0;">
+                            <img src="{poster_url}" alt="{title_escaped}" 
+                                 style="width: 80px; height: 120px; object-fit: cover; border-radius: 6px; 
+                                        box-shadow: 0 2px 6px rgba(0,0,0,0.3);"
+                                 onerror="this.src='{PLACEHOLDER_POSTER}'">
+                        </div>
                         <div style="flex: 1;">
                             <div style="font-weight: bold; font-size: 1.1rem; margin-bottom: 0.5rem;">
-                                {idx + 1}. {row['title']}
+                                {idx + 1}. {title_escaped}
                             </div>
                             <div style="margin-bottom: 0.5rem;">
                                 {genre_badges}
@@ -939,14 +953,26 @@ try:
                                     if similar_movies_df is not None and len(similar_movies_df) > 0:
                                         for sim_idx, sim_row in similar_movies_df.iterrows():
                                             similarity_score = sim_row.get('similarity', 0.0)
+                                            sim_poster_path = sim_row.get('poster_path', None)
+                                            sim_poster_url = get_tmdb_poster_url(sim_poster_path)
+                                            
                                             st.markdown(f"""
                                             <div class="movie-card">
-                                                <div style="font-weight: bold; margin-bottom: 0.5rem;">
-                                                    {sim_idx+1}. {sim_row['title']} 
-                                                    <span style="color: #4CAF50;">({similarity_score:.2%} match)</span>
-                                                </div>
-                                                <div style="color: #ccc; font-size: 0.9rem;">
-                                                    <strong>Genres:</strong> {sim_row['genres']}
+                                                <div style="display: flex; gap: 12px; align-items: flex-start;">
+                                                    <div style="flex-shrink: 0;">
+                                                        <img src="{sim_poster_url}" alt="{sim_row['title']}" 
+                                                             style="width: 60px; height: 90px; object-fit: cover; border-radius: 5px;"
+                                                             onerror="this.src='{PLACEHOLDER_POSTER}'">
+                                                    </div>
+                                                    <div style="flex: 1;">
+                                                        <div style="font-weight: bold; margin-bottom: 0.5rem;">
+                                                            {sim_idx+1}. {sim_row['title']} 
+                                                            <span style="color: #4CAF50;">({similarity_score:.2%} match)</span>
+                                                        </div>
+                                                        <div style="color: #ccc; font-size: 0.9rem;">
+                                                            <strong>Genres:</strong> {sim_row['genres']}
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             </div>
                                             """, unsafe_allow_html=True)

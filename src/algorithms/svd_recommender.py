@@ -171,9 +171,9 @@ class SVDRecommender(BaseRecommender):
             # Get top N
             top_predictions = predictions_df.head(n)
             
-            # Merge with movie info
+            # Merge with movie info (including poster_path for TMDB images)
             recommendations = top_predictions.merge(
-                self.movies_df[['movieId', 'title', 'genres', 'genres_list']],
+                self.movies_df[['movieId', 'title', 'genres', 'genres_list', 'poster_path']],
                 on='movieId',
                 how='left'
             )
@@ -199,16 +199,16 @@ class SVDRecommender(BaseRecommender):
         movie_ratings['popularity'] = movie_ratings['count'] * movie_ratings['mean_rating']
         popular_movies = movie_ratings.sort_values('popularity', ascending=False).head(n)
         
-        # Format as recommendations
+        # Format as recommendations (including poster_path for TMDB images)
         recommendations = popular_movies.merge(
-            self.movies_df[['movieId', 'title', 'genres', 'genres_list']],
+            self.movies_df[['movieId', 'title', 'genres', 'genres_list', 'poster_path']],
             on='movieId',
             how='left'
         )
         recommendations['predicted_rating'] = recommendations['mean_rating']
         
         print(f"✓ Generated {len(recommendations)} popular movie recommendations")
-        return recommendations[['movieId', 'predicted_rating', 'title', 'genres', 'genres_list']]
+        return recommendations[['movieId', 'predicted_rating', 'title', 'genres', 'genres_list', 'poster_path']]
     
     def get_similar_items(self, item_id: int, n: int = 10) -> pd.DataFrame:
         """Find movies similar to the given movie using latent factors"""
@@ -254,9 +254,9 @@ class SVDRecommender(BaseRecommender):
             # Get top N
             top_similar = similarities_df.head(n)
             
-            # Merge with movie info
+            # Merge with movie info (including poster_path for TMDB images)
             similar_movies = top_similar.merge(
-                self.movies_df[['movieId', 'title', 'genres']],
+                self.movies_df[['movieId', 'title', 'genres', 'poster_path']],
                 on='movieId',
                 how='left'
             )

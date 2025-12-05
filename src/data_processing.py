@@ -154,19 +154,32 @@ def load_ratings(sample_size: Optional[int] = None) -> pd.DataFrame:
 
 def load_movies() -> pd.DataFrame:
     """
-    Load the movies dataset.
+    Load the movies dataset with TMDB image links.
     
     Returns:
-        DataFrame with columns: movieId, title, genres
+        DataFrame with columns: movieId, title, genres, backdrop_path, poster_path
     
     Raises:
-        FileNotFoundError: If movies.csv is missing
+        FileNotFoundError: If movies CSV is missing
     """
-    movies_path = DATA_DIR / "movies.csv"
+    # Try TMDB version first, fall back to original
+    tmdb_path = DATA_DIR / "movies_with_TMDB_image_links.csv"
+    original_path = DATA_DIR / "movies.csv"
     
-    print(f"Loading movies from {movies_path}...")
+    if tmdb_path.exists():
+        movies_path = tmdb_path
+        print(f"Loading movies with TMDB images from {movies_path}...")
+    else:
+        movies_path = original_path
+        print(f"Loading movies from {movies_path}...")
     
     df = pd.read_csv(movies_path, dtype={'movieId': 'int32'})
+    
+    # Ensure image columns exist (for backward compatibility)
+    if 'backdrop_path' not in df.columns:
+        df['backdrop_path'] = None
+    if 'poster_path' not in df.columns:
+        df['poster_path'] = None
     
     # Parse genres (pipe-separated) into list
     df['genres_list'] = df['genres'].str.split('|')

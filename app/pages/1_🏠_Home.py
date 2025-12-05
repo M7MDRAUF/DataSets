@@ -12,6 +12,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+import html
 import sys
 from pathlib import Path
 
@@ -23,7 +24,9 @@ from src.data_processing import load_movies, load_ratings
 from src.utils import (
     format_genres,
     create_rating_stars,
-    get_genre_emoji
+    get_genre_emoji,
+    get_tmdb_poster_url,
+    PLACEHOLDER_POSTER
 )
 
 
@@ -335,7 +338,7 @@ try:
         num_recommendations = st.slider(
             "Number of recommendations:",
             min_value=5,
-            max_value=20,
+            max_value=40,
             value=10,
             step=1,
             help="How many movie recommendations to generate",
@@ -385,17 +388,13 @@ try:
     
     # Generate recommendations button
     if st.button("🎬 Generate Recommendations", type="primary", width="stretch", key="generate_button"):
-        # CRITICAL: Validate user ID is within valid range
-        if user_id < min_user_id or user_id > max_user_id:
-            st.error(f"❌ Invalid User ID! Must be between {min_user_id} and {max_user_id}")
-            st.info(f"💡 You entered: {user_id_raw}. Please enter a valid User ID.")
-            st.stop()
+        # Check if user ID exists in sampled dataset (not blocking - per Recommend.py pattern)
+        user_exists_in_sample = user_id in ratings_df['userId'].values
         
-        # Validate user ID exists in dataset
-        if user_id not in ratings_df['userId'].values:
-            st.error(f"❌ User ID {user_id} not found in dataset!")
-            st.info(f"Please enter a valid User ID between {min_user_id} and {max_user_id}")
-            st.stop()
+        if not user_exists_in_sample:
+            # User not in sample - show warning but continue (match Recommend.py behavior)
+            st.warning(f"⚠️ User {user_id} not found in the current sample. Generating recommendations for new user profile.")
+            st.info(f"💡 Tip: The dataset is sampled for performance. Try a different sample size or user ID.")
         
         try:
             # Map selected algorithm to AlgorithmType
@@ -443,18 +442,37 @@ try:
                     # Format rating to 1 decimal place
                     rating = movie.get('predicted_rating', 'N/A')
                     rating_display = f"{float(rating):.1f}" if rating != 'N/A' else 'N/A'
+                    poster_path = movie.get('poster_path', None)
+                    poster_url = get_tmdb_poster_url(poster_path)
+                    
+                    # HTML escape movie title and genres to prevent rendering issues
+                    title_escaped = html.escape(str(movie['title']))
+                    genres_escaped = html.escape(str(movie['genres']))
+                    explanation = movie.get('explanation', '')
+                    explanation_html = ""
+                    if explanation and str(explanation).strip():
+                        explanation_escaped = html.escape(str(explanation))
+                        explanation_html = f'<p style="color: #ddd; font-size: 0.8rem; margin-top: 0.5rem;"><strong>Why recommended:</strong> {explanation_escaped}</p>'
                     
                     st.markdown(f"""
-                    <div class="movie-card">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                            <span style="font-weight: bold; font-size: 1.1rem;">#{idx + 1}</span>
-                            <span style="color: #ffd700; font-size: 1.2rem;">⭐ {rating_display}</span>
+                    <div class="movie-card" style="display: flex; gap: 12px; align-items: flex-start;">
+                        <div style="flex-shrink: 0;">
+                            <img src="{poster_url}" alt="{title_escaped}" 
+                                 style="width: 80px; height: 120px; object-fit: cover; border-radius: 6px; 
+                                        box-shadow: 0 2px 6px rgba(0,0,0,0.3);"
+                                 onerror="this.src='{PLACEHOLDER_POSTER}'">
                         </div>
-                        <h4 style="margin: 0.5rem 0; color: white;">{movie['title']}</h4>
-                        <p style="color: #ccc; font-size: 0.9rem; margin: 0.25rem 0;">
-                            <strong>Genres:</strong> {movie['genres']}
-                        </p>
-                        {f'<p style="color: #ddd; font-size: 0.8rem; margin-top: 0.5rem;"><strong>Why recommended:</strong> {movie.get("explanation", "Based on your preferences")}</p>' if movie.get("explanation") else ''}
+                        <div style="flex-grow: 1;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                                <span style="font-weight: bold; font-size: 1.1rem;">#{idx + 1}</span>
+                                <span style="color: #ffd700; font-size: 1.2rem;">⭐ {rating_display}</span>
+                            </div>
+                            <h4 style="margin: 0.5rem 0; color: white;">{title_escaped}</h4>
+                            <p style="color: #ccc; font-size: 0.9rem; margin: 0.25rem 0;">
+                                <strong>Genres:</strong> {genres_escaped}
+                            </p>
+                            {explanation_html}
+                        </div>
                     </div>
                     """, unsafe_allow_html=True)
                 

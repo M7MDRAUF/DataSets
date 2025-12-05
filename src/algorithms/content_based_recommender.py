@@ -529,9 +529,9 @@ class ContentBasedRecommender(BaseRecommender):
             # Get top N
             top_predictions = predictions.head(n)
             
-            # Merge with movie info
+            # Merge with movie info (including poster_path for TMDB images)
             recommendations = top_predictions.merge(
-                self.movies_df[['movieId', 'title', 'genres', 'genres_list']],
+                self.movies_df[['movieId', 'title', 'genres', 'genres_list', 'poster_path']],
                 on='movieId',
                 how='left'
             )
@@ -600,9 +600,9 @@ class ContentBasedRecommender(BaseRecommender):
                 'similarity': top_scores
             })
             
-            # Merge with movie info
+            # Merge with movie info (including poster_path for TMDB images)
             similar_movies = similar_movies.merge(
-                self.movies_df[['movieId', 'title', 'genres', 'genres_list']],
+                self.movies_df[['movieId', 'title', 'genres', 'genres_list', 'poster_path']],
                 on='movieId',
                 how='left'
             )
@@ -625,9 +625,9 @@ class ContentBasedRecommender(BaseRecommender):
         movie_ratings['popularity'] = movie_ratings['count'] * movie_ratings['mean_rating']
         popular_movies = movie_ratings.sort_values('popularity', ascending=False).head(n)
         
-        # Format as recommendations
+        # Format as recommendations (including poster_path for TMDB images)
         recommendations = popular_movies.merge(
-            self.movies_df[['movieId', 'title', 'genres', 'genres_list']],
+            self.movies_df[['movieId', 'title', 'genres', 'genres_list', 'poster_path']],
             on='movieId',
             how='left'
         )
@@ -635,7 +635,7 @@ class ContentBasedRecommender(BaseRecommender):
         recommendations['similarity'] = 1.0
         
         print(f"✓ Generated {len(recommendations)} popular movie recommendations")
-        return recommendations[['movieId', 'predicted_rating', 'similarity', 'title', 'genres', 'genres_list']]
+        return recommendations[['movieId', 'predicted_rating', 'similarity', 'title', 'genres', 'genres_list', 'poster_path']]
     
     def _calculate_rmse(self, ratings_df: pd.DataFrame) -> None:
         """Calculate RMSE and MAE on a test sample"""
@@ -787,7 +787,7 @@ class ContentBasedRecommender(BaseRecommender):
         top_rated = user_ratings.nlargest(5, 'rating')
         
         top_rated_movies = top_rated.merge(
-            self.movies_df[['movieId', 'title', 'genres']],
+            self.movies_df[['movieId', 'title', 'genres', 'poster_path']],
             on='movieId',
             how='left'
         )
