@@ -1,13 +1,17 @@
 """
-CineMatch V2.1.0 - Analytics Page
+CineMatch V2.1.6 - Analytics Page
 
 Advanced analytics with multi-algorithm performance comparison and insights.
 Features all 5 algorithms with optimized pre-trained model loading.
 
 Author: CineMatch Team
-Date: November 13, 2025
+Date: December 5, 2025
+
+Security Update:
+    - Added input validation for user IDs
 """
 
+import logging
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -17,17 +21,29 @@ import sys
 import html
 from pathlib import Path
 
+# Configure module logger
+logger = logging.getLogger(__name__)
+
 # Add src to path
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
 from src.data_processing import load_movies, load_ratings
 from src.algorithms.algorithm_manager import get_algorithm_manager, AlgorithmType
 from src.utils import extract_year_from_title, create_genre_color_map, get_tmdb_poster_url, PLACEHOLDER_POSTER
+from src.utils.input_validation import validate_user_id, InputValidationError
+from src.analytics.benchmark_engine import (
+    BenchmarkEngine, 
+    BenchmarkResult, 
+    BenchmarkStatus,
+    run_parallel_benchmarks,
+    get_benchmark_cache
+)
+import hashlib
 
 
 # Page config
 st.set_page_config(
-    page_title="CineMatch V2.1.0 - Analytics",
+    page_title="CineMatch V2.1.6 - Analytics",
     page_icon="📊",
     layout="wide"
 )
@@ -87,7 +103,7 @@ st.markdown("""
 # Header
 st.markdown("""
     <div style="text-align: center; padding: 2rem 0;">
-        <h1>📊 CineMatch V2.1.0 - Advanced Analytics</h1>
+        <h1>📊 CineMatch V2.1.6 - Advanced Analytics</h1>
         <p style="font-size: 1.2rem; color: #666;">
             Multi-algorithm performance analysis and dataset insights
         </p>
@@ -132,17 +148,48 @@ with col2:
         st.warning("⚠️ **Large Dataset**\n~5-10min load")
 
 # Load data with caching and V2.1.0 manager
-@st.cache_data
+@st.cache_data(ttl=3600)  # Cache for 1 hour
 def load_data(sample_size):
-    """Load and cache dataset with configurable sample size"""
+    """
+    Load and cache dataset with configurable sample size.
+    
+    Task 39: Optimized to load only required columns for analytics.
+    """
+    # Only load columns needed for analytics
     ratings_df = load_ratings(sample_size=sample_size)
     movies_df = load_movies()
+    
+    # Optimize memory by converting to efficient dtypes
+    if 'userId' in ratings_df.columns:
+        ratings_df['userId'] = ratings_df['userId'].astype('int32')
+    if 'movieId' in ratings_df.columns:
+        ratings_df['movieId'] = ratings_df['movieId'].astype('int32')
+    if 'rating' in ratings_df.columns:
+        ratings_df['rating'] = ratings_df['rating'].astype('float32')
+    
     return ratings_df, movies_df
 
 @st.cache_resource
 def get_manager():
     """Get cached algorithm manager"""
     return get_algorithm_manager()
+
+# Task 36: Cache algorithm status to reduce redundant loads
+@st.cache_data(ttl=60)  # Cache algorithm status for 60 seconds
+def get_cached_algorithm_status(_manager):
+    """Get cached status of all algorithms to avoid redundant checks."""
+    status = {}
+    for algo_type in [AlgorithmType.SVD, AlgorithmType.USER_KNN, AlgorithmType.ITEM_KNN, 
+                      AlgorithmType.CONTENT_BASED, AlgorithmType.HYBRID]:
+        try:
+            metrics = _manager.get_algorithm_metrics(algo_type)
+            status[algo_type.value] = {
+                'trained': metrics is not None and metrics.get('status') == 'Trained',
+                'cached': _manager._algorithm_cache.get(algo_type) is not None if hasattr(_manager, '_algorithm_cache') else False
+            }
+        except Exception:
+            status[algo_type.value] = {'trained': False, 'cached': False}
+    return status
 
 try:
     # Initialize data once per session
@@ -190,78 +237,131 @@ try:
         col1, col2 = st.columns([2, 1])
         
         with col1:
+            # Initialize benchmark cancellation state
+            if 'benchmark_cancel_requested' not in st.session_state:
+                st.session_state.benchmark_cancel_requested = False
+            
             # Run benchmarks button (removed redundant header - tab already says "Algorithm Performance")
-            if st.button("🚀 Run Algorithm Benchmark", type="primary"):
-                # Use status container to avoid spinner duplication
-                status_container = st.empty()
-                status_container.info("⏳ Loading algorithm metrics...")
+            run_benchmark = st.button("🚀 Run Algorithm Benchmark", type="primary", key="run_benchmark_btn")
+            
+        with col2:
+            # Cancel button (only shown during benchmark)
+            if st.session_state.get('benchmark_running', False):
+                if st.button("⏹️ Cancel", type="secondary", key="cancel_benchmark_btn"):
+                    st.session_state.benchmark_cancel_requested = True
+                    st.warning("Cancellation requested...")
+        
+        if run_benchmark:
+            # Mark benchmark as running
+            st.session_state.benchmark_running = True
+            st.session_state.benchmark_cancel_requested = False
+            
+            # Create progress container
+            progress_container = st.container()
+            with progress_container:
+                progress_bar = st.progress(0, text="⏳ Initializing benchmark engine...")
+                status_text = st.empty()
+                results_placeholder = st.empty()
+            
+            # Define algorithm types for benchmarking
+            algorithm_types = [
+                (AlgorithmType.SVD, "SVD Matrix Factorization"),
+                (AlgorithmType.USER_KNN, "KNN User-Based"),
+                (AlgorithmType.ITEM_KNN, "KNN Item-Based"),
+                (AlgorithmType.CONTENT_BASED, "Content-Based"),
+                (AlgorithmType.HYBRID, "Hybrid Ensemble")
+            ]
+            
+            # Generate data hash for caching
+            data_hash = hashlib.md5(f"{len(ratings_df)}_{selected_sample_size}".encode()).hexdigest()
+            
+            # Progress callback for real-time updates
+            def update_progress(progress):
+                pct = progress.progress_percentage / 100
+                progress_bar.progress(pct, text=f"⏳ Benchmarking... {progress.completed_count}/{progress.total_algorithms} algorithms")
+                if progress.results:
+                    # Show streaming results as they complete
+                    completed_names = [r.algorithm_name for r in progress.results if r.status == BenchmarkStatus.COMPLETED]
+                    if completed_names:
+                        status_text.info(f"✅ Completed: {', '.join(completed_names)}")
+            
+            try:
+                # Run parallel benchmarks with progress callback
+                benchmark_results_raw = run_parallel_benchmarks(
+                    manager=manager,
+                    algorithm_types=algorithm_types,
+                    data_hash=data_hash,
+                    max_workers=3,  # Run up to 3 algorithms in parallel
+                    timeout_seconds=120,  # 2 minute timeout per algorithm
+                    progress_callback=update_progress,
+                    use_cache=True
+                )
                 
+                # Convert to list of dicts for DataFrame
                 benchmark_results = []
+                for result in benchmark_results_raw:
+                    if result.status == BenchmarkStatus.COMPLETED:
+                        benchmark_results.append(result.to_dict())
+                    elif result.status == BenchmarkStatus.FAILED:
+                        st.warning(f"⚠️ {result.algorithm_name}: {result.error_message}")
+                    elif result.status == BenchmarkStatus.TIMEOUT:
+                        st.warning(f"⏱️ {result.algorithm_name}: Timed out")
+                    elif result.status == BenchmarkStatus.CANCELLED:
+                        st.info(f"🚫 {result.algorithm_name}: Cancelled")
                 
-                # Get metrics for each algorithm WITHOUT forcing training
-                for algo_type in [AlgorithmType.SVD, AlgorithmType.USER_KNN, AlgorithmType.ITEM_KNN, AlgorithmType.CONTENT_BASED, AlgorithmType.HYBRID]:
-                    try:
-                        # Check if algorithm is already cached/trained
-                        metrics_data = manager.get_algorithm_metrics(algo_type)
-                        
-                        # If not cached, try to load it (will use pre-trained if available)
-                        if not metrics_data or metrics_data.get('status') != 'Trained':
-                            status_container.info(f"⏳ Loading {algo_type.value}...")
-                            algorithm = manager.get_algorithm(algo_type)
-                            metrics_data = manager.get_algorithm_metrics(algo_type)
-                        
-                        if metrics_data and metrics_data.get('status') == 'Trained':
-                            metrics = metrics_data.get('metrics', {})
-                            benchmark_results.append({
-                                'Algorithm': algo_type.value,
-                                'RMSE': metrics.get('rmse', 'N/A'),
-                                'MAE': metrics.get('mae', 'N/A'),
-                                'Training Time (s)': metrics_data.get('training_time', 'N/A'),
-                                'Sample Size': metrics.get('sample_size', 'N/A'),
-                                'Coverage (%)': metrics.get('coverage', 'N/A')
-                            })
-                    except Exception as e:
-                        st.warning(f"Could not benchmark {algo_type.value}: {e}")
-                
-                # Clear status and show results
-                status_container.empty()
+                # Update progress to 100%
+                progress_bar.progress(1.0, text="✅ Benchmark complete!")
+                status_text.empty()
                 
                 # Store results in session state
                 if benchmark_results:
                     st.session_state.benchmark_results = benchmark_results
+                    st.success(f"✅ Benchmark completed for {len(benchmark_results)} algorithms!")
                 else:
                     st.session_state.benchmark_results = None
+                    st.warning("No benchmark results available. Check algorithm training status.")
+                    
+            except Exception as e:
+                st.error(f"❌ Benchmark failed: {e}")
+                logger.error(f"Benchmark error: {e}")
+            finally:
+                st.session_state.benchmark_running = False
+                st.session_state.benchmark_cancel_requested = False
         
         # Display benchmark results if available (persistent across reruns)
         if st.session_state.benchmark_results:
-            # Display results
+            # Display results with optimized DataFrame operations
             df_results = pd.DataFrame(st.session_state.benchmark_results)
+            
+            # Pre-convert numeric columns once (Task 35: Optimize DataFrame operations)
+            numeric_cols = ['RMSE', 'MAE', 'Training Time (s)', 'Coverage (%)']
+            for col in numeric_cols:
+                if col in df_results.columns:
+                    df_results[col] = pd.to_numeric(df_results[col], errors='coerce')
+            
             st.dataframe(df_results, width="stretch")
             
-            # Performance charts
-            if not df_results.empty:
-                # RMSE comparison - filter out non-numeric values
-                df_numeric = df_results.copy()
-                df_numeric['RMSE'] = pd.to_numeric(df_numeric['RMSE'], errors='coerce')
-                df_numeric = df_numeric.dropna(subset=['RMSE'])
-                
-                if not df_numeric.empty and 'RMSE' in df_numeric.columns:
-                    fig_rmse = px.bar(
-                        df_numeric,
-                        x='Algorithm', 
-                        y='RMSE',
-                        title='Algorithm Accuracy Comparison (Lower RMSE = Better)',
-                        color='RMSE',
-                        color_continuous_scale='Viridis_r'
-                    )
-                    fig_rmse.update_layout(height=400)
-                    st.plotly_chart(fig_rmse, width="stretch")
-                
-                # Coverage comparison
-                if 'Coverage (%)' in df_results.columns:
-                    df_coverage = df_results.copy()
-                    df_coverage['Coverage (%)'] = pd.to_numeric(df_coverage['Coverage (%)'], errors='coerce')
-                    df_coverage = df_coverage.dropna(subset=['Coverage (%)'])
+            # Lazy chart rendering with expanders (Task 34: Defer chart rendering until visible)
+            with st.expander("📊 View Performance Charts", expanded=True):
+                # Performance charts - only render if expander is open
+                if not df_results.empty:
+                    # RMSE comparison - use pre-converted numeric column
+                    df_rmse = df_results.dropna(subset=['RMSE'])
+                    
+                    if not df_rmse.empty:
+                        fig_rmse = px.bar(
+                            df_rmse,
+                            x='Algorithm', 
+                            y='RMSE',
+                            title='Algorithm Accuracy Comparison (Lower RMSE = Better)',
+                            color='RMSE',
+                            color_continuous_scale='Viridis_r'
+                        )
+                        fig_rmse.update_layout(height=400)
+                        st.plotly_chart(fig_rmse, width="stretch", key="benchmark_rmse_chart")
+                    
+                    # Coverage comparison - use pre-converted numeric column
+                    df_coverage = df_results.dropna(subset=['Coverage (%)'])
                     
                     if not df_coverage.empty:
                         fig_coverage = px.bar(
@@ -273,7 +373,7 @@ try:
                             color_continuous_scale='Greens'
                         )
                         fig_coverage.update_layout(height=400)
-                        st.plotly_chart(fig_coverage, width="stretch")
+                        st.plotly_chart(fig_coverage, width="stretch", key="benchmark_coverage_chart")
         
         # ========== SECTION BELOW BENCHMARK: SAMPLE RECOMMENDATIONS ==========
         st.markdown("---")
@@ -329,7 +429,7 @@ try:
                 # Load/switch to the algorithm
                 status_container.info(f"⏳ Loading {demo_algorithm}...")
                 algorithm = manager.switch_algorithm(selected_algo_type)
-                print(f"[DEBUG] Algorithm loaded: {algorithm.name}")
+                logger.debug(f"Algorithm loaded: {algorithm.name}")
                 
                 # Check if user exists in sampled dataset (not blocking - per Recommend.py pattern)
                 user_exists_in_sample = test_user_id in ratings_df['userId'].values
@@ -344,7 +444,7 @@ try:
                     user_id=test_user_id,
                     n=num_recs
                 )
-                print(f"[DEBUG] Recommendations generated: {len(recommendations) if recommendations is not None else 'None'}")
+                logger.debug(f"Recommendations generated: {len(recommendations) if recommendations is not None else 'None'}")
                 
                 # Clear status container
                 status_container.empty()
@@ -353,21 +453,21 @@ try:
                 if recommendations is None:
                     st.error(f"❌ Algorithm returned None. This should never happen.")
                     st.info("Please try a different algorithm or user ID.")
-                    print(f"[ERROR] Algorithm returned None for user {test_user_id}")
+                    logger.error(f"Algorithm returned None for user {test_user_id}")
                     st.session_state.recommendation_results = None
                     st.stop()
                 
                 if not isinstance(recommendations, pd.DataFrame):
                     st.error(f"❌ Algorithm returned {type(recommendations)} instead of DataFrame.")
                     st.info("Please report this bug to the development team.")
-                    print(f"[ERROR] Algorithm returned wrong type: {type(recommendations)}")
+                    logger.error(f"Algorithm returned wrong type: {type(recommendations)}")
                     st.session_state.recommendation_results = None
                     st.stop()
                 
                 if recommendations.empty:
                     st.warning(f"⚠️ No recommendations generated for User {test_user_id}.")
                     st.info("This user might have rated all available movies. Try a different user ID.")
-                    print(f"[WARNING] Empty recommendations for user {test_user_id}")
+                    logger.warning(f"Empty recommendations for user {test_user_id}")
                     st.session_state.recommendation_results = None
                     st.stop()
                 
@@ -378,7 +478,7 @@ try:
                 if missing_cols:
                     st.error(f"❌ Missing required columns: {missing_cols}")
                     st.info(f"Available columns: {list(recommendations.columns)}")
-                    print(f"[ERROR] Missing columns: {missing_cols}, Available: {list(recommendations.columns)}")
+                    logger.error(f"Missing columns: {missing_cols}, Available: {list(recommendations.columns)}")
                     st.session_state.recommendation_results = None
                     st.stop()
                 
@@ -400,7 +500,7 @@ try:
                 4. Check Docker logs for detailed error information
                 """)
                 import traceback
-                print(f"[ERROR] Recommendation generation failed: {traceback.format_exc()}")
+                logger.error(f"Recommendation generation failed: {traceback.format_exc()}")
                 with st.expander("🐛 Show detailed error"):
                     st.code(traceback.format_exc())
                 st.session_state.recommendation_results = None
@@ -413,7 +513,7 @@ try:
             
             # ========== DISPLAY RECOMMENDATIONS ==========
             st.success(f"✅ Generated {len(recommendations)} recommendations using {demo_algorithm}!")
-            print(f"[SUCCESS] Displaying {len(recommendations)} recommendations")
+            logger.info(f"Displaying {len(recommendations)} recommendations")
             
             st.markdown(f"### 🎬 Top {len(recommendations)} Recommendations for User {test_user_id}")
             st.markdown(f"*Powered by {demo_algorithm}*")
@@ -457,7 +557,7 @@ try:
             
             # ========== SECTION 2: USER TASTE PROFILE (INDEPENDENT) ==========
             try:
-                print(f"[DEBUG] Rendering User Taste Profile section...")
+                logger.debug("Rendering User Taste Profile section...")
                 
                 # ========== USER TASTE PROFILE SECTION ==========
                 st.markdown("---")
@@ -503,17 +603,15 @@ try:
                         for genre, count in genre_counts.items():
                             st.markdown(f"**{genre}**: {count} movies")
                 
-                print(f"[SUCCESS] User Taste Profile section rendered")
+                logger.debug("User Taste Profile section rendered")
                 
             except Exception as e:
                 st.error(f"⚠️ Could not load user profile: {e}")
-                print(f"[ERROR] User profile section failed: {e}")
-                import traceback
-                print(traceback.format_exc())
+                logger.error(f"User profile section failed: {e}", exc_info=True)
             
             # ========== SECTION 3: RECOMMENDATION EXPLANATION (INDEPENDENT) ==========
             try:
-                print(f"[DEBUG] Rendering Recommendation Explanation section...")
+                logger.debug("Rendering Recommendation Explanation section...")
                 
                 # ========== RECOMMENDATION EXPLANATION SECTION ==========
                 st.markdown("---")
@@ -529,11 +627,11 @@ try:
                     try:
                         if hasattr(algorithm, 'get_explanation_context'):
                             explanation_context = algorithm.get_explanation_context(test_user_id, first_movie_id)
-                            print(f"[DEBUG] Explanation context retrieved: {explanation_context.get('method') if explanation_context else 'None'}")
+                            logger.debug(f"Explanation context retrieved: {explanation_context.get('method') if explanation_context else 'None'}")
                         else:
-                            print(f"[WARNING] Algorithm {algorithm.name} does not have get_explanation_context method")
+                            logger.warning(f"Algorithm {algorithm.name} does not have get_explanation_context method")
                     except Exception as e:
-                        print(f"[ERROR] Failed to get explanation context: {e}")
+                        logger.error(f"Failed to get explanation context: {e}")
                     
                     # Display explanation based on method
                     if explanation_context and explanation_context.get('method'):
@@ -594,13 +692,11 @@ try:
                         # Fallback explanation when context not available
                         st.info(f"{demo_algorithm} analyzed your rating history and preferences to generate personalized recommendations.")
                 
-                print(f"[SUCCESS] Recommendation Explanation section rendered")
+                logger.debug("Recommendation Explanation section rendered")
                 
             except Exception as e:
                 st.warning(f"⚠️ Could not load explanation details: {e}")
-                print(f"[ERROR] Explanation section failed: {e}")
-                import traceback
-                print(traceback.format_exc())
+                logger.error(f"Explanation section failed: {e}", exc_info=True)
                 # Show generic explanation as fallback
                 st.info(f"{demo_algorithm} analyzed your rating history to generate these recommendations.")
         

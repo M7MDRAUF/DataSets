@@ -1,11 +1,16 @@
 """
-CineMatch V2.1.2 - Movie Search Page
+CineMatch V2.1.6 - Movie Search Page
 
 Search for movies and view all users who rated/liked them.
 Answer the professor's question: "Show me all users who liked Movie X"
 
 Author: CineMatch Development Team
-Date: November 20, 2025
+Date: December 5, 2025
+
+Security Update:
+    - Added input sanitization for search queries
+    - XSS prevention via sanitize_search_query
+    - Added rate limiting for search requests
 """
 
 import streamlit as st
@@ -21,11 +26,13 @@ sys.path.append(str(Path(__file__).parent.parent.parent))
 
 from src.data_processing import load_ratings, load_movies
 from src.utils import format_genres, create_rating_stars, get_genre_emoji, get_tmdb_poster_url, PLACEHOLDER_POSTER
+from src.utils.input_validation import sanitize_search_query, InputValidationError
+from src.utils.rate_limiter import SEARCH_LIMITER, streamlit_rate_check
 
 
 # Page config
 st.set_page_config(
-    page_title="CineMatch V2.1.2 - Movie Search",
+    page_title="CineMatch V2.1.6 - Movie Search",
     page_icon="🎬",
     layout="wide"
 )
@@ -160,9 +167,25 @@ search_clicked = st.sidebar.button("🔍 Search Movie", type="primary")
 
 # Main content
 if search_clicked and search_query:
+    # Rate limiting check
+    if not streamlit_rate_check(SEARCH_LIMITER, action_name="movie search"):
+        st.info("💡 Tip: Rate limiting protects the system. Wait a moment and try again.")
+        st.stop()
+    
+    # Sanitize search query for security
+    is_safe, sanitized_query, validation_message = sanitize_search_query(search_query)
+    
+    if not is_safe:
+        st.error(f"❌ Invalid search query: {validation_message}")
+        st.info("💡 Please enter a valid movie title without special characters")
+        st.stop()
+    
+    # Use sanitized query for search
+    search_query = sanitized_query
+    
     # Search for movies matching the query
     matching_movies = movies_df[
-        movies_df['title'].str.contains(search_query, case=False, na=False)
+        movies_df['title'].str.contains(search_query, case=False, na=False, regex=False)
     ]
     
     if matching_movies.empty:

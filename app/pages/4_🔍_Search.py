@@ -1,11 +1,18 @@
 """
-CineMatch V2.1.2 - Search Page
+CineMatch V2.1.6 - Search Page
 
 User rating history lookup and advanced search functionality.
 Answer the professor's question: "How can I see all movies rated by User ID 26?"
 
 Author: CineMatch Development Team
-Date: November 20, 2025
+Date: December 5, 2025
+
+Features:
+    - User ID validation with bounds checking
+    - Rate limiting for search requests
+    - Export functionality (Task 2.12)
+    - Improved error messages (Task 2.2)
+    - Result pagination (Task 2.10)
 """
 
 import streamlit as st
@@ -14,8 +21,12 @@ import plotly.express as px
 import plotly.graph_objects as go
 import sys
 import html
+import logging
 from pathlib import Path
 from datetime import datetime
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 # Add src to path
 sys.path.append(str(Path(__file__).parent.parent.parent))
@@ -30,16 +41,29 @@ from src.search_engine import (
     search_movies_by_criteria
 )
 from src.utils import format_genres, create_rating_stars, get_genre_emoji, get_tmdb_poster_url, PLACEHOLDER_POSTER
+from src.utils.input_validation import validate_user_id, InputValidationError
+from src.utils.rate_limiter import SEARCH_LIMITER, streamlit_rate_check
+
+# Import UI components for improved UX
+try:
+    from app.components.ui_helpers import (
+        show_friendly_error,
+        create_download_button,
+        create_info_callout,
+    )
+    UI_COMPONENTS_AVAILABLE = True
+except ImportError:
+    UI_COMPONENTS_AVAILABLE = False
 
 
 # Page config
 st.set_page_config(
-    page_title="CineMatch V2.1.2 - Search",
+    page_title="CineMatch V2.1.6 - Search",
     page_icon="🔍",
     layout="wide"
 )
 
-# Custom CSS
+# Custom CSS with mobile responsiveness (Task 2.5)
 st.markdown("""
 <style>
 .search-header {
@@ -156,7 +180,22 @@ rating_filter = st.sidebar.slider(
 
 # Main content
 if search_clicked or user_id_input:
-    # Validate user existence
+    # Rate limiting check
+    if not streamlit_rate_check(SEARCH_LIMITER, action_name="search"):
+        st.info("💡 Tip: Rate limiting protects the system. Wait a moment and try again.")
+        st.stop()
+    
+    # Security: Validate user ID with bounds checking
+    is_valid, validated_user_id, validation_message = validate_user_id(user_id_input)
+    
+    if not is_valid:
+        st.error(f"❌ Invalid User ID: {validation_message}")
+        st.info("💡 Enter a valid positive integer User ID")
+        st.stop()
+    
+    user_id_input = validated_user_id
+    
+    # Validate user existence in dataset
     if not validate_user_existence(user_id_input, ratings_df):
         st.error(f"❌ User ID {user_id_input} not found in the dataset.")
         st.info("💡 Try a different User ID. Valid range: 1 to 330,000")
@@ -353,9 +392,68 @@ if search_clicked or user_id_input:
             file_name=f"user_{user_id_input}_ratings.csv",
             mime="text/csv"
         )
+    with col3:
+        # JSON Export (Task 2.12)
+        json_data = user_ratings_filtered[['movieId', 'title', 'genres', 'rating', 'timestamp']].copy()
+        json_data['timestamp'] = json_data['timestamp'].astype(str)
+        st.download_button(
+            label="📥 Download JSON",
+            data=json_data.to_json(orient='records', indent=2),
+            file_name=f"user_{user_id_input}_ratings.json",
+            mime="application/json"
+        )
+    
+    # Pagination (Task 2.10)
+    ITEMS_PER_PAGE = 20
+    total_items = len(user_ratings_filtered)
+    total_pages = max(1, (total_items + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE)
+    
+    # Initialize page number in session state
+    page_key = f"search_page_{user_id_input}"
+    if page_key not in st.session_state:
+        st.session_state[page_key] = 1
+    
+    # Pagination controls
+    if total_pages > 1:
+        st.markdown("---")
+        page_col1, page_col2, page_col3, page_col4, page_col5 = st.columns([1, 1, 2, 1, 1])
+        
+        with page_col1:
+            if st.button("⏮️ First", disabled=st.session_state[page_key] == 1, key="first_page"):
+                st.session_state[page_key] = 1
+                st.rerun()
+        
+        with page_col2:
+            if st.button("◀️ Prev", disabled=st.session_state[page_key] == 1, key="prev_page"):
+                st.session_state[page_key] = max(1, st.session_state[page_key] - 1)
+                st.rerun()
+        
+        with page_col3:
+            st.markdown(f"<div style='text-align: center; padding-top: 0.5rem;'><strong>Page {st.session_state[page_key]} of {total_pages}</strong></div>", unsafe_allow_html=True)
+        
+        with page_col4:
+            if st.button("Next ▶️", disabled=st.session_state[page_key] == total_pages, key="next_page"):
+                st.session_state[page_key] = min(total_pages, st.session_state[page_key] + 1)
+                st.rerun()
+        
+        with page_col5:
+            if st.button("Last ⏭️", disabled=st.session_state[page_key] == total_pages, key="last_page"):
+                st.session_state[page_key] = total_pages
+                st.rerun()
+        
+        # Show items range
+        start_idx = (st.session_state[page_key] - 1) * ITEMS_PER_PAGE
+        end_idx = min(start_idx + ITEMS_PER_PAGE, total_items)
+        st.caption(f"Showing items {start_idx + 1} - {end_idx} of {total_items}")
+    else:
+        start_idx = 0
+        end_idx = total_items
+    
+    # Get current page data
+    page_data = user_ratings_filtered.iloc[start_idx:end_idx]
     
     # Display ratings in a nice format
-    for idx, row in user_ratings_filtered.iterrows():
+    for idx, row in page_data.iterrows():
         poster_path = row.get('poster_path', None)
         poster_url = get_tmdb_poster_url(poster_path)
         
