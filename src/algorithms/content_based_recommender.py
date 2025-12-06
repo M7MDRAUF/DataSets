@@ -1,5 +1,5 @@
 """
-CineMatch V2.1.0 - Content-Based Filtering Recommender
+CineMatch V2.1.6 - Content-Based Filtering Recommender
 
 Content-Based Filtering using movie features (genres, tags, titles).
 Recommends movies with similar characteristics to those the user has enjoyed.
@@ -10,25 +10,39 @@ Features:
 - User profile building from rating history
 - Cold-start handling for new users
 - Memory-efficient sparse matrix operations
+- LRU cache with max size and TTL for bounded memory usage
 
 Author: CineMatch Development Team
 Date: November 11, 2025
 """
 
 import sys
+import logging
 from pathlib import Path
 from typing import List, Dict, Tuple, Optional, Any, Set
 import pandas as pd
 import numpy as np
 import time
 import warnings
+
+# Setup module logger
+logger = logging.getLogger(__name__)
 from scipy.sparse import csr_matrix, hstack, vstack
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.preprocessing import normalize
 import re
 
+# LRU Cache for bounded memory usage
+from src.utils.lru_cache import LRUCache
+
 warnings.filterwarnings('ignore')
+
+# Default cache settings
+DEFAULT_USER_PROFILE_CACHE_SIZE = 10000  # Max user profiles to cache
+DEFAULT_USER_PROFILE_TTL = 3600  # 1 hour TTL for user profiles
+DEFAULT_SIMILARITY_CACHE_SIZE = 5000  # Max movie similarities to cache
+DEFAULT_SIMILARITY_TTL = 7200  # 2 hour TTL for similarity cache
 
 # Add parent directory to path for imports
 sys.path.append(str(Path(__file__).parent.parent.parent))
@@ -58,6 +72,10 @@ class ContentBasedRecommender(BaseRecommender):
         tag_weight: float = 0.3, 
         title_weight: float = 0.2,
         min_similarity: float = 0.01,
+        user_profile_cache_size: int = DEFAULT_USER_PROFILE_CACHE_SIZE,
+        user_profile_ttl: Optional[float] = DEFAULT_USER_PROFILE_TTL,
+        similarity_cache_size: int = DEFAULT_SIMILARITY_CACHE_SIZE,
+        similarity_ttl: Optional[float] = DEFAULT_SIMILARITY_TTL,
         **kwargs
     ):
         """
@@ -68,6 +86,10 @@ class ContentBasedRecommender(BaseRecommender):
             tag_weight: Weight for tag features (default: 0.3)
             title_weight: Weight for title features (default: 0.2)
             min_similarity: Minimum similarity threshold (default: 0.01)
+            user_profile_cache_size: Max user profiles to cache (default: 10000)
+            user_profile_ttl: TTL in seconds for user profiles (default: 3600)
+            similarity_cache_size: Max movie similarities to cache (default: 5000)
+            similarity_ttl: TTL in seconds for similarity cache (default: 7200)
             **kwargs: Additional parameters
         """
         super().__init__(
@@ -83,6 +105,12 @@ class ContentBasedRecommender(BaseRecommender):
         self.tag_weight = tag_weight
         self.title_weight = title_weight
         self.min_similarity = min_similarity
+        
+        # Cache settings
+        self._user_profile_cache_size = user_profile_cache_size
+        self._user_profile_ttl = user_profile_ttl
+        self._similarity_cache_size = similarity_cache_size
+        self._similarity_ttl = similarity_ttl
         
         # Feature extractors
         self.genre_vectorizer = TfidfVectorizer(
@@ -116,38 +144,98 @@ class ContentBasedRecommender(BaseRecommender):
         self.movie_mapper = {}
         self.movie_inv_mapper = {}
         
-        # User profiles cache
-        self.user_profiles = {}
+        # User profiles cache with LRU eviction and TTL
+        self.user_profiles: LRUCache[int, np.ndarray] = LRUCache(
+            max_size=user_profile_cache_size,
+            ttl_seconds=user_profile_ttl
+        )
         
-        # Movie similarity cache for fast explanation lookups
-        self.movie_similarity_cache = {}
+        # Movie similarity cache with LRU eviction and TTL
+        # Stores movie_id -> Dict[similar_movie_id, similarity_score]
+        self.movie_similarity_cache: LRUCache[int, Dict[int, float]] = LRUCache(
+            max_size=similarity_cache_size,
+            ttl_seconds=similarity_ttl
+        )
         
         # Tags data
         self.tags_df = None
+    
+    def _ensure_csr_matrix(self) -> None:
+        """
+        Ensure all sparse matrices are in CSR format for efficient slicing.
+        
+        COO matrices don't support subscripting/slicing. When models are
+        loaded from disk, the matrix format may change. This ensures we
+        can always use standard indexing operations.
+        """
+        from scipy import sparse
+        
+        if self.combined_features is not None and not isinstance(self.combined_features, sparse.csr_matrix):
+            self.combined_features = self.combined_features.tocsr()
+        
+        if self.similarity_matrix is not None and not isinstance(self.similarity_matrix, sparse.csr_matrix):
+            self.similarity_matrix = self.similarity_matrix.tocsr()
+        
+        if self.genre_features is not None and not isinstance(self.genre_features, sparse.csr_matrix):
+            self.genre_features = self.genre_features.tocsr()
+        
+        if self.tag_features is not None and not isinstance(self.tag_features, sparse.csr_matrix):
+            self.tag_features = self.tag_features.tocsr()
+        
+        if self.title_features is not None and not isinstance(self.title_features, sparse.csr_matrix):
+            self.title_features = self.title_features.tocsr()
+    
+    def _ensure_movies_df_columns(self) -> None:
+        """
+        Ensure movies_df has required columns for recommendations.
+        
+        Adds 'genres_list' and 'poster_path' columns if they don't exist.
+        This is needed when movies_df is provided after model loading.
+        """
+        if self.movies_df is None:
+            return
+        
+        if 'genres_list' not in self.movies_df.columns:
+            self.movies_df = self.movies_df.copy()
+            self.movies_df['genres_list'] = self.movies_df['genres'].str.split('|')
+        
+        if 'poster_path' not in self.movies_df.columns:
+            if 'genres_list' not in self.movies_df.columns:
+                # Already copied above
+                pass
+            else:
+                self.movies_df = self.movies_df.copy()
+            self.movies_df['poster_path'] = None
         
     def fit(self, ratings_df: pd.DataFrame, movies_df: pd.DataFrame) -> None:
         """Train the Content-Based model on the provided data"""
-        print(f"\n🎬 Training {self.name}...")
+        logger.info(f"Training {self.name}...")
         start_time = time.time()
         
-        # Store data references
-        self.ratings_df = ratings_df.copy()
-        self.movies_df = movies_df.copy()
+        # Store data references (no copy for ratings - read-only)
+        self.ratings_df = ratings_df
         
-        # Add genres_list column if not present
-        if 'genres_list' not in self.movies_df.columns:
-            self.movies_df['genres_list'] = self.movies_df['genres'].str.split('|')
+        # Only copy movies_df if we need to modify it
+        needs_copy = 'genres_list' not in movies_df.columns or 'poster_path' not in movies_df.columns
+        if needs_copy:
+            self.movies_df = movies_df.copy()
+            if 'genres_list' not in self.movies_df.columns:
+                self.movies_df['genres_list'] = self.movies_df['genres'].str.split('|')
+            if 'poster_path' not in self.movies_df.columns:
+                self.movies_df['poster_path'] = None
+        else:
+            self.movies_df = movies_df
         
         # Load tags data
-        print("  • Loading tags data...")
+        logger.info("Loading tags data...")
         self._load_tags_data()
         
         # Build feature matrices
-        print("  • Extracting movie features...")
+        logger.info("Extracting movie features...")
         self._build_feature_matrix()
         
         # Compute similarity matrix
-        print("  • Computing movie-movie similarity matrix...")
+        logger.info("Computing movie-movie similarity matrix...")
         self._compute_similarity_matrix()
         
         # Calculate metrics
@@ -156,7 +244,7 @@ class ContentBasedRecommender(BaseRecommender):
         self.is_trained = True
         
         # Calculate RMSE on a test sample
-        print("  • Calculating RMSE...")
+        logger.info("Calculating RMSE...")
         self._calculate_rmse(ratings_df)
         
         # Calculate coverage
@@ -166,17 +254,17 @@ class ContentBasedRecommender(BaseRecommender):
         matrix_size_mb = self._calculate_memory_usage()
         self.metrics.memory_usage_mb = matrix_size_mb
         
-        print(f"✓ {self.name} trained successfully!")
-        print(f"  • Training time: {training_time:.1f}s")
-        print(f"  • RMSE: {self.metrics.rmse:.4f}")
-        print(f"  • MAE: {self.metrics.mae:.4f}")
-        print(f"  • Feature dimensions: {self.combined_features.shape}")
+        logger.info(f"{self.name} trained successfully!")
+        logger.info(f"Training time: {training_time:.1f}s")
+        logger.info(f"RMSE: {self.metrics.rmse:.4f}")
+        logger.info(f"MAE: {self.metrics.mae:.4f}")
+        logger.info(f"Feature dimensions: {self.combined_features.shape}")
         if self.similarity_matrix is not None:
-            print(f"  • Similarity matrix size: {self.similarity_matrix.shape}")
+            logger.info(f"Similarity matrix size: {self.similarity_matrix.shape}")
         else:
-            print(f"  • Similarity computation: On-demand (memory-optimized)")
-        print(f"  • Memory usage: {matrix_size_mb:.1f} MB")
-        print(f"  • Coverage: {self.metrics.coverage:.1f}%")
+            logger.info(f"Similarity computation: On-demand (memory-optimized)")
+        logger.info(f"Memory usage: {matrix_size_mb:.1f} MB")
+        logger.info(f"Coverage: {self.metrics.coverage:.1f}%")
     
     def _load_tags_data(self) -> None:
         """Load and preprocess tags data"""
@@ -209,13 +297,13 @@ class ContentBasedRecommender(BaseRecommender):
                 )
                 self.movies_df['tags_text'].fillna('', inplace=True)
                 
-                print(f"    ✓ Loaded {len(self.tags_df)} tags for {len(movie_tags)} movies")
+                logger.info(f"Loaded {len(self.tags_df)} tags for {len(movie_tags)} movies")
             else:
-                print(f"    ⚠ Tags file not found, using genres and titles only")
+                logger.warning(f"Tags file not found, using genres and titles only")
                 self.movies_df['tags_text'] = ''
                 
         except Exception as e:
-            print(f"    ⚠ Error loading tags: {e}")
+            logger.warning(f"Error loading tags: {e}")
             self.movies_df['tags_text'] = ''
     
     def _build_feature_matrix(self) -> None:
@@ -229,12 +317,12 @@ class ContentBasedRecommender(BaseRecommender):
         }
         
         # 1. Genre Features (Multi-hot encoding with TF-IDF)
-        print("    • Processing genre features...")
+        logger.debug("Processing genre features...")
         genre_lists = self.movies_df['genres_list'].apply(lambda x: x if isinstance(x, list) else []).tolist()
         self.genre_features = self.genre_vectorizer.fit_transform(genre_lists)
         
         # 2. Tag Features (TF-IDF on aggregated tags)
-        print("    • Processing tag features...")
+        logger.debug("Processing tag features...")
         tags_text = self.movies_df['tags_text'].fillna('').tolist()
         
         # Only fit if we have tags
@@ -245,7 +333,7 @@ class ContentBasedRecommender(BaseRecommender):
             self.tag_features = csr_matrix((len(self.movies_df), 1))
         
         # 3. Title Features (TF-IDF on title words)
-        print("    • Processing title features...")
+        logger.debug("Processing title features...")
         titles = self.movies_df['title'].fillna('').tolist()
         
         # Extract title text (remove year in parentheses)
@@ -253,7 +341,7 @@ class ContentBasedRecommender(BaseRecommender):
         self.title_features = self.title_vectorizer.fit_transform(title_texts)
         
         # 4. Combine features with weights
-        print("    • Combining features with weights...")
+        logger.debug("Combining features with weights...")
         
         # Normalize each feature type
         genre_features_norm = normalize(self.genre_features, norm='l2', axis=1)
@@ -272,16 +360,16 @@ class ContentBasedRecommender(BaseRecommender):
             title_features_weighted
         ]).tocsr()
         
-        print(f"    ✓ Genre features: {self.genre_features.shape[1]} dimensions")
-        print(f"    ✓ Tag features: {self.tag_features.shape[1]} dimensions")
-        print(f"    ✓ Title features: {self.title_features.shape[1]} dimensions")
-        print(f"    ✓ Combined features: {self.combined_features.shape}")
+        logger.debug(f"Genre features: {self.genre_features.shape[1]} dimensions")
+        logger.debug(f"Tag features: {self.tag_features.shape[1]} dimensions")
+        logger.debug(f"Title features: {self.title_features.shape[1]} dimensions")
+        logger.debug(f"Combined features: {self.combined_features.shape}")
     
     def _compute_similarity_matrix(self) -> None:
         """Compute movie-movie similarity matrix using cosine similarity"""
         n_movies = self.combined_features.shape[0]
         
-        print(f"    • Preparing for on-demand similarity computation ({n_movies} movies)")
+        logger.debug(f"Preparing for on-demand similarity computation ({n_movies} movies)")
         
         # For large datasets, we DON'T pre-compute the full similarity matrix
         # Instead, we just normalize features and compute similarities on-demand
@@ -289,7 +377,7 @@ class ContentBasedRecommender(BaseRecommender):
         
         if n_movies <= 5000:
             # Small dataset: pre-compute full similarity matrix
-            print(f"    • Small dataset detected - pre-computing full similarity matrix...")
+            logger.debug(f"Small dataset detected - pre-computing full similarity matrix...")
             self.similarity_matrix = cosine_similarity(
                 self.combined_features,
                 dense_output=False
@@ -305,29 +393,32 @@ class ContentBasedRecommender(BaseRecommender):
             sparsity = (1 - self.similarity_matrix.nnz / 
                        (self.similarity_matrix.shape[0] * self.similarity_matrix.shape[1])) * 100
             
-            print(f"    ✓ Similarity matrix computed: {self.similarity_matrix.shape}")
-            print(f"    ✓ Sparsity: {sparsity:.2f}%")
-            print(f"    ✓ Non-zero entries: {self.similarity_matrix.nnz:,}")
+            logger.debug(f"Similarity matrix computed: {self.similarity_matrix.shape}")
+            logger.debug(f"Sparsity: {sparsity:.2f}%")
+            logger.debug(f"Non-zero entries: {self.similarity_matrix.nnz:,}")
             
             # Populate movie similarity cache for top movies (used in explanations)
-            print(f"    • Building similarity cache for top 1000 movies...")
-            cache_size = min(1000, n_movies)
+            # Limited by LRU cache max_size to prevent unbounded growth
+            logger.debug(f"Building similarity cache for top movies...")
+            cache_size = min(1000, n_movies, self._similarity_cache_size)
             for i in range(cache_size):
                 sim_scores = self.similarity_matrix[i].toarray().flatten()
                 movie_id = self.movie_inv_mapper[i]
                 
                 # Cache top 50 most similar movies with similarity > 0.1
                 top_indices = np.argsort(sim_scores)[-51:][::-1][1:]  # Exclude self
-                self.movie_similarity_cache[movie_id] = {
+                similarity_dict = {
                     self.movie_inv_mapper[j]: float(sim_scores[j])
                     for j in top_indices if sim_scores[j] > 0.1
                 }
+                self.movie_similarity_cache.set(movie_id, similarity_dict)
             
-            print(f"    ✓ Cached similarities for {len(self.movie_similarity_cache)} movies")
+            cache_stats = self.movie_similarity_cache.stats()
+            logger.debug(f"Cached similarities for {cache_stats['size']} movies (max: {cache_stats['max_size']})")
         else:
             # Large dataset: use on-demand computation (no pre-computed matrix)
-            print(f"    • Large dataset detected - using on-demand similarity computation")
-            print(f"    • This saves memory: ~{(n_movies * n_movies * 8) / (1024**3):.1f} GB avoided")
+            logger.debug(f"Large dataset detected - using on-demand similarity computation")
+            logger.debug(f"This saves memory: ~{(n_movies * n_movies * 8) / (1024**3):.1f} GB avoided")
             
             # Normalize features for efficient cosine similarity computation
             # Cosine similarity = dot product of normalized vectors
@@ -336,8 +427,8 @@ class ContentBasedRecommender(BaseRecommender):
             # Set similarity_matrix to None to indicate on-demand mode
             self.similarity_matrix = None
             
-            print(f"    ✓ Features normalized for on-demand similarity computation")
-            print(f"    ✓ Memory usage: {self._calculate_memory_usage():.1f} MB")
+            logger.debug(f"Features normalized for on-demand similarity computation")
+            logger.debug(f"Memory usage: {self._calculate_memory_usage():.1f} MB")
     
     def _build_user_profile(self, user_id: int) -> Optional[np.ndarray]:
         """
@@ -349,9 +440,13 @@ class ContentBasedRecommender(BaseRecommender):
         Returns:
             User profile vector (weighted average of rated movie features)
         """
-        # Check cache first
-        if user_id in self.user_profiles:
-            return self.user_profiles[user_id]
+        # Ensure matrices are in CSR format for subscripting
+        self._ensure_csr_matrix()
+        
+        # Check LRU cache first (handles TTL expiration)
+        cached_profile = self.user_profiles.get(user_id)
+        if cached_profile is not None:
+            return cached_profile
         
         # Get user's ratings
         user_ratings = self.ratings_df[self.ratings_df['userId'] == user_id]
@@ -385,8 +480,8 @@ class ContentBasedRecommender(BaseRecommender):
         # Normalize profile
         user_profile = normalize(user_profile.reshape(1, -1), norm='l2')[0]
         
-        # Cache profile
-        self.user_profiles[user_id] = user_profile
+        # Cache profile (LRU cache with automatic eviction)
+        self.user_profiles.set(user_id, user_profile)
         
         return user_profile
     
@@ -403,6 +498,9 @@ class ContentBasedRecommender(BaseRecommender):
         """
         if not self.is_trained:
             raise ValueError("Model not trained. Call fit() first.")
+        
+        # Ensure matrices are in CSR format for subscripting
+        self._ensure_csr_matrix()
         
         self._start_prediction_timer()
         
@@ -466,7 +564,13 @@ class ContentBasedRecommender(BaseRecommender):
         if not self.is_trained:
             raise ValueError("Model not trained. Call fit() first.")
         
-        print(f"\n🎬 Generating {self.name} recommendations for User {user_id}...")
+        # Ensure matrices are in CSR format for subscripting
+        self._ensure_csr_matrix()
+        
+        # Ensure movies_df has required columns
+        self._ensure_movies_df_columns()
+        
+        logger.info(f"Generating {self.name} recommendations for User {user_id}...")
         self._start_prediction_timer()
         
         try:
@@ -475,14 +579,14 @@ class ContentBasedRecommender(BaseRecommender):
             
             if user_profile is None:
                 # New user: return popular movies
-                print(f"  • User {user_id} has no ratings - generating popular recommendations...")
+                logger.info(f"User {user_id} has no ratings - generating popular recommendations...")
                 return self._get_popular_movies(n)
             
             # Get user's rated movies
             user_ratings = self.ratings_df[self.ratings_df['userId'] == user_id]
             rated_movie_ids = set(user_ratings['movieId'].values)
             
-            print(f"  • User has rated {len(rated_movie_ids)} movies")
+            logger.debug(f"User has rated {len(rated_movie_ids)} movies")
             
             # Get candidate movies
             if exclude_rated:
@@ -493,7 +597,7 @@ class ContentBasedRecommender(BaseRecommender):
             else:
                 candidate_movie_ids = list(self.movie_mapper.keys())
             
-            print(f"  • Evaluating {len(candidate_movie_ids)} candidate movies...")
+            logger.debug(f"Evaluating {len(candidate_movie_ids)} candidate movies...")
             
             # Compute similarity scores for all candidates
             candidate_indices = [self.movie_mapper[mid] for mid in candidate_movie_ids]
@@ -536,7 +640,7 @@ class ContentBasedRecommender(BaseRecommender):
                 how='left'
             )
             
-            print(f"✓ Generated {len(recommendations)} recommendations")
+            logger.info(f"Generated {len(recommendations)} recommendations")
             
             return recommendations
             
@@ -564,7 +668,13 @@ class ContentBasedRecommender(BaseRecommender):
         if item_id not in self.movie_mapper:
             raise ValueError(f"Movie ID {item_id} not found in dataset")
         
-        print(f"\n🔍 Finding movies similar to Movie {item_id}...")
+        # Ensure matrices are in CSR format for subscripting
+        self._ensure_csr_matrix()
+        
+        # Ensure movies_df has required columns
+        self._ensure_movies_df_columns()
+        
+        logger.info(f"Finding movies similar to Movie {item_id}...")
         self._start_prediction_timer()
         
         try:
@@ -607,7 +717,7 @@ class ContentBasedRecommender(BaseRecommender):
                 how='left'
             )
             
-            print(f"✓ Found {len(similar_movies)} similar movies")
+            logger.info(f"Found {len(similar_movies)} similar movies")
             
             return similar_movies
             
@@ -616,6 +726,9 @@ class ContentBasedRecommender(BaseRecommender):
     
     def _get_popular_movies(self, n: int) -> pd.DataFrame:
         """Fallback: return most popular movies for new users"""
+        # Ensure movies_df has required columns
+        self._ensure_movies_df_columns()
+        
         movie_ratings = self.ratings_df.groupby('movieId').agg({
             'rating': ['count', 'mean']
         }).reset_index()
@@ -634,7 +747,7 @@ class ContentBasedRecommender(BaseRecommender):
         recommendations['predicted_rating'] = recommendations['mean_rating']
         recommendations['similarity'] = 1.0
         
-        print(f"✓ Generated {len(recommendations)} popular movie recommendations")
+        logger.info(f"Generated {len(recommendations)} popular movie recommendations")
         return recommendations[['movieId', 'predicted_rating', 'similarity', 'title', 'genres', 'genres_list', 'poster_path']]
     
     def _calculate_rmse(self, ratings_df: pd.DataFrame) -> None:
@@ -650,7 +763,8 @@ class ContentBasedRecommender(BaseRecommender):
                 error = pred - row['rating']
                 squared_errors.append(error ** 2)
                 absolute_errors.append(abs(error))
-            except:
+            except (KeyError, ValueError, IndexError) as e:
+                # Skip unpredictable user-movie pairs
                 continue
         
         if squared_errors:
@@ -678,6 +792,30 @@ class ContentBasedRecommender(BaseRecommender):
         
         return total_bytes / (1024 * 1024)
     
+    def get_cache_stats(self) -> Dict[str, Any]:
+        """
+        Get cache statistics for monitoring and debugging.
+        
+        Returns:
+            Dictionary with cache statistics:
+            - user_profiles: Stats for user profile cache
+            - movie_similarity: Stats for movie similarity cache
+        """
+        return {
+            'user_profiles': self.user_profiles.stats(),
+            'movie_similarity': self.movie_similarity_cache.stats()
+        }
+    
+    def clear_caches(self) -> None:
+        """
+        Clear all caches to free memory.
+        
+        Useful when retraining the model or resetting state.
+        """
+        self.user_profiles.clear()
+        self.movie_similarity_cache.clear()
+        logger.debug("Cleared user_profiles and movie_similarity caches")
+    
     def get_feature_importance(self, movie_id: int) -> Dict[str, Any]:
         """
         Get feature importance for a specific movie.
@@ -688,6 +826,9 @@ class ContentBasedRecommender(BaseRecommender):
         Returns:
             Dictionary with feature analysis
         """
+        # Ensure matrices are in CSR format for subscripting
+        self._ensure_csr_matrix()
+        
         if movie_id not in self.movie_mapper:
             return {'error': 'Movie not found'}
         
@@ -766,6 +907,9 @@ class ContentBasedRecommender(BaseRecommender):
         Returns:
             Dictionary with explanation details
         """
+        # Ensure matrices are in CSR format for subscripting
+        self._ensure_csr_matrix()
+        
         # Build user profile
         user_profile = self._build_user_profile(user_id)
         
@@ -815,25 +959,15 @@ class ContentBasedRecommender(BaseRecommender):
         Args:
             model_path: Path to the saved model file
         """
-        import pickle
+        # Use model_loader which handles both joblib and pickle formats
+        from src.utils.model_loader import load_model_safe
         
-        print(f"📂 Loading Content-Based model from {model_path}")
+        logger.info(f"Loading Content-Based model from {model_path}")
         start_time = time.time()
         
-        with open(model_path, 'rb') as f:
-            model_data = pickle.load(f)
-        
-        # Extract model
-        if isinstance(model_data, dict) and 'model' in model_data:
-            loaded_model = model_data['model']
-            metadata = model_data.get('metadata', {})
-            metrics = model_data.get('metrics', {})
-            
-            print(f"   • Model version: {metadata.get('version', 'Unknown')}")
-            print(f"   • Trained on: {metadata.get('trained_on', 'Unknown')}")
-            print(f"   • Number of movies: {metadata.get('n_movies', 'Unknown')}")
-        else:
-            loaded_model = model_data
+        # load_model_safe handles dict wrapper and format detection
+        # It automatically extracts the model from dict wrapper if present
+        loaded_model = load_model_safe(model_path)
         
         # Copy all attributes from loaded model
         self.__dict__.update(loaded_model.__dict__)
@@ -841,14 +975,42 @@ class ContentBasedRecommender(BaseRecommender):
         # Ensure is_trained flag is set
         self.is_trained = True
         
+        # Debug logging: Check cache types before reinitialization
+        logger.debug(f"Before reinit - user_profiles type: {type(self.user_profiles)}")
+        logger.debug(f"Before reinit - movie_similarity_cache type: {type(self.movie_similarity_cache)}")
+        
+        # Reinitialize LRU caches (may have been serialized as dicts)
+        # Check if user_profiles is not an LRUCache and reinitialize
+        if not isinstance(self.user_profiles, LRUCache):
+            self.user_profiles = LRUCache(
+                max_size=self._user_profile_cache_size if hasattr(self, '_user_profile_cache_size') else DEFAULT_USER_PROFILE_CACHE_SIZE,
+                ttl_seconds=self._user_profile_ttl if hasattr(self, '_user_profile_ttl') else DEFAULT_USER_PROFILE_TTL
+            )
+        
+        if not isinstance(self.movie_similarity_cache, LRUCache):
+            self.movie_similarity_cache = LRUCache(
+                max_size=self._similarity_cache_size if hasattr(self, '_similarity_cache_size') else DEFAULT_SIMILARITY_CACHE_SIZE,
+                ttl_seconds=self._similarity_ttl if hasattr(self, '_similarity_ttl') else DEFAULT_SIMILARITY_TTL
+            )
+        
+        # Debug logging: Confirm cache types after reinitialization
+        logger.debug(f"After reinit - user_profiles type: {type(self.user_profiles)}")
+        logger.debug(f"After reinit - movie_similarity_cache type: {type(self.movie_similarity_cache)}")
+        logger.debug(f"user_profiles has .set() method: {hasattr(self.user_profiles, 'set')}")
+        logger.debug(f"user_profiles has .get() method: {hasattr(self.user_profiles, 'get')}")
+        
+        # Ensure sparse matrices are in CSR format after loading
+        # (loading from disk may change matrix format to COO)
+        self._ensure_csr_matrix()
+        
         load_time = time.time() - start_time
         
-        print(f"   ✓ Model loaded successfully in {load_time:.2f}s")
-        print(f"   ✓ Feature dimensions: {self.combined_features.shape}")
+        logger.info(f"Model loaded successfully in {load_time:.2f}s")
+        logger.info(f"Feature dimensions: {self.combined_features.shape}")
         if self.similarity_matrix is not None:
-            print(f"   ✓ Similarity matrix: {self.similarity_matrix.shape}")
+            logger.info(f"Similarity matrix: {self.similarity_matrix.shape}")
         else:
-            print(f"   ✓ Similarity computation: On-demand (memory-optimized)")
+            logger.info(f"Similarity computation: On-demand (memory-optimized)")
     
     def save_model(self, model_path: Path) -> None:
         """
@@ -885,12 +1047,12 @@ class ContentBasedRecommender(BaseRecommender):
             }
         }
         
-        print(f"💾 Saving Content-Based model to {model_path}")
+        logger.info(f"Saving Content-Based model to {model_path}")
         with open(model_path, 'wb') as f:
             pickle.dump(model_data, f, protocol=pickle.HIGHEST_PROTOCOL)
         
         file_size_mb = model_path.stat().st_size / (1024 * 1024)
-        print(f"   ✓ Model saved successfully ({file_size_mb:.1f} MB)")
+        logger.info(f"Model saved successfully ({file_size_mb:.1f} MB)")
     
     # ==================== ABSTRACT METHOD IMPLEMENTATIONS ====================
     
@@ -983,6 +1145,9 @@ class ContentBasedRecommender(BaseRecommender):
             self.metrics.memory_usage_mb = metrics_data.get('memory_mb', 0.0)
         
         self.is_trained = True
+        
+        # Ensure sparse matrices are in CSR format after restoring state
+        self._ensure_csr_matrix()
     
     def __getstate__(self):
         """Prepare object for pickling by removing unpicklable lambda functions."""
@@ -1013,6 +1178,10 @@ class ContentBasedRecommender(BaseRecommender):
             del self._genre_vocab
             if hasattr(self, '_genre_idf'):
                 del self._genre_idf
+        
+        # Ensure sparse matrices are in CSR format after unpickling
+        # (deserialization may change matrix format to COO)
+        self._ensure_csr_matrix()
     
     def get_explanation_context(self, user_id: int, movie_id: int) -> Dict[str, Any]:
         """
@@ -1027,6 +1196,9 @@ class ContentBasedRecommender(BaseRecommender):
         """
         if not self.is_trained:
             return {}
+        
+        # Ensure matrices are in CSR format for subscripting
+        self._ensure_csr_matrix()
         
         try:
             # Get movie details
@@ -1057,8 +1229,10 @@ class ContentBasedRecommender(BaseRecommender):
             if len(highly_rated) > 0:
                 # Get similarities to user's highly rated movies
                 for rated_movie_id in highly_rated[:5]:  # Top 5 rated movies
-                    if rated_movie_id in self.movie_similarity_cache:
-                        sim_score = self.movie_similarity_cache[rated_movie_id].get(movie_id, 0)
+                    # Check LRU cache for similarity data
+                    similarity_data = self.movie_similarity_cache.get(rated_movie_id)
+                    if similarity_data is not None:
+                        sim_score = similarity_data.get(movie_id, 0)
                         if sim_score > 0.1:  # Threshold for relevance
                             rated_movie = self.movies_df[self.movies_df['movieId'] == rated_movie_id].iloc[0]
                             similar_movies.append({
