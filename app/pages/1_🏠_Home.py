@@ -1,11 +1,15 @@
 """
-CineMatch V2.1.0 - Home Page
+CineMatch V2.1.6 - Home Page
 
 Multi-algorithm recommendation system with 5 advanced algorithms.
 Now supports SVD, User KNN, Item KNN, Content-Based, and Hybrid ensemble.
 
 Author: CineMatch Development Team  
-Date: November 13, 2025
+Date: December 5, 2025
+
+Security Update:
+    - Added secure model loading with hash verification
+    - Input validation for user IDs
 """
 
 import streamlit as st
@@ -28,11 +32,12 @@ from src.utils import (
     get_tmdb_poster_url,
     PLACEHOLDER_POSTER
 )
+from src.utils.input_validation import validate_user_id, InputValidationError
 
 
 # Page config
 st.set_page_config(
-    page_title="CineMatch V2.1.0 - Home",
+    page_title="CineMatch V2.1.6 - Home",
     page_icon="🏠",
     layout="wide"
 )
@@ -111,7 +116,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Main header
-st.markdown('<h1 class="main-header">🎬 CineMatch V2.1.0</h1>', unsafe_allow_html=True)
+st.markdown('<h1 class="main-header">🎬 CineMatch V2.1.6</h1>', unsafe_allow_html=True)
 st.markdown('<p class="sub-header">Multi-Algorithm Movie Recommendation Engine with Intelligent Ensemble Learning</p>', unsafe_allow_html=True)
 
 # Algorithm Manager Integration
@@ -443,7 +448,9 @@ try:
                     rating = movie.get('predicted_rating', 'N/A')
                     rating_display = f"{float(rating):.1f}" if rating != 'N/A' else 'N/A'
                     poster_path = movie.get('poster_path', None)
+                    logger.debug(f"Home page - Movie {movie.get('movieId')}: poster_path={repr(poster_path)}")
                     poster_url = get_tmdb_poster_url(poster_path)
+                    logger.debug(f"Home page - Movie {movie.get('movieId')}: poster_url={poster_url}")
                     
                     # HTML escape movie title and genres to prevent rendering issues
                     title_escaped = html.escape(str(movie['title']))

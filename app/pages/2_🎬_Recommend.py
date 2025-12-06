@@ -1,11 +1,18 @@
 """
-CineMatch V2.1.0 - Recommend Page
+CineMatch V2.1.6 - Recommend Page
 
 Multi-algorithm movie recommendations with intelligent switching.
 Supports all 5 algorithms: SVD, User-KNN, Item-KNN, Content-Based, and Hybrid.
 
 Author: CineMatch Development Team
-Date: November 13, 2025
+Date: December 5, 2025
+
+Features:
+    - Enhanced loading spinners with progress indicators (Task 2.1)
+    - User-friendly error messages (Task 2.2)
+    - Algorithm help tooltips (Task 2.4)
+    - Export functionality (Task 2.12)
+    - User preference memory (Task 2.11)
 """
 
 import streamlit as st
@@ -14,6 +21,7 @@ import sys
 import traceback
 import logging
 import html
+import time
 from pathlib import Path
 from datetime import datetime
 
@@ -23,6 +31,33 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+
+def _debounce_input(key: str, value, delay_ms: int = 300) -> bool:
+    """
+    Debounce input changes to prevent rapid-fire reruns.
+    
+    Returns True if the input has stabilized (same value for delay_ms).
+    """
+    now = time.time() * 1000
+    state_key = f"_debounce_{key}_time"
+    value_key = f"_debounce_{key}_value"
+    
+    if state_key not in st.session_state:
+        st.session_state[state_key] = now
+        st.session_state[value_key] = value
+        return True
+    
+    if st.session_state[value_key] != value:
+        # Value changed - update timestamp
+        st.session_state[state_key] = now
+        st.session_state[value_key] = value
+        return False
+    
+    # Check if enough time has passed
+    elapsed = now - st.session_state[state_key]
+    return elapsed >= delay_ms
+
 
 # Add src to path
 sys.path.append(str(Path(__file__).parent.parent.parent))
@@ -35,17 +70,58 @@ from src.utils import (
     get_tmdb_poster_url,
     PLACEHOLDER_POSTER
 )
+from src.utils.rate_limiter import RECOMMENDATION_LIMITER, streamlit_rate_check
+from src.utils.input_validation import validate_user_id, validate_num_recommendations
 from src.data_processing import load_ratings, load_movies
+
+# Import UI components for improved UX (Phase 2 improvements)
+try:
+    from app.components.ui_helpers import (
+        show_loading_spinner,
+        show_model_loading_status,
+        show_friendly_error,
+        show_algorithm_help,
+        create_download_button,
+        export_to_csv,
+        save_user_preference,
+        load_user_preference,
+        inject_mobile_responsive_css,
+        create_info_callout,
+    )
+    UI_COMPONENTS_AVAILABLE = True
+except ImportError:
+    UI_COMPONENTS_AVAILABLE = False
+    logger.warning("UI components not available - using fallback")
 
 
 # Page config
 st.set_page_config(
-    page_title="CineMatch V2.1.0 - Recommendations",
+    page_title="CineMatch V2.1.6 - Recommendations",
     page_icon="🎬",
     layout="wide"
 )
 
-# Custom CSS for enhanced UI
+
+def _init_session_state():
+    """Initialize all session state variables in one place."""
+    defaults = {
+        'selected_algorithm': None,
+        'user_id': None,
+        'last_recommendations': None,
+        'recommendation_timestamp': None,
+        'algorithm_switch_pending': False,
+        'page_initialized': False,
+    }
+    for key, default in defaults.items():
+        if key not in st.session_state:
+            st.session_state[key] = default
+
+
+# Initialize session state once
+_init_session_state()
+
+
+# Custom CSS for enhanced UI (including mobile responsiveness - Task 2.5)
 st.markdown("""
 <style>
 .algorithm-card {
@@ -106,6 +182,63 @@ st.markdown("""
     border-radius: 8px;
     margin: 0.25rem;
 }
+
+/* Loading overlay for better visual feedback (Task 2.1) */
+.loading-overlay {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    background: rgba(0, 0, 0, 0.05);
+    border-radius: 10px;
+    margin: 1rem 0;
+}
+
+.loading-spinner {
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #E50914;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Mobile responsiveness (Task 2.5) */
+@media (max-width: 768px) {
+    .stColumns > div {
+        flex: 0 0 100% !important;
+        max-width: 100% !important;
+    }
+    
+    .movie-card {
+        padding: 1rem;
+    }
+    
+    .movie-card h3 {
+        font-size: 1.1rem !important;
+    }
+    
+    .stButton > button {
+        min-height: 48px !important;
+        font-size: 16px !important;
+    }
+}
+
+/* Reduced motion preference (Task 2.8 - Accessibility) */
+@media (prefers-reduced-motion: reduce) {
+    .loading-spinner {
+        animation: none !important;
+    }
+    
+    .movie-card:hover {
+        transform: none !important;
+    }
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -131,7 +264,7 @@ with st.expander("⚙️ Performance Settings", expanded=False):
     dataset_size = st.selectbox(
         "Choose dataset size for optimal performance:",
         options=dataset_options,
-        index=3,  # Default to Full Dataset for pre-trained models
+        index=1,  # Default to Balanced (500K) for fast loading with good accuracy
         format_func=lambda x: f"{x[0]} ({x[1]:,} ratings)" if x[1] else f"{x[0]} (32M ratings)"
     )
     
@@ -254,24 +387,52 @@ except Exception as e:
 with st.sidebar:
     st.markdown("## 🤖 Algorithm Selection")
     
-    # Algorithm selector
+    # Algorithm help toggle (Task 2.4)
+    show_help = st.checkbox("📚 Show Algorithm Guide", value=False, 
+                            help="Learn about each algorithm's strengths and use cases")
+    
+    if show_help:
+        st.markdown("""
+        ### 🎓 Quick Guide
+        
+        | Algorithm | Best For | Speed |
+        |-----------|----------|-------|
+        | 🔮 SVD | Overall accuracy | ⚡ Fast |
+        | 👥 User KNN | Similar users | 🔄 Medium |
+        | 🎬 Item KNN | Similar movies | 🔄 Medium |
+        | 📝 Content | New users | ⚡ Fast |
+        | 🚀 Hybrid | Best results | 🐌 Slower |
+        """)
+    
+    # Algorithm selector with preference memory (Task 2.11)
     available_algorithms = manager.get_available_algorithms()
     algorithm_names = [algo.value for algo in available_algorithms]
-    algorithm_icons = ["🔮", "👥", "🎬", "�", "�🚀"]  # SVD, User KNN, Item KNN, Content-Based, Hybrid
+    algorithm_icons = ["🔮", "👥", "🎬", "📝", "🚀"]  # SVD, User KNN, Item KNN, Content-Based, Hybrid
     
     # Create algorithm options with icons
     algorithm_options = [f"{icon} {name}" for icon, name in zip(algorithm_icons, algorithm_names)]
     
+    # Load user's preferred algorithm (Task 2.11)
+    if UI_COMPONENTS_AVAILABLE:
+        saved_algo = load_user_preference('algorithm', 'Hybrid')
+        default_idx = next((i for i, name in enumerate(algorithm_names) if name == saved_algo), 4)
+    else:
+        default_idx = 4  # Default to Hybrid
+    
     selected_algorithm_display = st.selectbox(
         "Choose Recommendation Algorithm:",
         options=algorithm_options,
-        index=3,  # Default to Hybrid
+        index=default_idx,
         help="Each algorithm uses different approaches to find movies you'll love"
     )
     
     # Map back to algorithm type
     selected_idx = algorithm_options.index(selected_algorithm_display)
     selected_algorithm = available_algorithms[selected_idx]
+    
+    # Save preference (Task 2.11)
+    if UI_COMPONENTS_AVAILABLE:
+        save_user_preference('algorithm', selected_algorithm.value)
     
     # Algorithm Information Card
     algo_info = manager.get_algorithm_info(selected_algorithm)
@@ -446,7 +607,27 @@ if get_recs_button:
     user_exists = user_id in ratings_df['userId'].values
     
     if not user_exists:
-        st.warning(f"⚠️ User {user_id} not found in dataset. Generating recommendations for new user profile.")
+        # Check if this might be due to sampling
+        if selected_sample_size is not None and selected_sample_size < 32000000:
+            st.warning(f"⚠️ User {user_id} not found in the **sampled** dataset ({selected_sample_size:,} ratings).")
+            st.info(f"""
+            💡 **This user may exist in the full dataset but wasn't included in the sample.**
+            
+            **Options to find this user:**
+            1. Use **High Quality Mode** (1M+ ratings) in sidebar
+            2. Use **Full Dataset Mode** for complete data
+            3. Try a different user ID
+            
+            The current sample only includes a portion of all users. User IDs like {user_id} 
+            may have fewer ratings, making them less likely to be in random samples.
+            """)
+        else:
+            st.warning(f"⚠️ User {user_id} not found in dataset. Generating recommendations for new user profile.")
+    
+    # Rate limiting check
+    if not streamlit_rate_check(RECOMMENDATION_LIMITER, action_name="recommendations"):
+        st.info("💡 Tip: Rate limiting protects the system. Wait a moment and try again.")
+        st.stop()
     
     try:
         # Get the selected algorithm (use cached if available)
@@ -456,14 +637,19 @@ if get_recs_button:
         if selected_algorithm in manager.get_cached_algorithms():
             algorithm = manager.get_algorithm(selected_algorithm)
             logger.info(f"Using cached {algorithm.name}")
+            # Show cached status (Task 2.1)
+            if UI_COMPONENTS_AVAILABLE:
+                show_model_loading_status(algorithm.name, status='cached')
         else:
-            with st.spinner(f"🤖 Loading {selected_algorithm.value} algorithm..."):
+            # Enhanced loading spinner (Task 2.1)
+            # Note: Avoid HTML overlays inside spinner as they don't auto-clear
+            with st.spinner(f"🤖 Loading {selected_algorithm.value} algorithm... Preparing your personalized recommendations"):
                 algorithm = manager.switch_algorithm(selected_algorithm)
             logger.info(f"Algorithm loaded successfully: {algorithm.name}")
         
-        # Generate recommendations
+        # Generate recommendations with progress indicator
         logger.info(f"Generating recommendations for user {user_id}")
-        with st.spinner("🎯 Generating personalized recommendations..."):
+        with st.spinner("🎯 Analyzing your preferences and generating recommendations..."):
             recommendations = algorithm.get_recommendations(user_id, n=10, exclude_rated=True)
             logger.info(f"Generated {len(recommendations) if recommendations is not None else 0} recommendations")
             
@@ -478,7 +664,12 @@ if get_recs_button:
             
     except Exception as e:
         logger.error(f"Error generating recommendations: {e}", exc_info=True)
-        st.error(f"❌ Error generating recommendations: {e}")
+        
+        # Use improved error messages (Task 2.2)
+        if UI_COMPONENTS_AVAILABLE:
+            show_friendly_error(e, context=f"generating recommendations for User {user_id}")
+        else:
+            st.error(f"❌ Error generating recommendations: {e}")
         traceback.print_exc()
         st.stop()
 
@@ -539,6 +730,50 @@ if 'current_recommendations' in st.session_state:
         </div>
         """, unsafe_allow_html=True)
         
+        # Export functionality (Task 2.12)
+        export_col1, export_col2, export_col3 = st.columns([2, 1, 1])
+        with export_col2:
+            if UI_COMPONENTS_AVAILABLE:
+                # Export to CSV
+                csv_data = recommendations[['title', 'genres', 'predicted_rating']].copy()
+                csv_data['predicted_rating'] = csv_data['predicted_rating'].round(2)
+                create_download_button(
+                    csv_data,
+                    filename=f"cinematch_recommendations_user_{displayed_user_id}.csv",
+                    label="📥 Export CSV",
+                    file_type="csv",
+                    key="export_csv_ui"
+                )
+            else:
+                csv = recommendations[['title', 'genres', 'predicted_rating']].to_csv(index=False)
+                st.download_button(
+                    "📥 Export CSV",
+                    csv,
+                    f"cinematch_recommendations_user_{displayed_user_id}.csv",
+                    "text/csv",
+                    key="export_csv_fallback"
+                )
+        with export_col3:
+            if UI_COMPONENTS_AVAILABLE:
+                # Export to JSON
+                json_data = recommendations[['movieId', 'title', 'genres', 'predicted_rating']].to_dict('records')
+                create_download_button(
+                    json_data,
+                    filename=f"cinematch_recommendations_user_{displayed_user_id}.json",
+                    label="📥 Export JSON",
+                    file_type="json",
+                    key="export_json_ui"
+                )
+            else:
+                json_str = recommendations[['movieId', 'title', 'genres', 'predicted_rating']].to_json(orient='records')
+                st.download_button(
+                    "📥 Export JSON",
+                    json_str,
+                    f"cinematch_recommendations_user_{displayed_user_id}.json",
+                    "application/json",
+                    key="export_json_fallback"
+                )
+        
         # DEBUG: Log recommendation data structure
         logger.info(f"Displaying {len(recommendations)} recommendations")
         logger.info(f"Columns: {recommendations.columns.tolist()}")
@@ -558,6 +793,7 @@ if 'current_recommendations' in st.session_state:
                     genres = row.get('genres', '')
                     predicted_rating = float(row.get('predicted_rating', 0.0))
                     poster_path = row.get('poster_path', None)
+                    logger.debug(f"Recommend page - Movie {movie_id}: poster_path={repr(poster_path)}")
                     
                     # HTML escape title and genres for safe rendering
                     title_escaped = html.escape(str(title))
@@ -565,6 +801,7 @@ if 'current_recommendations' in st.session_state:
                     
                     # Get poster URL
                     poster_url = get_tmdb_poster_url(poster_path)
+                    logger.debug(f"Recommend page - Movie {movie_id}: poster_url={poster_url}")
                     
                     # Movie card with poster image
                     st.markdown(f"""
@@ -592,13 +829,14 @@ if 'current_recommendations' in st.session_state:
                         if st.button("👎 Dislike", key=f"dislike_{idx}_{movie_id}", help="Not interested"):
                             st.toast("👎 Not interested", icon="ℹ️")
                     with col_explain:
+                        explain_key = f"show_explain_{idx}_{movie_id}"
+                        # Initialize state if needed
+                        if explain_key not in st.session_state:
+                            st.session_state[explain_key] = False
+                        # Use checkbox-like toggle without rerun
                         if st.button("💡 Explain", key=f"explain_{idx}_{movie_id}", help="Why was this recommended?"):
-                            # Toggle explanation visibility
-                            explain_key = f"show_explain_{idx}_{movie_id}"
-                            if explain_key not in st.session_state:
-                                st.session_state[explain_key] = False
+                            # Toggle explanation visibility - Streamlit will auto-rerun on state change
                             st.session_state[explain_key] = not st.session_state[explain_key]
-                            st.rerun()
                     with col_info:
                         st.caption(f"Movie ID: {movie_id}")
                     
@@ -799,7 +1037,7 @@ else:
 st.markdown("---")
 st.markdown("""
 <div style='text-align: center; color: #666; padding: 1rem;'>
-    <p><strong>CineMatch V2.1.0 - Multi-Algorithm Recommendation Engine</strong></p>
+    <p><strong>CineMatch V2.1.6 - Multi-Algorithm Recommendation Engine</strong></p>
     <p>Powered by SVD Matrix Factorization + KNN Collaborative Filtering + Hybrid Intelligence</p>
     <p>Trained on 32+ million ratings for maximum accuracy and diversity</p>
 </div>
