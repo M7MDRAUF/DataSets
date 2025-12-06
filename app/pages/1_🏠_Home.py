@@ -17,6 +17,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import html
+import logging
 import sys
 from pathlib import Path
 
@@ -33,6 +34,9 @@ from src.utils import (
     PLACEHOLDER_POSTER
 )
 from src.utils.input_validation import validate_user_id, InputValidationError
+
+# Configure logger
+logger = logging.getLogger(__name__)
 
 
 # Page config
@@ -393,14 +397,6 @@ try:
     
     # Generate recommendations button
     if st.button("🎬 Generate Recommendations", type="primary", width="stretch", key="generate_button"):
-        # Check if user ID exists in sampled dataset (not blocking - per Recommend.py pattern)
-        user_exists_in_sample = user_id in ratings_df['userId'].values
-        
-        if not user_exists_in_sample:
-            # User not in sample - show warning but continue (match Recommend.py behavior)
-            st.warning(f"⚠️ User {user_id} not found in the current sample. Generating recommendations for new user profile.")
-            st.info(f"💡 Tip: The dataset is sampled for performance. Try a different sample size or user ID.")
-        
         try:
             # Map selected algorithm to AlgorithmType
             algorithm_map = {
@@ -424,6 +420,19 @@ try:
             else:
                 # Already cached - instant retrieval
                 algorithm = st.session_state[algorithm_cache_key]
+            
+            # FIX: Check user existence in the MODEL (not sampled ratings_df)
+            # Pre-trained models have user_mapper from full 32M training data
+            # The sampled ratings_df may not contain users that exist in the model
+            user_exists_in_model = algorithm.validate_user_exists(user_id)
+            user_exists_in_sample = user_id in ratings_df['userId'].values
+            
+            if not user_exists_in_model:
+                # User truly doesn't exist in model - will get popular movies
+                st.info(f"🆕 User {user_id} is new to the system. Generating popular movie recommendations.")
+            elif not user_exists_in_sample:
+                # User exists in model but not in current sample - still gets personalized recs
+                st.success(f"✅ User {user_id} found in pre-trained model. Generating personalized recommendations!")
             
             # Generate recommendations (separate spinner for clarity)
             with st.spinner(f"🎬 Generating {num_recommendations} recommendations..."):

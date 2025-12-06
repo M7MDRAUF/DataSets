@@ -1,5 +1,5 @@
 """
-CineMatch V1.0.0 - Hybrid Recommender
+CineMatch V2.1.6 - Hybrid Recommender
 
 Intelligent ensemble combining SVD, User KNN, and Item KNN algorithms.
 Dynamically weights different algorithms based on user context and data availability.
@@ -14,6 +14,9 @@ from typing import List, Dict, Tuple, Optional, Any
 import pandas as pd
 import numpy as np
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import threading
+import gc
 
 # Add parent directory to path for imports
 sys.path.append(str(Path(__file__).parent.parent.parent))
@@ -42,6 +45,7 @@ class HybridRecommender(BaseRecommender):
                  item_knn_params: Dict[str, Any] = None,
                  content_based_params: Dict[str, Any] = None,
                  weighting_strategy: str = 'adaptive',
+                 lazy_load: bool = True,
                  **kwargs):
         """
         Initialize Hybrid recommender with sub-algorithms.
@@ -52,6 +56,7 @@ class HybridRecommender(BaseRecommender):
             item_knn_params: Parameters for Item KNN algorithm
             content_based_params: Parameters for Content-Based algorithm
             weighting_strategy: 'adaptive', 'equal', or 'performance_based'
+            lazy_load: If True, defer sub-algorithm instantiation until needed
             **kwargs: Additional parameters
         """
         super().__init__("Hybrid (SVD + KNN + CBF)", 
@@ -64,11 +69,22 @@ class HybridRecommender(BaseRecommender):
         
         self.weighting_strategy = weighting_strategy
         
-        # Initialize sub-algorithms
-        self.svd_model = SVDRecommender(**(svd_params or {}))
-        self.user_knn_model = UserKNNRecommender(**(user_knn_params or {}))
-        self.item_knn_model = ItemKNNRecommender(**(item_knn_params or {}))
-        self.content_based_model = ContentBasedRecommender(**(content_based_params or {}))
+        # Store parameters for lazy initialization
+        self._svd_params = svd_params or {}
+        self._user_knn_params = user_knn_params or {}
+        self._item_knn_params = item_knn_params or {}
+        self._content_based_params = content_based_params or {}
+        self._lazy_load = lazy_load
+        
+        # Lazy-loaded sub-algorithm instances
+        self._svd_model: Optional[SVDRecommender] = None
+        self._user_knn_model: Optional[UserKNNRecommender] = None
+        self._item_knn_model: Optional[ItemKNNRecommender] = None
+        self._content_based_model: Optional[ContentBasedRecommender] = None
+        
+        # Initialize sub-algorithms immediately if not lazy loading
+        if not lazy_load:
+            self._init_all_algorithms()
         
         # Algorithm weights (will be calculated during training)
         self.weights = {'svd': 0.30, 'user_knn': 0.25, 'item_knn': 0.25, 'content_based': 0.20}
@@ -77,59 +93,206 @@ class HybridRecommender(BaseRecommender):
         # User classification thresholds
         self.sparse_user_threshold = 20  # Users with <20 ratings are sparse
         self.dense_user_threshold = 50   # Users with >50 ratings are dense
+        
+        # Parallel training configuration
+        self._use_parallel_training = True
+        self._max_parallel_workers = 2  # Limit to 2 to avoid memory issues
+        self._training_lock = threading.Lock()
+    
+    def _init_all_algorithms(self) -> None:
+        """Initialize all sub-algorithms (used when lazy_load=False)."""
+        if self._svd_model is None:
+            self._svd_model = SVDRecommender(**self._svd_params)
+        if self._user_knn_model is None:
+            self._user_knn_model = UserKNNRecommender(**self._user_knn_params)
+        if self._item_knn_model is None:
+            self._item_knn_model = ItemKNNRecommender(**self._item_knn_params)
+        if self._content_based_model is None:
+            self._content_based_model = ContentBasedRecommender(**self._content_based_params)
+    
+    @property
+    def svd_model(self) -> SVDRecommender:
+        """Lazy-load SVD model on first access."""
+        if self._svd_model is None:
+            self._svd_model = SVDRecommender(**self._svd_params)
+        return self._svd_model
+    
+    @svd_model.setter
+    def svd_model(self, value: SVDRecommender) -> None:
+        """Allow setting SVD model directly."""
+        self._svd_model = value
+    
+    @property
+    def user_knn_model(self) -> UserKNNRecommender:
+        """Lazy-load User KNN model on first access."""
+        if self._user_knn_model is None:
+            self._user_knn_model = UserKNNRecommender(**self._user_knn_params)
+        return self._user_knn_model
+    
+    @user_knn_model.setter
+    def user_knn_model(self, value: UserKNNRecommender) -> None:
+        """Allow setting User KNN model directly."""
+        self._user_knn_model = value
+    
+    @property
+    def item_knn_model(self) -> ItemKNNRecommender:
+        """Lazy-load Item KNN model on first access."""
+        if self._item_knn_model is None:
+            self._item_knn_model = ItemKNNRecommender(**self._item_knn_params)
+        return self._item_knn_model
+    
+    @item_knn_model.setter
+    def item_knn_model(self, value: ItemKNNRecommender) -> None:
+        """Allow setting Item KNN model directly."""
+        self._item_knn_model = value
+    
+    @property
+    def content_based_model(self) -> ContentBasedRecommender:
+        """Lazy-load Content-Based model on first access."""
+        if self._content_based_model is None:
+            self._content_based_model = ContentBasedRecommender(**self._content_based_params)
+        return self._content_based_model
+    
+    @content_based_model.setter
+    def content_based_model(self, value: ContentBasedRecommender) -> None:
+        """Allow setting Content-Based model directly."""
+        self._content_based_model = value
+    
+    def _train_single_algorithm(
+        self, 
+        algo_key: str, 
+        algo_name: str, 
+        model_filename: str, 
+        model_attr: str,
+        model: 'BaseRecommender',
+        ratings_df: pd.DataFrame, 
+        movies_df: pd.DataFrame
+    ) -> Dict[str, Any]:
+        """
+        Train a single sub-algorithm (used for parallel training).
+        
+        Returns dict with algorithm key and performance metrics.
+        """
+        try:
+            # Early return if model is already trained (cached in memory)
+            if hasattr(model, 'is_trained') and model.is_trained:
+                print(f"\n✓ {algo_name} already trained (using cached model)")
+                return {
+                    'key': algo_key,
+                    'rmse': model.metrics.rmse,
+                    'training_time': model.metrics.training_time,
+                    'coverage': model.metrics.coverage,
+                    'memory_mb': model.metrics.memory_usage_mb,
+                    'success': True,
+                    'cached': True
+                }
+            
+            print(f"\n📊 Loading/Training {algo_name} algorithm...")
+            
+            # Try to load pre-trained model first
+            if not self._try_load_algorithm(algo_name, model_filename, model_attr, ratings_df, movies_df):
+                print(f"  • No pre-trained {algo_name} model found, training from scratch...")
+                model.fit(ratings_df, movies_df)
+            
+            # Collect performance metrics
+            result = {
+                'key': algo_key,
+                'rmse': model.metrics.rmse,
+                'training_time': model.metrics.training_time,
+                'coverage': model.metrics.coverage,
+                'memory_mb': model.metrics.memory_usage_mb,
+                'success': True
+            }
+            
+            # Force garbage collection after each algorithm training
+            gc.collect()
+            
+            return result
+            
+        except Exception as e:
+            print(f"  ❌ Error training {algo_name}: {e}")
+            return {
+                'key': algo_key,
+                'rmse': 1.0,
+                'training_time': 0.0,
+                'coverage': 0.0,
+                'memory_mb': 0.0,
+                'success': False,
+                'error': str(e)
+            }
     
     def fit(self, ratings_df: pd.DataFrame, movies_df: pd.DataFrame) -> None:
         """Train all sub-algorithms and calculate optimal weights"""
         print(f"\n🚀 Training {self.name}...")
         start_time = time.time()
         
-        # Store data references
-        self.ratings_df = ratings_df.copy()
-        self.movies_df = movies_df.copy()
+        # Store data references (no copy for ratings - read-only)
+        self.ratings_df = ratings_df
         
-        # Add genres_list column if not present
-        if 'genres_list' not in self.movies_df.columns:
+        # Only copy movies_df if we need to modify it
+        if 'genres_list' not in movies_df.columns:
+            self.movies_df = movies_df.copy()
             self.movies_df['genres_list'] = self.movies_df['genres'].str.split('|')
+        else:
+            self.movies_df = movies_df
         
-        print("\n📊 Loading/Training SVD algorithm...")
-        if not self._try_load_algorithm("SVD", "svd_model.pkl", "svd_model", ratings_df, movies_df):
-            print("  • No pre-trained model found, training from scratch...")
-            self.svd_model.fit(ratings_df, movies_df)
-        self.algorithm_performance['svd'] = {
-            'rmse': self.svd_model.metrics.rmse,
-            'training_time': self.svd_model.metrics.training_time,
-            'coverage': self.svd_model.metrics.coverage
-        }
+        # Define all algorithms to train
+        algorithms = [
+            ('svd', 'SVD', 'svd_model.pkl', 'svd_model', self.svd_model),
+            ('user_knn', 'User KNN', 'user_knn_model.pkl', 'user_knn_model', self.user_knn_model),
+            ('item_knn', 'Item KNN', 'item_knn_model.pkl', 'item_knn_model', self.item_knn_model),
+            ('content_based', 'Content-Based', 'content_based_model.pkl', 'content_based_model', self.content_based_model)
+        ]
         
-        print("\n👥 Loading/Training User KNN algorithm...")
-        if not self._try_load_algorithm("User KNN", "user_knn_model.pkl", "user_knn_model", ratings_df, movies_df):
-            print("  • No pre-trained model found, training from scratch...")
-            self.user_knn_model.fit(ratings_df, movies_df)
-        self.algorithm_performance['user_knn'] = {
-            'rmse': self.user_knn_model.metrics.rmse,
-            'training_time': self.user_knn_model.metrics.training_time,
-            'coverage': self.user_knn_model.metrics.coverage
-        }
-        
-        print("\n🎬 Loading/Training Item KNN algorithm...")
-        if not self._try_load_algorithm("Item KNN", "item_knn_model.pkl", "item_knn_model", ratings_df, movies_df):
-            print("  • No pre-trained model found, training from scratch...")
-            self.item_knn_model.fit(ratings_df, movies_df)
-        self.algorithm_performance['item_knn'] = {
-            'rmse': self.item_knn_model.metrics.rmse,
-            'training_time': self.item_knn_model.metrics.training_time,
-            'coverage': self.item_knn_model.metrics.coverage
-        }
-        
-        print("\n🔍 Loading/Training Content-Based algorithm...")
-        if not self._try_load_algorithm("Content-Based", "content_based_model.pkl", "content_based_model", ratings_df, movies_df):
-            print("  • No pre-trained model found, training from scratch...")
-            self.content_based_model.fit(ratings_df, movies_df)
-        self.algorithm_performance['content_based'] = {
-            'rmse': self.content_based_model.metrics.rmse,
-            'training_time': self.content_based_model.metrics.training_time,
-            'coverage': self.content_based_model.metrics.coverage
-        }
+        if self._use_parallel_training:
+            # Parallel training using ThreadPoolExecutor (2 at a time to avoid memory issues)
+            print("\n⚡ Using parallel training (2 algorithms at a time)...")
+            
+            with ThreadPoolExecutor(max_workers=self._max_parallel_workers) as executor:
+                # Submit all training tasks
+                futures = {}
+                for algo_key, algo_name, model_filename, model_attr, model in algorithms:
+                    future = executor.submit(
+                        self._train_single_algorithm,
+                        algo_key, algo_name, model_filename, model_attr, model,
+                        ratings_df, movies_df
+                    )
+                    futures[future] = algo_key
+                
+                # Collect results as they complete
+                for future in as_completed(futures):
+                    result = future.result()
+                    algo_key = result['key']
+                    
+                    if result['success']:
+                        self.algorithm_performance[algo_key] = {
+                            'rmse': result['rmse'],
+                            'training_time': result['training_time'],
+                            'coverage': result['coverage']
+                        }
+                        print(f"  ✓ {algo_key.upper()} completed")
+                    else:
+                        # Use default values for failed algorithm
+                        self.algorithm_performance[algo_key] = {
+                            'rmse': 1.0,
+                            'training_time': 0.0,
+                            'coverage': 0.0
+                        }
+                        print(f"  ⚠ {algo_key.upper()} failed: {result.get('error', 'Unknown error')}")
+        else:
+            # Sequential training (fallback)
+            print("\n📊 Using sequential training...")
+            for algo_key, algo_name, model_filename, model_attr, model in algorithms:
+                result = self._train_single_algorithm(
+                    algo_key, algo_name, model_filename, model_attr, model,
+                    ratings_df, movies_df
+                )
+                if result['success']:
+                    self.algorithm_performance[algo_key] = {
+                        'rmse': result['rmse'],
+                        'training_time': result['training_time'],
+                        'coverage': result['coverage']
+                    }
         
         # Calculate optimal weights
         print("\n⚖️ Calculating optimal algorithm weights...")
@@ -158,6 +321,9 @@ class HybridRecommender(BaseRecommender):
             self.item_knn_model.metrics.memory_usage_mb +
             self.content_based_model.metrics.memory_usage_mb
         )
+        
+        # Final garbage collection
+        gc.collect()
         
         print(f"\n✓ {self.name} trained successfully!")
         print(f"  • Total training time: {training_time:.1f}s")
@@ -213,14 +379,38 @@ class HybridRecommender(BaseRecommender):
             # Set the model on this instance
             setattr(self, model_attr, loaded_model)
             
-            # Provide data context (shallow references for metadata lookups)
-            model = getattr(self, model_attr)
-            model.ratings_df = ratings_df
-            model.movies_df = movies_df
+            # IMPORTANT: DO NOT replace model.ratings_df and model.movies_df
+            # if the model already has them! Pre-trained models have internal 
+            # data structures (user_mapper, item_mapper, similarity matrices) 
+            # that are indexed against their ORIGINAL training data.
+            # Replacing ratings_df/movies_df causes index mismatches and validation 
+            # errors like "Rating count mismatch: ratings_df shows X, Matrix shows Y"
             
-            # Ensure genres_list column exists
-            if 'genres_list' not in model.movies_df.columns:
-                model.movies_df['genres_list'] = model.movies_df['genres'].str.split('|')
+            # However, if the model was saved WITHOUT ratings_df (common for size
+            # optimization), we need to provide it for operations that use it.
+            model = getattr(self, model_attr)
+            if not hasattr(model, 'ratings_df') or model.ratings_df is None:
+                model.ratings_df = ratings_df
+            if not hasattr(model, 'movies_df') or model.movies_df is None:
+                model.movies_df = movies_df
+            
+            # Ensure required columns exist for recommendation output
+            if hasattr(model, 'movies_df') and model.movies_df is not None:
+                if 'genres_list' not in model.movies_df.columns:
+                    model.movies_df['genres_list'] = model.movies_df['genres'].str.split('|')
+                # poster_path is required by recommendation output but may not exist in basic movies data
+                if 'poster_path' not in model.movies_df.columns:
+                    model.movies_df['poster_path'] = None
+                
+                # CRITICAL FIX: Update poster_path from current session's movies_df
+                # Pre-trained models may have stale/None poster_path values from when they were trained.
+                # The session's movies_df (loaded from movies_with_TMDB_image_links.parquet) has actual TMDB paths.
+                # We update the poster_path column by merging on movieId to get current TMDB poster URLs.
+                if movies_df is not None and 'poster_path' in movies_df.columns:
+                    # Create a mapping of movieId -> poster_path from current session data
+                    poster_mapping = movies_df.set_index('movieId')['poster_path'].to_dict()
+                    # Update the model's poster_path column with current TMDB data
+                    model.movies_df['poster_path'] = model.movies_df['movieId'].map(poster_mapping)
             
             load_time = time.time() - start_time
             print(f"  ✓ Pre-trained {algorithm_name} loaded in {load_time:.2f}s")
@@ -233,7 +423,21 @@ class HybridRecommender(BaseRecommender):
             return False
     
     def _calculate_weights(self) -> None:
-        """Calculate optimal weights based on algorithm performance"""
+        """Calculate optimal weights based on algorithm performance (with caching)."""
+        # Check if we can use cached weights
+        if hasattr(self, '_cached_weights_key'):
+            # Generate a key based on current algorithm performance
+            current_key = (
+                self.weighting_strategy,
+                tuple((k, v.get('rmse', 0)) for k, v in sorted(self.algorithm_performance.items()))
+            )
+            if current_key == self._cached_weights_key:
+                print("    • Using cached weights")
+                return
+            self._cached_weights_key = current_key
+        else:
+            self._cached_weights_key = None
+        
         if self.weighting_strategy == 'equal':
             self.weights = {'svd': 0.25, 'user_knn': 0.25, 'item_knn': 0.25, 'content_based': 0.25}
         elif self.weighting_strategy == 'performance_based':
@@ -272,6 +476,12 @@ class HybridRecommender(BaseRecommender):
                 'item_knn': item_score / total_score,
                 'content_based': content_score / total_score
             }
+        
+        # Update cache key after calculation
+        self._cached_weights_key = (
+            self.weighting_strategy,
+            tuple((k, v.get('rmse', 0)) for k, v in sorted(self.algorithm_performance.items()))
+        )
         
         print(f"    • Calculated weights: {self.weights}")
         print(f"    • Individual RMSEs: SVD={self.algorithm_performance['svd']['rmse']:.4f}, "
@@ -476,11 +686,9 @@ class HybridRecommender(BaseRecommender):
                     user_knn_recs = self.user_knn_model.get_recommendations(user_id, n, exclude_rated)
                     svd_recs = self.svd_model.get_recommendations(user_id, n, exclude_rated)
                     
-                    # Add weights for aggregation
-                    user_knn_recs = user_knn_recs.copy()
-                    svd_recs = svd_recs.copy()
-                    user_knn_recs['weight'] = 0.6
-                    svd_recs['weight'] = 0.4
+                    # Add weights for aggregation using assign() - more memory efficient
+                    user_knn_recs = user_knn_recs.assign(weight=0.6)
+                    svd_recs = svd_recs.assign(weight=0.4)
                     
                     all_recs = pd.concat([user_knn_recs, svd_recs])
                     top_recs = self._aggregate_recommendations(all_recs, n)
@@ -498,14 +706,10 @@ class HybridRecommender(BaseRecommender):
                     user_knn_recs = self.user_knn_model.get_recommendations(user_id, n, exclude_rated)
                     item_knn_recs = self.item_knn_model.get_recommendations(user_id, n, exclude_rated)
                     
-                    # Add weights for aggregation
-                    svd_recs = svd_recs.copy()
-                    user_knn_recs = user_knn_recs.copy()
-                    item_knn_recs = item_knn_recs.copy()
-                    
-                    svd_recs['weight'] = self.weights['svd']
-                    user_knn_recs['weight'] = self.weights['user_knn']
-                    item_knn_recs['weight'] = self.weights['item_knn']
+                    # Add weights for aggregation using assign() - more memory efficient
+                    svd_recs = svd_recs.assign(weight=self.weights['svd'])
+                    user_knn_recs = user_knn_recs.assign(weight=self.weights['user_knn'])
+                    item_knn_recs = item_knn_recs.assign(weight=self.weights['item_knn'])
                     
                     all_recs = pd.concat([svd_recs, user_knn_recs, item_knn_recs])
                     top_recs = self._aggregate_recommendations(all_recs, n)
@@ -667,7 +871,8 @@ class HybridRecommender(BaseRecommender):
                 if len(item_similarities) >= n:
                     print("  • Using Item KNN similarities")
                     return item_similarities
-            except:
+            except (KeyError, ValueError, AttributeError) as e:
+                # Item KNN couldn't find similarities, try fallback
                 pass
             
             # Fallback to User KNN approach
@@ -675,7 +880,8 @@ class HybridRecommender(BaseRecommender):
                 user_similarities = self.user_knn_model.get_similar_items(item_id, n)
                 print("  • Using User KNN similarities (fallback)")
                 return user_similarities
-            except:
+            except (KeyError, ValueError, AttributeError) as e:
+                # User KNN also failed, will use genre-based fallback
                 pass
             
             # Final fallback: genre-based similarity

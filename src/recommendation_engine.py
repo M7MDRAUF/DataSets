@@ -1,5 +1,5 @@
 """
-CineMatch V1.0.0 - Recommendation Engine
+CineMatch V2.1.6 - Recommendation Engine
 
 Core recommendation logic using the pre-trained SVD model.
 Implements F-02 (Recommendation Generation) and F-04 (Model Pre-computation).
@@ -10,7 +10,7 @@ Date: October 24, 2025
 
 import sys
 from pathlib import Path
-from typing import List, Dict, Tuple, Optional
+from typing import List, Dict, Tuple, Optional, Set, Any, Union
 
 import pandas as pd
 import numpy as np
@@ -34,22 +34,29 @@ class RecommendationEngine:
     - F-02: Generate personalized recommendations
     - F-04: Load pre-trained model for instant predictions
     - F-07: "Surprise Me" mode for serendipity recommendations
+    
+    Attributes:
+        model_path: Path to pre-trained SVD model file
+        model: Loaded SVD model instance (None until load_model() called)
+        ratings_df: Ratings DataFrame (None until load_data() called)
+        movies_df: Movies DataFrame (None until load_data() called)
+        user_rated_movies: Cache for user rating history
     """
     
-    def __init__(self, model_path: Path = MODEL_PATH):
+    def __init__(self, model_path: Union[Path, str] = MODEL_PATH) -> None:
         """
         Initialize recommendation engine.
         
         Args:
             model_path: Path to pre-trained SVD model
         """
-        self.model_path = model_path
-        self.model = None
-        self.ratings_df = None
-        self.movies_df = None
-        self.user_rated_movies = {}  # Cache for user history
+        self.model_path: Path = Path(model_path) if isinstance(model_path, str) else model_path
+        self.model: Optional[Any] = None
+        self.ratings_df: Optional[pd.DataFrame] = None
+        self.movies_df: Optional[pd.DataFrame] = None
+        self.user_rated_movies: Dict[int, pd.DataFrame] = {}  # Cache for user history
         
-    def load_model(self):
+    def load_model(self) -> None:
         """
         Load pre-trained SVD model.
         
@@ -67,7 +74,7 @@ class RecommendationEngine:
         self.model = joblib.load(self.model_path)
         print("  ✓ Model loaded successfully")
         
-    def load_data(self, sample_size: Optional[int] = None):
+    def load_data(self, sample_size: Optional[int] = None) -> None:
         """
         Load ratings and movies data.
         
@@ -277,7 +284,7 @@ class RecommendationEngine:
             # We need the internal movie id
             inner_id = self.model.trainset.to_inner_iid(movie_id)
             movie_factors = self.model.qi[inner_id]
-        except:
+        except (ValueError, KeyError, IndexError) as e:
             raise ValueError(f"Movie ID {movie_id} not found in trained model")
         
         # Calculate similarity with all other movies
@@ -342,7 +349,7 @@ if __name__ == "__main__":
     """
     Test the recommendation engine.
     """
-    print("CineMatch V1.0.0 - Recommendation Engine Test\n")
+    print("CineMatch V2.1.6 - Recommendation Engine Test\n")
     print("=" * 70)
     
     # Initialize engine

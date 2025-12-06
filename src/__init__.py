@@ -1,10 +1,19 @@
 """
-CineMatch V1.0.0 - Package Initialization
+CineMatch V2.1.6 - Package Initialization
 
 Exports key functions for easy importing.
+Single source of truth for version is VERSION file in project root.
 """
 
-__version__ = "1.0.0"
+from pathlib import Path
+
+# Read version from VERSION file (single source of truth)
+_version_file = Path(__file__).parent.parent / "VERSION"
+if _version_file.exists():
+    __version__ = _version_file.read_text().strip()
+else:
+    __version__ = "2.1.6"  # Fallback
+
 __author__ = "CineMatch Team"
 
 from .data_processing import (

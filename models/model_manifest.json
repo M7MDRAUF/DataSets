@@ -1,0 +1,52 @@
+{
+  "version": "2.0",
+  "created_at": "2025-12-05T01:43:35.019442",
+  "updated_at": "2025-12-05T12:00:00.000000",
+  "algorithm": "sha256",
+  "default_format": "pickle",
+  "supported_formats": ["pickle", "joblib"],
+  "files": {
+    "content_based_model.pkl": {
+      "hash": "8c34af8e27d94995542343eb65f768cc526ba1485dce4ad11e9dc2b6c509848f",
+      "size_bytes": 1111371179,
+      "modified": "2025-11-14T20:33:46.754325",
+      "format": "pickle",
+      "algorithm_type": "content_based"
+    },
+    "item_knn_model.pkl": {
+      "hash": "8460d0e253124acdd18b4968a67e15a6f389cafed451ebebc055fea28521f38b",
+      "size_bytes": 1162290767,
+      "modified": "2025-11-16T20:54:30.614631",
+      "format": "pickle",
+      "algorithm_type": "item_knn"
+    },
+    "svd_model_sklearn.pkl": {
+      "hash": "852835a32a7ef86b0d11efd6ec8ca5eb3ace29d8087f84ec758688dd0b2c2d91",
+      "size_bytes": 953758083,
+      "modified": "2025-11-14T20:33:25.504414",
+      "format": "pickle",
+      "algorithm_type": "svd"
+    },
+    "user_knn_model.pkl": {
+      "hash": "60a5b26241bec6e166e307adcfd981d80bfc8b0afd88d6eae49b85e14d9576ea",
+      "size_bytes": 1168144262,
+      "modified": "2025-11-14T20:33:37.168220",
+      "format": "pickle",
+      "algorithm_type": "user_knn"
+    }
+  },
+  "joblib_files": {},
+  "format_preferences": {
+    "svd": "pickle",
+    "user_knn": "pickle",
+    "item_knn": "pickle",
+    "content_based": "pickle",
+    "hybrid": "pickle"
+  },
+  "loading_config": {
+    "fast_load": true,
+    "use_mmap": true,
+    "skip_hash_verification": true,
+    "cache_enabled": true
+  }
+}

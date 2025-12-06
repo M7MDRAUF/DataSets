@@ -52,8 +52,8 @@ def get_user_ratings(
         Sorted by timestamp (most recent first)
     """
     try:
-        # Filter ratings for this user
-        user_ratings = ratings_df[ratings_df['userId'] == user_id].copy()
+        # Filter ratings for this user - no copy needed since merge creates new DataFrame
+        user_ratings = ratings_df[ratings_df['userId'] == user_id]
         
         if user_ratings.empty:
             logger.warning(f"No ratings found for User ID {user_id}")
@@ -171,7 +171,8 @@ def search_movies_by_criteria(
     Returns:
         Filtered DataFrame of matching movies
     """
-    result = movies_df.copy()
+    # No copy needed - filtering creates view, then head() creates copy
+    result = movies_df
     
     # Filter by title (case-insensitive partial match)
     if title_query:

@@ -443,6 +443,17 @@ class ContentBasedRecommender(BaseRecommender):
         # Ensure matrices are in CSR format for subscripting
         self._ensure_csr_matrix()
         
+        # DEFENSIVE: Ensure user_profiles is LRUCache (not dict from old pickle)
+        from src.utils.lru_cache import LRUCache
+        if not isinstance(self.user_profiles, LRUCache):
+            logger.error(f"CRITICAL: user_profiles is {type(self.user_profiles)}, not LRUCache!")
+            logger.error("This should have been caught by AlgorithmManager validation")
+            # Emergency reinitialization
+            self.user_profiles = LRUCache(
+                max_size=getattr(self, '_user_profile_cache_size', DEFAULT_USER_PROFILE_CACHE_SIZE),
+                ttl_seconds=getattr(self, '_user_profile_ttl', DEFAULT_USER_PROFILE_TTL)
+            )
+        
         # Check LRU cache first (handles TTL expiration)
         cached_profile = self.user_profiles.get(user_id)
         if cached_profile is not None:

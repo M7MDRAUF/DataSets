@@ -1,5 +1,5 @@
 """
-CineMatch V1.0.0 - Algorithm Module Initialization
+CineMatch V2.1.6 - Algorithm Module Initialization
 
 Centralized imports for all recommendation algorithms.
 """

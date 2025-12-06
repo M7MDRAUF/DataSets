@@ -1,5 +1,5 @@
 """
-CineMatch V1.0.0 - User-Based KNN Recommender
+CineMatch V2.1.6 - User-Based KNN Recommender
 
 K-Nearest Neighbors recommendation using user-based collaborative filtering.
 Finds users with similar taste and recommends movies they loved.
@@ -14,9 +14,13 @@ from typing import List, Dict, Tuple, Optional, Any
 import pandas as pd
 import numpy as np
 import time
+import logging
 from scipy.sparse import csr_matrix
 from sklearn.neighbors import NearestNeighbors
 from sklearn.feature_extraction.text import TfidfVectorizer
+
+# Setup module logger
+logger = logging.getLogger(__name__)
 
 # Add parent directory to path for imports
 sys.path.append(str(Path(__file__).parent.parent.parent))
@@ -66,13 +70,19 @@ class UserKNNRecommender(BaseRecommender):
         print(f"\n👥 Training {self.name}...")
         start_time = time.time()
         
-        # Store data references
-        self.ratings_df = ratings_df.copy()
-        self.movies_df = movies_df.copy()
+        # Store data references (no copy for ratings - read-only)
+        self.ratings_df = ratings_df
         
-        # Add genres_list column if not present
-        if 'genres_list' not in self.movies_df.columns:
-            self.movies_df['genres_list'] = self.movies_df['genres'].str.split('|')
+        # Only copy movies_df if we need to modify it
+        needs_copy = 'genres_list' not in movies_df.columns or 'poster_path' not in movies_df.columns
+        if needs_copy:
+            self.movies_df = movies_df.copy()
+            if 'genres_list' not in self.movies_df.columns:
+                self.movies_df['genres_list'] = self.movies_df['genres'].str.split('|')
+            if 'poster_path' not in self.movies_df.columns:
+                self.movies_df['poster_path'] = None
+        else:
+            self.movies_df = movies_df
         
         print("  • Creating user-item matrix...")
         self._create_user_item_matrix(ratings_df)
@@ -139,6 +149,17 @@ class UserKNNRecommender(BaseRecommender):
         # Global mean for fallback
         self.global_mean = ratings_df['rating'].mean()
     
+    def _ensure_csr_matrix(self) -> None:
+        """Ensure user_movie_matrix is in CSR format for efficient slicing.
+        
+        COO matrices don't support subscripting/slicing. When models are
+        loaded from disk, the matrix format may change. This ensures we
+        can always use standard indexing operations.
+        """
+        from scipy import sparse
+        if self.user_movie_matrix is not None and not isinstance(self.user_movie_matrix, sparse.csr_matrix):
+            self.user_movie_matrix = self.user_movie_matrix.tocsr()
+    
     def _calculate_rmse(self, ratings_df: pd.DataFrame) -> None:
         """Calculate RMSE and MAE on a test sample - OPTIMIZED for speed"""
         # Use smaller sample for faster training (100 instead of 5000)
@@ -146,8 +167,6 @@ class UserKNNRecommender(BaseRecommender):
         
         squared_errors = []
         absolute_errors = []
-        import logging
-        logger = logging.getLogger(__name__)
         
         for idx, row in enumerate(test_sample.itertuples(index=False)):
             try:
@@ -187,6 +206,9 @@ class UserKNNRecommender(BaseRecommender):
     
     def _predict_rating(self, user_id: int, movie_id: int) -> float:
         """Internal rating prediction logic"""
+        # Ensure matrix is in subscriptable format (COO doesn't support slicing)
+        self._ensure_csr_matrix()
+        
         # Check if user and movie exist in our mappings
         if user_id not in self.user_mapper or movie_id not in self.movie_mapper:
             return self.global_mean
@@ -333,14 +355,15 @@ class UserKNNRecommender(BaseRecommender):
     
     def _batch_predict_ratings(self, user_id: int, candidate_movies: set) -> List[Dict]:
         """Optimized vectorized prediction for User KNN"""
+        # Ensure matrix is in subscriptable format (COO doesn't support slicing)
+        self._ensure_csr_matrix()
+        
         predictions = []
         
         # Check if user exists in our training data
         if user_id not in self.user_mapper:
             # New user - use popularity-based recommendations with slight randomization
             movie_list = list(candidate_movies)
-            import logging
-            logger = logging.getLogger(__name__)
             
             for movie_id in movie_list[:1000]:  # Limit for new users
                 try:
@@ -657,6 +680,9 @@ class UserKNNRecommender(BaseRecommender):
         """
         if not self.is_trained:
             return {}
+        
+        # Ensure matrix is in CSR format for subscripting
+        self._ensure_csr_matrix()
         
         try:
             if user_id not in self.user_mapper:

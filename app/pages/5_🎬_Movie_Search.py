@@ -27,7 +27,6 @@ sys.path.append(str(Path(__file__).parent.parent.parent))
 from src.data_processing import load_ratings, load_movies
 from src.utils import format_genres, create_rating_stars, get_genre_emoji, get_tmdb_poster_url, PLACEHOLDER_POSTER
 from src.utils.input_validation import sanitize_search_query, InputValidationError
-from src.utils.rate_limiter import SEARCH_LIMITER, streamlit_rate_check
 
 
 # Page config
@@ -167,11 +166,6 @@ search_clicked = st.sidebar.button("🔍 Search Movie", type="primary")
 
 # Main content
 if search_clicked and search_query:
-    # Rate limiting check
-    if not streamlit_rate_check(SEARCH_LIMITER, action_name="movie search"):
-        st.info("💡 Tip: Rate limiting protects the system. Wait a moment and try again.")
-        st.stop()
-    
     # Sanitize search query for security
     is_safe, sanitized_query, validation_message = sanitize_search_query(search_query)
     

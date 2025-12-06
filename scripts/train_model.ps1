@@ -1,8 +1,8 @@
-# CineMatch V1.0.0 - Model Training Script (PowerShell)
+# CineMatch V2.1.6 - Model Training Script (PowerShell)
 # Wrapper script for training the SVD model on Windows
 
 Write-Host "=========================================" -ForegroundColor Cyan
-Write-Host "CineMatch V1.0.0 - Model Training" -ForegroundColor Cyan
+Write-Host "CineMatch V2.1.6 - Model Training" -ForegroundColor Cyan
 Write-Host "=========================================" -ForegroundColor Cyan
 Write-Host ""
 

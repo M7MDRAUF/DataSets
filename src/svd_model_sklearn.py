@@ -1,5 +1,5 @@
 """
-CineMatch V1.0.0 - sklearn-based SVD Model Class
+CineMatch V2.1.6 - sklearn-based SVD Model Class
 
 Shared SimpleSVDRecommender class for training and inference.
 Windows-compatible alternative to scikit-surprise.
@@ -116,6 +116,115 @@ class SimpleSVDRecommender:
         
         # Clip to valid rating range
         return np.clip(pred, 0.5, 5.0)
+    
+    def predict_batch(self, user_id: int, movie_ids: np.ndarray) -> np.ndarray:
+        """
+        Vectorized batch prediction for multiple movies at once.
+        
+        Much faster than calling predict() in a loop.
+        O(n_components) per movie instead of O(n_movies * n_components).
+        
+        Args:
+            user_id: User ID
+            movie_ids: Array of movie IDs to predict
+            
+        Returns:
+            Array of predicted ratings (same order as movie_ids)
+        """
+        n_movies = len(movie_ids)
+        predictions = np.full(n_movies, self.global_mean, dtype=np.float32)
+        
+        if user_id not in self.user_mapper:
+            # New user - return global mean + movie biases
+            for i, mid in enumerate(movie_ids):
+                predictions[i] = self.global_mean + self.movie_bias.get(mid, 0)
+            return np.clip(predictions, 0.5, 5.0)
+        
+        user_idx = self.user_mapper[user_id]
+        user_factor = self.user_factors[user_idx]  # Shape: (n_components,)
+        user_b = self.user_bias.get(user_id, 0)
+        
+        # Get movie indices (vectorized lookup)
+        movie_indices = np.array([
+            self.movie_mapper.get(mid, -1) for mid in movie_ids
+        ], dtype=np.int32)
+        
+        # Valid movies mask
+        valid_mask = movie_indices >= 0
+        valid_indices = movie_indices[valid_mask]
+        
+        if len(valid_indices) > 0:
+            # Vectorized prediction for valid movies
+            # movie_factors shape: (n_movies, n_components)
+            # user_factor shape: (n_components,)
+            movie_factors_batch = self.movie_factors[valid_indices]  # (n_valid, n_components)
+            
+            # Dot product: (n_valid, n_components) @ (n_components,) -> (n_valid,)
+            latent_scores = movie_factors_batch @ user_factor
+            
+            # Get movie biases (vectorized)
+            movie_bias_batch = np.array([
+                self.movie_bias.get(movie_ids[i], 0) 
+                for i, v in enumerate(valid_mask) if v
+            ], dtype=np.float32)
+            
+            # Final prediction: global_mean + user_bias + movie_bias + latent
+            predictions[valid_mask] = (
+                self.global_mean + 
+                user_b + 
+                movie_bias_batch + 
+                latent_scores
+            )
+        
+        return np.clip(predictions, 0.5, 5.0)
+    
+    def get_top_n_fast(
+        self,
+        user_id: int,
+        n: int = 10,
+        exclude_movies: set = None
+    ) -> list:
+        """
+        Fast vectorized top-N recommendations using batch prediction.
+        
+        10-100x faster than get_top_n_recommendations() for large catalogs.
+        
+        Args:
+            user_id: User ID
+            n: Number of recommendations
+            exclude_movies: Set of movie IDs to exclude
+            
+        Returns:
+            List of (movie_id, predicted_rating) tuples
+        """
+        # Filter candidate movies
+        if exclude_movies:
+            candidate_movies = np.array([
+                mid for mid in self.movie_ids if mid not in exclude_movies
+            ])
+        else:
+            candidate_movies = np.array(self.movie_ids)
+        
+        if len(candidate_movies) == 0:
+            return []
+        
+        # Batch prediction (vectorized)
+        predictions = self.predict_batch(user_id, candidate_movies)
+        
+        # Get top N indices using argpartition (faster than full sort)
+        if len(candidate_movies) > n:
+            # argpartition is O(n) vs O(n log n) for full sort
+            top_indices = np.argpartition(predictions, -n)[-n:]
+            # Sort only the top N
+            top_indices = top_indices[np.argsort(predictions[top_indices])[::-1]]
+        else:
+            top_indices = np.argsort(predictions)[::-1]
+        
+        # Return as list of tuples
+        return [
+            (candidate_movies[i], float(predictions[i])) 
+            for i in top_indices[:n]
+        ]
     
     def test(self, test_df: pd.DataFrame) -> float:
         """Calculate RMSE on test set"""

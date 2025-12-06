@@ -1,0 +1,42 @@
+# CineMatch V2.1.6 - Flake8 Configuration
+# Code style and linting rules
+
+[flake8]
+max-line-length = 100
+max-complexity = 15
+select = E,W,F,C
+ignore =
+    # Allow line break before binary operator (black compatibility)
+    W503,
+    # Allow line break after binary operator
+    W504,
+    # Missing whitespace around arithmetic operator
+    E226,
+    # Line too long (handled by black)
+    E501,
+    # Module level import not at top (needed for sys.path setup)
+    E402,
+
+exclude = 
+    .git,
+    __pycache__,
+    .venv,
+    venv,
+    data,
+    models,
+    Jupyter/data,
+    Jupyter/exports,
+    build,
+    dist,
+    *.egg-info,
+
+per-file-ignores =
+    # Allow unused imports in __init__.py (re-exports)
+    __init__.py: F401
+    # Allow star imports in conftest
+    conftest.py: F401,F403
+
+# Statistics options
+show-source = true
+statistics = true
+count = true

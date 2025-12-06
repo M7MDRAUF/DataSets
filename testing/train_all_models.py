@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-CineMatch V2.1.0 - Complete Model Retraining Script
+CineMatch V2.1.6 - Complete Model Retraining Script
 
 Trains all corrupted models (SVD Surprise, SVD sklearn, User-KNN, Item-KNN)
 on the full MovieLens 32M dataset and saves them for production use.
@@ -280,7 +280,7 @@ def main():
         sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
         sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
     
-    print_header("CineMatch V2.1.0 - Complete Model Retraining")
+    print_header("CineMatch V2.1.6 - Complete Model Retraining")
     
     print("\nThis script will retrain all 4 corrupted models:")
     print("  1. SVD (Surprise) - svd_model.pkl")

@@ -1,11 +1,12 @@
 """
-CineMatch V2.1.1 - Memory Management Utilities
+CineMatch V2.1.6 - Memory Management Utilities
 
 Optimized model loading with memory management for Docker environments.
 Handles large models (SVD Surprise) that require significant memory overhead.
+Now includes security-hardened loading via restricted unpickler.
 
 Author: CineMatch Development Team
-Date: November 14, 2025
+Date: December 5, 2025
 """
 
 import gc
@@ -14,6 +15,9 @@ import time
 from pathlib import Path
 from typing import Any, Union, Optional, Dict
 import pickle
+
+# Import secure serialization
+from src.utils.secure_serialization import restricted_loads, compute_file_hash
 
 
 def get_memory_usage_mb() -> float:
@@ -68,10 +72,12 @@ def load_model_with_gc(model_path: Union[str, Path], verbose: bool = True) -> An
     # Aggressive GC before loading
     aggressive_gc()
     
-    # Load model
+    # Load model with secure unpickler
     start_time = time.time()
     with open(model_path, 'rb') as f:
-        loaded_data = pickle.load(f)
+        data = f.read()
+    
+    loaded_data = restricted_loads(data, allow_unknown=True)
     
     load_time = time.time() - start_time
     

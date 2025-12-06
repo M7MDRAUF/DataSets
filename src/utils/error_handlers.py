@@ -279,7 +279,7 @@ def safe_divide(numerator: float, denominator: float, fallback: float = 0.0) -> 
         if np.isnan(result) or np.isinf(result):
             return fallback
         return result
-    except:
+    except (TypeError, ZeroDivisionError, FloatingPointError):
         return fallback
 
 
@@ -307,7 +307,7 @@ def sanitize_prediction(
         
         # Clip to valid range
         return float(np.clip(prediction, min_value, max_value))
-    except:
+    except (TypeError, ValueError):
         return default_value
 
 

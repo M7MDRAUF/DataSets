@@ -1,8 +1,10 @@
 """
-CineMatch V1.0.0 - Algorithm Manager
+CineMatch V2.1.6 - Algorithm Manager
 
 Central management system for all recommendation algorithms.
 Handles instantiation, switching, lifecycle management, and intelligent caching.
+
+Supports horizontal scaling via external model state storage (Redis/S3).
 
 Author: CineMatch Development Team
 Date: November 7, 2025
@@ -18,6 +20,7 @@ import threading
 from enum import Enum
 import logging
 import gc
+import os
 
 # Suppress Streamlit warnings when running outside Streamlit context
 warnings.filterwarnings('ignore', category=UserWarning, module='streamlit')
@@ -38,6 +41,7 @@ from src.algorithms.item_knn_recommender import ItemKNNRecommender
 from src.algorithms.content_based_recommender import ContentBasedRecommender
 from src.algorithms.hybrid_recommender import HybridRecommender
 from src.utils.error_handlers import safe_execute, validate_dataframe, handle_model_error
+from src.algorithms.model_state import ModelStateManager, get_model_state
 
 
 def _is_streamlit_context() -> bool:
@@ -54,8 +58,26 @@ def _is_streamlit_context() -> bool:
         # Restore logger level
         streamlit_logger.setLevel(original_level)
         return result
-    except:
+    except (ImportError, RuntimeError, AttributeError):
+        # Not running in Streamlit context
         return False
+
+
+def _get_memory_mb() -> float:
+    """Get available system memory in MB, or -1 if unknown."""
+    try:
+        import psutil
+        return psutil.virtual_memory().available / (1024 * 1024)
+    except ImportError:
+        return -1
+
+
+def _log_memory(operation: str, phase: str = "") -> None:
+    """Log memory usage for debugging."""
+    mem_mb = _get_memory_mb()
+    if mem_mb > 0:
+        phase_str = f" ({phase})" if phase else ""
+        logging.getLogger(__name__).info(f"Memory{phase_str} - {operation}: {mem_mb:.0f}MB available")
 
 
 class AlgorithmType(Enum):
@@ -73,14 +95,31 @@ class AlgorithmManager:
     
     Features:
     - Lazy loading of algorithms (only load when requested)
-    - Intelligent caching with Streamlit session state
+    - Intelligent caching with Streamlit session state (L1) and external storage (L2)
+    - Horizontal scaling support via ModelStateManager (Redis/S3)
     - Thread-safe algorithm switching
     - Performance monitoring and comparison
     - Graceful error handling and fallbacks
+    
+    Architecture:
+    - L1 Cache: In-memory (self._algorithms) for fastest access
+    - L2 Cache: Streamlit session state (optional, for UI persistence)
+    - L3 Storage: External storage (Redis/S3) for horizontal scaling
+    - File Fallback: Pre-trained .pkl files in models/ directory
     """
     
-    def __init__(self):
-        """Initialize the Algorithm Manager"""
+    # Singleton instance for non-Streamlit contexts
+    _singleton_instance: Optional['AlgorithmManager'] = None
+    _singleton_lock = threading.Lock()
+    
+    def __init__(self, use_external_storage: bool = True):
+        """
+        Initialize the Algorithm Manager.
+        
+        Args:
+            use_external_storage: Whether to use Redis/S3 for model state (default True).
+                                 Set to False for single-instance/development mode.
+        """
         self._algorithms: Dict[AlgorithmType, BaseRecommender] = {}
         self._algorithm_classes: Dict[AlgorithmType, Type[BaseRecommender]] = {
             AlgorithmType.SVD: SVDRecommender,
@@ -115,28 +154,211 @@ class AlgorithmManager:
         self._lock = threading.Lock()
         self._training_data: Optional[tuple] = None
         self._is_initialized = False
+        
+        # Model verification cache for performance
+        # Key: model_path (str), Value: (mtime: float, size: int, verified: bool)
+        # Prevents repeated hash verification on same file
+        self._verified_models: Dict[str, tuple] = {}
+        
+        # Model load metrics for performance monitoring
+        # Key: model_path (str), Value: dict with timing breakdowns
+        self._load_metrics: Dict[str, Dict[str, float]] = {}
+        
+        # External storage support for horizontal scaling
+        self._use_external_storage = use_external_storage
+        self._model_state: Optional[ModelStateManager] = None
+        self._instance_id = os.getenv('CINEMATCH_INSTANCE_ID', f"node_{int(time.time())}")
+        
+        # Background executor for non-blocking model saves
+        self._save_executor: Optional[threading.Thread] = None
+        self._pending_saves: List[tuple] = []  # Queue of (algorithm, algorithm_type, training_time)
+        self._save_lock = threading.Lock()
+        
+        # Circuit breaker for external storage (prevents repeated failed attempts)
+        self._external_storage_failures = 0
+        self._external_storage_failure_threshold = 3
+        self._external_storage_circuit_open = False
+        self._external_storage_circuit_reset_time: Optional[float] = None
+        self._circuit_breaker_cooldown = 300  # 5 minutes before retry
+    
+    def _is_external_storage_available(self) -> bool:
+        """
+        Check if external storage is available (circuit breaker pattern).
+        
+        Returns False if:
+        - External storage is disabled
+        - Circuit breaker is open due to repeated failures
+        
+        Returns True if external storage should be attempted.
+        """
+        if not self._use_external_storage:
+            return False
+            
+        # Check if circuit breaker is open
+        if self._external_storage_circuit_open:
+            # Check if cooldown period has passed
+            if self._external_storage_circuit_reset_time and time.time() > self._external_storage_circuit_reset_time:
+                # Reset circuit breaker - allow retry
+                self._external_storage_circuit_open = False
+                self._external_storage_failures = 0
+                self._external_storage_circuit_reset_time = None
+                logging.getLogger(__name__).info("External storage circuit breaker reset - retrying")
+            else:
+                return False
+                
+        return True
+    
+    def _record_external_storage_failure(self) -> None:
+        """Record an external storage failure and potentially open circuit breaker."""
+        self._external_storage_failures += 1
+        if self._external_storage_failures >= self._external_storage_failure_threshold:
+            self._external_storage_circuit_open = True
+            self._external_storage_circuit_reset_time = time.time() + self._circuit_breaker_cooldown
+            logging.getLogger(__name__).warning(
+                f"External storage circuit breaker OPEN after {self._external_storage_failures} failures. "
+                f"Will retry in {self._circuit_breaker_cooldown}s"
+            )
+    
+    def _record_external_storage_success(self) -> None:
+        """Record a successful external storage operation - reset failure count."""
+        if self._external_storage_failures > 0:
+            self._external_storage_failures = 0
+            logging.getLogger(__name__).info("External storage operation succeeded - failure count reset")
+    
+    def _background_save_model(self, algorithm: 'BaseRecommender', algorithm_type: AlgorithmType, training_time: float) -> None:
+        """Background task to save model without blocking UI."""
+        try:
+            self._save_to_external_storage(algorithm, algorithm_type, training_time)
+            self._record_external_storage_success()
+        except Exception as e:
+            logging.getLogger(__name__).warning(f"Background save failed for {algorithm_type.value}: {e}")
+            self._record_external_storage_failure()
+        finally:
+            # Force garbage collection after save to free serialization buffers
+            gc.collect()
+    
+    @property
+    def model_state(self) -> ModelStateManager:
+        """Get or create the ModelStateManager instance."""
+        if self._model_state is None:
+            self._model_state = get_model_state()
+        return self._model_state
     
     @staticmethod
-    def get_instance() -> 'AlgorithmManager':
-        """Get singleton instance of AlgorithmManager (Streamlit-compatible)"""
-        if 'algorithm_manager' not in st.session_state:
-            st.session_state.algorithm_manager = AlgorithmManager()
-        return st.session_state.algorithm_manager
+    def get_instance(use_external_storage: bool = True) -> 'AlgorithmManager':
+        """
+        Get singleton instance of AlgorithmManager.
+        
+        Uses Streamlit session_state when in Streamlit context for UI persistence.
+        Falls back to class-level singleton for non-Streamlit contexts.
+        
+        Args:
+            use_external_storage: Whether to enable external storage (Redis/S3)
+        
+        Returns:
+            AlgorithmManager singleton instance
+        """
+        if _is_streamlit_context():
+            # Use Streamlit session state for L2 caching
+            if 'algorithm_manager' not in st.session_state:
+                st.session_state.algorithm_manager = AlgorithmManager(use_external_storage)
+            return st.session_state.algorithm_manager
+        else:
+            # Use class-level singleton for non-Streamlit contexts
+            with AlgorithmManager._singleton_lock:
+                if AlgorithmManager._singleton_instance is None:
+                    AlgorithmManager._singleton_instance = AlgorithmManager(use_external_storage)
+                return AlgorithmManager._singleton_instance
     
     def initialize_data(self, ratings_df: pd.DataFrame, movies_df: pd.DataFrame) -> None:
-        """Initialize with training data (call once when app starts)"""
-        self._training_data = (ratings_df.copy(), movies_df.copy())
+        """
+        Initialize with training data (call once when app starts).
+        
+        Uses reference semantics to avoid memory duplication.
+        DataFrames are stored as-is since algorithms handle their own copies if needed.
+        """
+        # Skip if already initialized with same data size (prevents duplicate initialization)
+        if self._is_initialized and self._training_data is not None:
+            existing_size = len(self._training_data[0])
+            new_size = len(ratings_df)
+            if existing_size == new_size:
+                # Already initialized with same data - skip
+                return
+        
+        # Pre-add genres_list and poster_path to avoid repeated copies in each algorithm
+        needs_copy = 'genres_list' not in movies_df.columns or 'poster_path' not in movies_df.columns
+        if needs_copy:
+            movies_df = movies_df.copy()  # Only copy once here
+            if 'genres_list' not in movies_df.columns:
+                movies_df['genres_list'] = movies_df['genres'].str.split('|')
+            if 'poster_path' not in movies_df.columns:
+                movies_df['poster_path'] = None
+        
+        # Store references (not copies) to avoid 3.3GB memory duplication
+        self._training_data = (ratings_df, movies_df)
         self._is_initialized = True
-        print("🎯 Algorithm Manager initialized with data")
+        logging.getLogger(__name__).info("Algorithm Manager initialized with data")
+    
+    def preload_models_background(self, priority_algorithms: Optional[List[AlgorithmType]] = None) -> None:
+        """
+        Preload models in background thread on app startup.
+        
+        This improves perceived performance by loading models before user requests them.
+        
+        Args:
+            priority_algorithms: List of algorithms to preload in order (default: Hybrid first)
+        """
+        if not self._is_initialized:
+            logging.getLogger(__name__).warning("Cannot preload models - data not initialized")
+            return
+            
+        if priority_algorithms is None:
+            # Default priority: Hybrid (most common), then others
+            priority_algorithms = [AlgorithmType.HYBRID, AlgorithmType.SVD, AlgorithmType.ITEM_KNN]
+        
+        def _preload_task():
+            """Background task to preload models."""
+            for algo_type in priority_algorithms:
+                try:
+                    logging.getLogger(__name__).info(f"Preloading {algo_type.name} model...")
+                    self.get_algorithm(algo_type)
+                    logging.getLogger(__name__).info(f"✓ {algo_type.name} preloaded")
+                except Exception as e:
+                    logging.getLogger(__name__).warning(f"Failed to preload {algo_type.name}: {e}")
+                finally:
+                    gc.collect()  # Clean up after each model load
+        
+        # Start preloading in background thread
+        preload_thread = threading.Thread(
+            target=_preload_task,
+            daemon=True,
+            name="model_preload"
+        )
+        preload_thread.start()
+        logging.getLogger(__name__).info(f"Started background preloading of {len(priority_algorithms)} algorithms")
     
     def get_algorithm(self, algorithm_type: AlgorithmType, 
-                     custom_params: Optional[Dict[str, Any]] = None) -> BaseRecommender:
+                     custom_params: Optional[Dict[str, Any]] = None,
+                     fast_load: bool = True,
+                     use_joblib: bool = True) -> BaseRecommender:
         """
-        Get a trained algorithm instance with lazy loading.
+        Get a trained algorithm instance with multi-level caching.
+        
+        Lookup order:
+        1. L1 Cache (in-memory self._algorithms) - fastest
+        2. L3 External Storage (Redis/S3) - for horizontal scaling
+        3. File-based pre-trained models (models/*.pkl) - fallback
+        4. Train from scratch - slowest
+        
+        Performance Optimizations (V2.1.6):
+        - fast_load=True: Skips hash verification for trusted pre-shipped models
+        - use_joblib=True: Uses memory-mapped loading for large models (~0.5s vs 45s)
         
         Args:
             algorithm_type: Type of algorithm to get
             custom_params: Optional custom parameters (overrides defaults)
+            fast_load: If True, skip hash verification for faster loads
+            use_joblib: If True, use joblib with memory mapping for large models
             
         Returns:
             Trained BaseRecommender instance
@@ -145,15 +367,37 @@ class AlgorithmManager:
             raise ValueError("AlgorithmManager not initialized. Call initialize_data() first.")
         
         with self._lock:
-            # Check if algorithm is already cached and trained
+            # L1 Cache: Check if algorithm is already cached in memory
             if algorithm_type in self._algorithms:
                 algorithm = self._algorithms[algorithm_type]
                 if algorithm.is_trained:
-                    if not _is_streamlit_context():
-                        print(f"✓ Using cached {algorithm.name}")
-                    return algorithm
+                    # CRITICAL: Validate cache types for Content-Based (may have old dict caches)
+                    if algorithm_type == AlgorithmType.CONTENT_BASED:
+                        from src.utils.lru_cache import LRUCache
+                        
+                        # Check if caches are dicts (from old pickled instance before fix)
+                        needs_reinit = (
+                            not isinstance(getattr(algorithm, 'user_profiles', None), LRUCache) or
+                            not isinstance(getattr(algorithm, 'movie_similarity_cache', None), LRUCache)
+                        )
+                        
+                        if needs_reinit:
+                            logging.getLogger(__name__).warning("CBF cached instance has dict caches - forcing reinitialization")
+                            print("⚠️ Detected old CBF cache with dict objects - reloading model...")
+                            
+                            # Remove from cache to force reload with fallback
+                            del self._algorithms[algorithm_type]
+                            # Fall through to load/train logic below
+                        else:
+                            if not _is_streamlit_context():
+                                print(f"✓ Using cached {algorithm.name}")
+                            return algorithm
+                    else:
+                        if not _is_streamlit_context():
+                            print(f"✓ Using cached {algorithm.name}")
+                        return algorithm
             
-            # Need to create and train algorithm
+            # Need to load or train algorithm
             if not _is_streamlit_context():
                 print(f"🔄 Loading {algorithm_type.value}...")
             
@@ -166,14 +410,34 @@ class AlgorithmManager:
             algorithm_class = self._algorithm_classes[algorithm_type]
             algorithm = algorithm_class(**params)
             
-            # Try to load pre-trained model first (for KNN models)
-            if self._try_load_pretrained_model(algorithm, algorithm_type):
-                # Pre-trained model loaded successfully
+            # L3: Try to load from external storage (Redis/S3) for horizontal scaling
+            if self._is_external_storage_available() and self._try_load_from_external_storage(algorithm, algorithm_type):
                 self._algorithms[algorithm_type] = algorithm
+                self._record_external_storage_success()
                 return algorithm
             
-            # Train algorithm if no pre-trained model available
+            # File Fallback: Try to load pre-trained model from disk
+            if self._try_load_pretrained_model(algorithm, algorithm_type, fast_load=fast_load, use_joblib=use_joblib):
+                # Pre-trained model loaded successfully
+                self._algorithms[algorithm_type] = algorithm
+                
+                # Persist to external storage for other instances (with circuit breaker check)
+                if self._is_external_storage_available():
+                    try:
+                        self._save_to_external_storage(algorithm, algorithm_type)
+                        self._record_external_storage_success()
+                    except Exception as e:
+                        logging.getLogger(__name__).warning(f"Failed to save to external storage (non-fatal): {e}")
+                        self._record_external_storage_failure()
+                        # Continue without failing - model is still cached in L1
+                
+                return algorithm
+            
+            # Train algorithm if no cached model available
             ratings_df, movies_df = self._training_data
+            
+            # Log memory before training
+            _log_memory(f"train_{algorithm_type.name}", "before")
             
             # Show progress in Streamlit (only if in Streamlit context)
             if _is_streamlit_context():
@@ -185,11 +449,29 @@ class AlgorithmManager:
                 start_time = time.time()
                 algorithm.fit(ratings_df, movies_df)
                 training_time = time.time() - start_time
+            
+            # Log memory after training
+            _log_memory(f"train_{algorithm_type.name}", "after")
                 
-            # Cache the trained algorithm
+            # L1 Cache: Store the trained algorithm
             self._algorithms[algorithm_type] = algorithm
             
+            # L3: Persist to external storage for horizontal scaling (non-blocking, fault-tolerant)
+            # Use background thread to avoid blocking the UI (with circuit breaker check)
+            if self._is_external_storage_available():
+                save_thread = threading.Thread(
+                    target=self._background_save_model,
+                    args=(algorithm, algorithm_type, training_time),
+                    daemon=True,
+                    name=f"save_{algorithm_type.name}"
+                )
+                save_thread.start()
+                # Don't wait for thread - let it run in background
+            
             print(f"✓ {algorithm.name} trained in {training_time:.1f}s")
+            
+            # Force garbage collection after training to free memory
+            gc.collect()
             
             # Show success message (only if in Streamlit context)
             if _is_streamlit_context():
@@ -197,9 +479,16 @@ class AlgorithmManager:
                 
             return algorithm
     
-    def _try_load_pretrained_model(self, algorithm: BaseRecommender, algorithm_type: AlgorithmType) -> bool:
+    def _try_load_from_external_storage(
+        self, 
+        algorithm: BaseRecommender, 
+        algorithm_type: AlgorithmType
+    ) -> bool:
         """
-        Try to load a pre-trained model for algorithms.
+        Try to load a model from external storage (Redis/S3).
+        
+        This enables horizontal scaling by sharing trained models
+        across multiple instances.
         
         Args:
             algorithm: The algorithm instance to load into
@@ -208,8 +497,129 @@ class AlgorithmManager:
         Returns:
             True if model was loaded successfully, False otherwise
         """
+        # Hybrid doesn't have pre-trained - it uses component algorithms
+        if algorithm_type == AlgorithmType.HYBRID:
+            return False
+        
+        try:
+            key = f"{algorithm_type.name.lower()}"
+            
+            # Check if model exists in external storage
+            if not self.model_state.has_model(key):
+                return False
+            
+            if not _is_streamlit_context():
+                print(f"   • Found model '{key}' in external storage")
+            
+            start_time = time.time()
+            loaded_model = self.model_state.load_model(key)
+            load_time = time.time() - start_time
+            
+            if loaded_model is None:
+                return False
+            
+            # Copy loaded model's attributes to current instance
+            algorithm.__dict__.update(loaded_model.__dict__)
+            
+            # Provide data context to the loaded model
+            ratings_df, movies_df = self._training_data
+            algorithm.ratings_df = ratings_df
+            algorithm.movies_df = movies_df
+            if 'genres_list' not in algorithm.movies_df.columns:
+                algorithm.movies_df['genres_list'] = algorithm.movies_df['genres'].str.split('|')
+            if 'poster_path' not in algorithm.movies_df.columns:
+                algorithm.movies_df['poster_path'] = None
+            
+            if algorithm.is_trained:
+                if not _is_streamlit_context():
+                    print(f"   ✓ Loaded {algorithm.name} from external storage in {load_time:.2f}s")
+                if _is_streamlit_context():
+                    st.success(f"🚀 {algorithm.name} loaded from shared storage! ({load_time:.2f}s)")
+                return True
+            
+            return False
+            
+        except Exception as e:
+            logging.getLogger(__name__).warning(f"Failed to load from external storage: {e}")
+            return False
+    
+    def _save_to_external_storage(
+        self, 
+        algorithm: BaseRecommender, 
+        algorithm_type: AlgorithmType,
+        training_time: float = 0.0
+    ) -> bool:
+        """
+        Save a trained model to external storage for horizontal scaling.
+        
+        Args:
+            algorithm: The trained algorithm to save
+            algorithm_type: The type of algorithm
+            training_time: Training duration in seconds
+            
+        Returns:
+            True if saved successfully
+        """
+        # Hybrid doesn't get saved - it uses component algorithms
+        if algorithm_type == AlgorithmType.HYBRID:
+            return False
+        
+        try:
+            key = f"{algorithm_type.name.lower()}"
+            
+            # Extract metrics
+            metrics_obj = algorithm.metrics
+            metrics = {
+                'rmse': getattr(metrics_obj, 'rmse', 0.0),
+                'mae': getattr(metrics_obj, 'mae', 0.0),
+                'coverage': getattr(metrics_obj, 'coverage', 0.0),
+            }
+            
+            success = self.model_state.save_model(
+                key=key,
+                model=algorithm,
+                model_type=algorithm_type.value,
+                version="2.1.6",
+                training_time=training_time or getattr(metrics_obj, 'training_time', 0.0),
+                metrics=metrics,
+                parameters=self._default_params.get(algorithm_type, {}),
+            )
+            
+            if success and not _is_streamlit_context():
+                print(f"   ✓ Saved {algorithm.name} to external storage")
+            
+            return success
+            
+        except Exception as e:
+            logging.getLogger(__name__).warning(f"Failed to save to external storage: {e}")
+            return False
+    
+    def _try_load_pretrained_model(
+        self, 
+        algorithm: BaseRecommender, 
+        algorithm_type: AlgorithmType,
+        fast_load: bool = True,
+        use_joblib: bool = True
+    ) -> bool:
+        """
+        Try to load a pre-trained model for algorithms.
+        
+        Performance optimizations:
+        - fast_load=True: Skips hash verification (default for trusted models)
+        - use_joblib=True: Uses joblib with memory-mapping for faster loads
+        
+        Args:
+            algorithm: The algorithm instance to load into
+            algorithm_type: The type of algorithm
+            fast_load: If True, skip hash verification for faster loads
+            use_joblib: If True, use joblib.load with mmap_mode for large models
+            
+        Returns:
+            True if model was loaded successfully, False otherwise
+        """
         # Import load_model_safe utility
         from src.utils import load_model_safe
+        from src.utils.secure_serialization import verify_model_hash, SecurityError
         
         # Define model paths for all supported algorithms
         # Note: Using sklearn SVD variant (svd_model_sklearn.pkl) - faster and more memory-efficient
@@ -219,6 +629,9 @@ class AlgorithmManager:
             AlgorithmType.ITEM_KNN: Path("models/item_knn_model.pkl"),
             AlgorithmType.CONTENT_BASED: Path("models/content_based_model.pkl")
         }
+        
+        # Security manifest for hash verification
+        manifest_path = Path("models/model_manifest.json")
         
         # Hybrid doesn't have pre-trained - it uses component algorithms
         if algorithm_type == AlgorithmType.HYBRID:
@@ -238,17 +651,85 @@ class AlgorithmManager:
             return False
         
         try:
+            # Performance metrics tracking
+            metrics = {'total': 0, 'hash_verify': 0, 'file_load': 0, 'setup': 0}
+            overall_start = time.time()
+            
+            # PERFORMANCE OPTIMIZATION: Check verification cache first
+            # Avoid redundant hash verification if file hasn't changed
+            model_key = str(model_path.absolute())
+            current_mtime = model_path.stat().st_mtime
+            current_size = model_path.stat().st_size
+            
+            cached_verification = self._verified_models.get(model_key)
+            already_verified = False
+            if cached_verification:
+                cached_mtime, cached_size, was_verified = cached_verification
+                if cached_mtime == current_mtime and cached_size == current_size and was_verified:
+                    already_verified = True
+                    if not _is_streamlit_context():
+                        print(f"   ✓ Using cached verification for {model_path.name}")
+            
+            # PERFORMANCE OPTIMIZATION: Skip hash verification in hot path
+            # Hash verification on 1GB+ models adds 3-5s overhead per model
+            # Security is maintained by:
+            # 1. Pre-shipped models are trusted (from official release)
+            # 2. Hash verification can be enabled via fast_load=False or VERIFY_MODEL_HASH env var
+            # 3. User-uploaded models should use a separate secure upload path
+            import os
+            verify_hash_env = os.environ.get('VERIFY_MODEL_HASH', 'false').lower() == 'true'
+            verify_hash_enabled = ((not fast_load) or verify_hash_env) and not already_verified
+            
+            hash_start = time.time()
+            if verify_hash_enabled and manifest_path.exists():
+                try:
+                    verify_model_hash(model_path, manifest_path=manifest_path)
+                    if not _is_streamlit_context():
+                        print(f"   ✓ Hash verification passed for {model_path.name}")
+                    # Cache the successful verification
+                    self._verified_models[model_key] = (current_mtime, current_size, True)
+                except SecurityError as e:
+                    print(f"   ⚠ SECURITY WARNING: {e}")
+                    print(f"   → Model may have been tampered with. Refusing to load.")
+                    self._verified_models[model_key] = (current_mtime, current_size, False)
+                    return False
+                except ValueError:
+                    # Model not in manifest (new model) - proceed but warn
+                    if not _is_streamlit_context():
+                        print(f"   • Model not in manifest - consider regenerating manifest")
+            metrics['hash_verify'] = time.time() - hash_start
+            
             if not _is_streamlit_context():
-                print(f"   • Loading pre-trained model from {model_path}")
-            start_time = time.time()
+                print(f"   • Loading pre-trained model from {model_path} (fast_load={fast_load})")
+            load_start = time.time()
             
-            # Use load_model_safe to handle both old (pickle) and new (joblib dict) formats
-            loaded_model = load_model_safe(str(model_path))
-            load_time = time.time() - start_time
+            # Use joblib for faster loading with memory mapping if enabled
+            if use_joblib:
+                try:
+                    import joblib
+                    loaded_model = joblib.load(str(model_path), mmap_mode='r')
+                except Exception as joblib_error:
+                    # Fallback to secure pickle if joblib fails
+                    if not _is_streamlit_context():
+                        print(f"   • Joblib failed ({joblib_error}), falling back to pickle")
+                    loaded_model = load_model_safe(str(model_path))
+            else:
+                # Use secure pickle loader
+                loaded_model = load_model_safe(str(model_path))
+            metrics['file_load'] = time.time() - load_start
+            load_time = metrics['file_load']
             
+            setup_start = time.time()
             # IMPORTANT: Replace the algorithm instance with the loaded model
+            # Handle wrapped models (dict with 'model' key) from some training scripts
+            actual_model = loaded_model
+            if isinstance(loaded_model, dict) and 'model' in loaded_model:
+                actual_model = loaded_model['model']
+                if not _is_streamlit_context():
+                    print(f"   • Unwrapped model from dict container")
+            
             # Copy the loaded model's attributes to the current algorithm instance
-            algorithm.__dict__.update(loaded_model.__dict__)
+            algorithm.__dict__.update(actual_model.__dict__)
             
             # IMPORTANT: Provide data context to the loaded model
             # Pre-trained models need access to current data for some operations
@@ -256,18 +737,30 @@ class AlgorithmManager:
             ratings_df, movies_df = self._training_data
             algorithm.ratings_df = ratings_df  # Shallow reference (model is pre-trained, won't modify)
             algorithm.movies_df = movies_df    # Shallow reference
-            # Add genres_list if not present
+            # Add genres_list and poster_path if not present
             if 'genres_list' not in algorithm.movies_df.columns:
                 algorithm.movies_df['genres_list'] = algorithm.movies_df['genres'].str.split('|')
+            if 'poster_path' not in algorithm.movies_df.columns:
+                algorithm.movies_df['poster_path'] = None
             if not _is_streamlit_context():
                 print(f"   • Data context provided to loaded model")
+            metrics['setup'] = time.time() - setup_start
+            
+            # Update verification cache for successful load
+            if model_key not in self._verified_models:
+                self._verified_models[model_key] = (current_mtime, current_size, True)
+            
+            # Store load metrics for performance monitoring
+            metrics['total'] = time.time() - overall_start
+            self._load_metrics[model_key] = metrics
             
             # Verify the model is properly loaded and trained
             if algorithm.is_trained:
                 if not _is_streamlit_context():
-                    print(f"   ✓ Pre-trained {algorithm.name} loaded in {load_time:.2f}s")
+                    print(f"   ✓ Pre-trained {algorithm.name} loaded in {load_time:.2f}s (total: {metrics['total']:.2f}s)")
+                    print(f"   • Metrics: hash={metrics['hash_verify']:.2f}s, load={metrics['file_load']:.2f}s, setup={metrics['setup']:.2f}s")
                 if _is_streamlit_context():
-                    st.success(f"🚀 {algorithm.name} loaded from pre-trained model! ({load_time:.2f}s)")
+                    st.success(f"🚀 {algorithm.name} loaded from pre-trained model! ({metrics['total']:.2f}s)")
                 return True
             else:
                 print(f"   ⚠ Pre-trained model loaded but not marked as trained")
@@ -640,6 +1133,18 @@ class AlgorithmManager:
         return all_metrics
 
 
-def get_algorithm_manager() -> AlgorithmManager:
-    """Get the algorithm manager instance (from Streamlit session state)"""
-    return AlgorithmManager.get_instance()
+def get_algorithm_manager(use_external_storage: bool = True) -> AlgorithmManager:
+    """
+    Get the algorithm manager instance.
+    
+    Uses Streamlit session state when in Streamlit context,
+    otherwise uses class-level singleton.
+    
+    Args:
+        use_external_storage: Whether to enable external storage (Redis/S3)
+                             for horizontal scaling. Default True.
+    
+    Returns:
+        AlgorithmManager singleton instance
+    """
+    return AlgorithmManager.get_instance(use_external_storage)

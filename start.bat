@@ -1,9 +1,9 @@
 @echo off
-REM CineMatch V1.0.0 - Quick Start Script
+REM CineMatch V2.1.6 - Quick Start Script
 REM Windows Batch File for Easy Application Launch
 
 echo ========================================
-echo CineMatch V1.0.0 - Movie Recommender
+echo CineMatch V2.1.6 - Movie Recommender
 echo ========================================
 echo.
 

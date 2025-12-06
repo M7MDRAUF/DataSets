@@ -1,10 +1,10 @@
 #!/bin/bash
-# CineMatch V1.0.0 - Model Training Script
+# CineMatch V2.1.6 - Model Training Script
 # Wrapper script for training the SVD model
 
 echo "========================================="
-echo "CineMatch V1.0.0 - Model Training"
-echo "========================================="
+echo "CineMatch V2.1.6 - Model Training"
+echo "=========================================""
 echo ""
 
 # Check if Python is available

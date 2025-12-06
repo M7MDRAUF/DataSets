@@ -5,7 +5,17 @@ Helper functions and utilities for model loading and data processing.
 """
 
 # Import from utils/ submodules (new memory optimization modules)
-from .model_loader import load_model_safe, get_model_metadata, save_model_standard
+from .model_loader import (
+    load_model_safe, 
+    get_model_metadata, 
+    save_model_standard,
+    load_model_fast,
+    save_model_fast,
+    detect_model_format,
+    warm_up_model,
+    load_and_warm_up,
+    JOBLIB_AVAILABLE
+)
 from .memory_manager import (
     load_model_with_gc,
     load_models_sequential,
@@ -57,6 +67,12 @@ __all__ = [
     'load_model_safe', 
     'get_model_metadata', 
     'save_model_standard',
+    'load_model_fast',
+    'save_model_fast',
+    'detect_model_format',
+    'warm_up_model',
+    'load_and_warm_up',
+    'JOBLIB_AVAILABLE',
     'load_model_with_gc',
     'load_models_sequential',
     'aggressive_gc',

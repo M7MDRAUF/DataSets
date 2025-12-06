@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-CineMatch V2.1.0 - Automated Model Retraining (No Prompts)
+CineMatch V2.1.6 - Automated Model Retraining (No Prompts)
 
 Trains all corrupted models without user interaction.
 
@@ -198,7 +198,7 @@ def train_item_knn():
 
 def main():
     log("="*80)
-    log("CINEMATCH V2.1.0 - AUTOMATED MODEL RETRAINING")
+    log("CINEMATCH V2.1.6 - AUTOMATED MODEL RETRAINING")
     log("="*80)
     log("Starting automated retraining of 4 corrupted models...")
     log("Estimated time: 1.5 - 2.5 hours")

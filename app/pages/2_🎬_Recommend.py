@@ -70,7 +70,6 @@ from src.utils import (
     get_tmdb_poster_url,
     PLACEHOLDER_POSTER
 )
-from src.utils.rate_limiter import RECOMMENDATION_LIMITER, streamlit_rate_check
 from src.utils.input_validation import validate_user_id, validate_num_recommendations
 from src.data_processing import load_ratings, load_movies
 
@@ -623,11 +622,6 @@ if get_recs_button:
             """)
         else:
             st.warning(f"⚠️ User {user_id} not found in dataset. Generating recommendations for new user profile.")
-    
-    # Rate limiting check
-    if not streamlit_rate_check(RECOMMENDATION_LIMITER, action_name="recommendations"):
-        st.info("💡 Tip: Rate limiting protects the system. Wait a moment and try again.")
-        st.stop()
     
     try:
         # Get the selected algorithm (use cached if available)

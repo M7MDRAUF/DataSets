@@ -1,5 +1,5 @@
 """
-CineMatch V1.0.0 - Base Recommendation Algorithm Interface
+CineMatch V2.1.6 - Base Recommendation Algorithm Interface
 
 Abstract base class defining the standard API for all recommendation algorithms.
 Ensures consistency and interchangeability between SVD, KNN, and hybrid approaches.
@@ -77,6 +77,44 @@ class BaseRecommender(ABC):
         
         # Performance tracking
         self._last_prediction_time = 0.0
+        
+        # Incremental training support
+        self._supports_incremental = False
+        self._last_training_timestamp = None
+        
+        # Training progress callback support
+        self._progress_callback: Optional[callable] = None
+        self._cancel_requested = False
+    
+    def set_progress_callback(self, callback: callable) -> None:
+        """
+        Set a callback function for training progress updates.
+        
+        Args:
+            callback: Function that accepts (progress: float, message: str)
+                     where progress is 0.0 to 1.0
+        """
+        self._progress_callback = callback
+    
+    def _report_progress(self, progress: float, message: str = "") -> None:
+        """Report training progress to the callback if set."""
+        if self._progress_callback:
+            try:
+                self._progress_callback(progress, message)
+            except Exception:
+                pass  # Don't let callback errors affect training
+    
+    def request_cancel(self) -> None:
+        """Request cancellation of current training operation."""
+        self._cancel_requested = True
+    
+    def _check_cancelled(self) -> bool:
+        """Check if cancellation was requested. Call periodically during training."""
+        return self._cancel_requested
+    
+    def _reset_cancel(self) -> None:
+        """Reset cancellation flag at start of training."""
+        self._cancel_requested = False
     
     @abstractmethod
     def fit(self, ratings_df: pd.DataFrame, movies_df: pd.DataFrame) -> None:
@@ -88,6 +126,35 @@ class BaseRecommender(ABC):
             movies_df: DataFrame with columns ['movieId', 'title', 'genres']
         """
         pass
+    
+    def partial_fit(self, new_ratings_df: pd.DataFrame) -> bool:
+        """
+        Incrementally update the model with new ratings data.
+        
+        This is faster than full retraining when only a small amount of new data
+        is available. Falls back to full fit() if incremental is not supported.
+        
+        Args:
+            new_ratings_df: DataFrame with new ratings ['userId', 'movieId', 'rating']
+            
+        Returns:
+            True if incremental update succeeded, False if full retrain was needed
+        """
+        if not self._supports_incremental or not self.is_trained:
+            # Fall back to full retrain
+            if self.ratings_df is not None and self.movies_df is not None:
+                # Combine old and new ratings
+                combined_ratings = pd.concat([self.ratings_df, new_ratings_df], ignore_index=True)
+                # Remove duplicates, keeping the latest rating
+                combined_ratings = combined_ratings.drop_duplicates(
+                    subset=['userId', 'movieId'], 
+                    keep='last'
+                )
+                self.fit(combined_ratings, self.movies_df)
+            return False
+        
+        # Subclasses can override this for true incremental updates
+        return False
     
     @abstractmethod
     def predict(self, user_id: int, movie_id: int) -> float:

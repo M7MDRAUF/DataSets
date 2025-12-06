@@ -1,5 +1,5 @@
 """
-CineMatch V1.0.0 - Alternative SVD Model Training (sklearn-based)
+CineMatch V2.1.6 - Alternative SVD Model Training (sklearn-based)
 
 This module provides a Windows-compatible alternative to scikit-surprise
 using scikit-learn's matrix factorization capabilities.
@@ -126,7 +126,7 @@ def save_model(model: SimpleSVDRecommender, train_rmse: float, test_rmse: float,
 def main():
     """Main training pipeline"""
     print("\n" + "=" * 70)
-    print("CineMatch V1.0.0 - Model Training Pipeline (sklearn)")
+    print("CineMatch V2.1.6 - Model Training Pipeline (sklearn)")
     print("=" * 70)
     
     # Step 1: Check data integrity

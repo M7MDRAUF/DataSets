@@ -42,7 +42,6 @@ from src.search_engine import (
 )
 from src.utils import format_genres, create_rating_stars, get_genre_emoji, get_tmdb_poster_url, PLACEHOLDER_POSTER
 from src.utils.input_validation import validate_user_id, InputValidationError
-from src.utils.rate_limiter import SEARCH_LIMITER, streamlit_rate_check
 
 # Import UI components for improved UX
 try:
@@ -180,11 +179,6 @@ rating_filter = st.sidebar.slider(
 
 # Main content
 if search_clicked or user_id_input:
-    # Rate limiting check
-    if not streamlit_rate_check(SEARCH_LIMITER, action_name="search"):
-        st.info("💡 Tip: Rate limiting protects the system. Wait a moment and try again.")
-        st.stop()
-    
     # Security: Validate user ID with bounds checking
     is_valid, validated_user_id, validation_message = validate_user_id(user_id_input)
     

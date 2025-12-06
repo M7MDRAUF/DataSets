@@ -1,5 +1,5 @@
 """
-CineMatch V2.1.0 - Content-Based Model Training Script
+CineMatch V2.1.6 - Content-Based Model Training Script
 
 Train Content-Based Filtering model on MovieLens 32M dataset and save for production use.
 
@@ -333,7 +333,7 @@ def main():
     output_path = project_root / 'models' / 'content_based_model.pkl'
     
     print("=" * 80)
-    print("🎬 CINEMATCH V2.1.0 - CONTENT-BASED FILTERING TRAINING")
+    print("🎬 CINEMATCH V2.1.6 - CONTENT-BASED FILTERING TRAINING")
     print("=" * 80)
     print(f"\nConfiguration:")
     print(f"  • Data path: {data_path}")

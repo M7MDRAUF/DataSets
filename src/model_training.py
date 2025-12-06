@@ -1,5 +1,5 @@
 """
-CineMatch V1.0.0 - Model Training Module
+CineMatch V2.1.6 - Model Training Module
 
 This module handles SVD model training on the MovieLens dataset.
 Implements collaborative filtering using matrix factorization.
@@ -256,7 +256,7 @@ def main():
     Main training pipeline.
     """
     print("\n" + "=" * 70)
-    print("CineMatch V1.0.0 - Model Training Pipeline")
+    print("CineMatch V2.1.6 - Model Training Pipeline")
     print("=" * 70)
     
     # Step 1: Check data integrity

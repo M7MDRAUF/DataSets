@@ -1,6 +1,38 @@
+# CineMatch V2.1.6 - Streamlit Security Configuration
+# Last updated: December 5, 2025
+
 [server]
+# Enable XSRF protection for forms
 enableXsrfProtection = true
+
+# Enable CORS - set to false in production behind reverse proxy
 enableCORS = true
 
+# Disable file watcher in production (reduces attack surface)
+# fileWatcherType = "none"
+
+# Max upload size (limit to prevent DoS)
+maxUploadSize = 10
+
+# Max message size for websockets (MB)
+maxMessageSize = 200
+
 [browser]
+# Disable telemetry
 gatherUsageStats = false
+
+# Don't open browser automatically in production
+# serverAddress = "localhost"
+# serverPort = 8501
+
+[theme]
+# Default theme settings
+primaryColor = "#E50914"
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#f0f2f6"
+textColor = "#262730"
+font = "sans serif"
+
+# Note: Full security headers (CSP, X-Frame-Options, etc.) 
+# should be configured via reverse proxy (nginx/traefik).
+# See deploy/nginx.conf for production configuration.

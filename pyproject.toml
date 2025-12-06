@@ -1,0 +1,194 @@
+# CineMatch V2.1.6 - Project Configuration
+# Python project metadata and tool configurations
+
+[project]
+name = "cinematch"
+version = "2.1.6"
+description = "AI-Powered Movie Recommendation System"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [
+    {name = "CineMatch Development Team", email = "dev@cinematch.io"}
+]
+keywords = ["recommendation", "machine-learning", "movies", "collaborative-filtering"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+dependencies = [
+    "streamlit>=1.28.0",
+    "pandas>=2.0.0",
+    "numpy>=1.24.0",
+    "scikit-learn>=1.3.0",
+    "scipy>=1.11.0",
+    "plotly>=5.17.0",
+    "fastapi>=0.104.0",
+    "uvicorn>=0.24.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "pytest-timeout>=2.2.0",
+    "hypothesis>=6.92.0",
+    "mutmut>=2.4.0",
+    "black>=23.10.0",
+    "isort>=5.12.0",
+    "flake8>=6.1.0",
+    "mypy>=1.6.0",
+    "pre-commit>=3.5.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/M7MDRAUF/CineMatch"
+Documentation = "https://github.com/M7MDRAUF/CineMatch/tree/main/doc"
+Repository = "https://github.com/M7MDRAUF/CineMatch.git"
+Issues = "https://github.com/M7MDRAUF/CineMatch/issues"
+
+# =============================================================================
+# TOOL CONFIGURATIONS
+# =============================================================================
+
+[tool.black]
+line-length = 100
+target-version = ['py311']
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.git
+    | \.hg
+    | \.mypy_cache
+    | \.tox
+    | \.venv
+    | _build
+    | buck-out
+    | build
+    | dist
+    | __pycache__
+    | data
+    | models
+    | Jupyter/data
+    | Jupyter/exports
+)/
+'''
+
+[tool.isort]
+profile = "black"
+line_length = 100
+multi_line_output = 3
+include_trailing_comma = true
+force_grid_wrap = 0
+use_parentheses = true
+ensure_newline_before_comments = true
+skip_gitignore = true
+skip = [
+    ".git",
+    "__pycache__",
+    "data",
+    "models",
+    "Jupyter/data",
+    "Jupyter/exports",
+    ".venv",
+    "venv",
+]
+known_first_party = ["src", "app", "tests", "scripts"]
+known_third_party = [
+    "streamlit",
+    "pandas",
+    "numpy",
+    "sklearn",
+    "scipy",
+    "plotly",
+    "fastapi",
+    "uvicorn",
+    "pytest",
+]
+sections = [
+    "FUTURE",
+    "STDLIB",
+    "THIRDPARTY",
+    "FIRSTPARTY",
+    "LOCALFOLDER",
+]
+import_heading_stdlib = "Standard library imports"
+import_heading_thirdparty = "Third-party imports"
+import_heading_firstparty = "Local application imports"
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_ignores = true
+disallow_untyped_defs = false
+ignore_missing_imports = true
+exclude = [
+    "data/",
+    "models/",
+    "Jupyter/",
+    "__pycache__/",
+]
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_functions = ["test_*"]
+python_classes = ["Test*"]
+addopts = [
+    "-v",
+    "--tb=short",
+    "-ra",
+    "--strict-markers",
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+    "e2e: marks tests as end-to-end tests",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::UserWarning",
+]
+
+[tool.coverage.run]
+source = ["src"]
+omit = [
+    "*/tests/*",
+    "*/__pycache__/*",
+    "*/data/*",
+    "*/models/*",
+]
+branch = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "pass",
+]
+show_missing = true
+fail_under = 70
+
+[tool.coverage.html]
+directory = "coverage_html_report"
+
+[tool.mutmut]
+paths_to_mutate = "src/"
+tests_dir = "tests/"
+runner = "python -m pytest -x --timeout=30"
+dict_synonyms = "Struct, NamedStruct"
+
+# =============================================================================
+# FLAKE8 CONFIGURATION (via setup.cfg or .flake8 since flake8 doesn't support pyproject.toml)
+# =============================================================================
+# See .flake8 file for flake8 configuration

@@ -1,5 +1,5 @@
 """
-CineMatch V1.0.0 - Item-Based KNN Recommender
+CineMatch V2.1.6 - Item-Based KNN Recommender
 
 K-Nearest Neighbors recommendation using item-based collaborative filtering.
 Finds movies with similar rating patterns and recommends them to users.
@@ -14,9 +14,13 @@ from typing import List, Dict, Tuple, Optional, Any
 import pandas as pd
 import numpy as np
 import time
+import logging
 from scipy.sparse import csr_matrix, csc_matrix
 from sklearn.neighbors import NearestNeighbors
 from sklearn.metrics.pairwise import cosine_similarity
+
+# Setup module logger
+logger = logging.getLogger(__name__)
 
 # Add parent directory to path for imports
 sys.path.append(str(Path(__file__).parent.parent.parent))
@@ -70,13 +74,19 @@ class ItemKNNRecommender(BaseRecommender):
         print(f"\n🎬 Training {self.name}...")
         start_time = time.time()
         
-        # Store data references
-        self.ratings_df = ratings_df.copy()
-        self.movies_df = movies_df.copy()
+        # Store data references (no copy for ratings - read-only)
+        self.ratings_df = ratings_df
         
-        # Add genres_list column if not present
-        if 'genres_list' not in self.movies_df.columns:
-            self.movies_df['genres_list'] = self.movies_df['genres'].str.split('|')
+        # Only copy movies_df if we need to modify it
+        needs_copy = 'genres_list' not in movies_df.columns or 'poster_path' not in movies_df.columns
+        if needs_copy:
+            self.movies_df = movies_df.copy()
+            if 'genres_list' not in self.movies_df.columns:
+                self.movies_df['genres_list'] = self.movies_df['genres'].str.split('|')
+            if 'poster_path' not in self.movies_df.columns:
+                self.movies_df['poster_path'] = None
+        else:
+            self.movies_df = movies_df
         
         print("  • Creating item-user matrix...")
         self._create_item_user_matrix(ratings_df)
@@ -179,6 +189,17 @@ class ItemKNNRecommender(BaseRecommender):
             print("    • Not enough memory for full similarity matrix, using on-demand computation")
             self.similarity_matrix = None
     
+    def _ensure_csr_matrix(self) -> None:
+        """Ensure item_user_matrix is in CSR format for efficient slicing.
+        
+        COO matrices don't support subscripting/slicing. When models are
+        loaded from disk, the matrix format may change. This ensures we
+        can always use standard indexing operations.
+        """
+        from scipy import sparse
+        if self.item_user_matrix is not None and not isinstance(self.item_user_matrix, sparse.csr_matrix):
+            self.item_user_matrix = self.item_user_matrix.tocsr()
+    
     def _calculate_rmse(self, ratings_df: pd.DataFrame) -> None:
         """Calculate RMSE and MAE on a test sample - OPTIMIZED for speed"""
         # Use a much smaller sample for RMSE to avoid extreme computation time
@@ -205,8 +226,6 @@ class ItemKNNRecommender(BaseRecommender):
                 continue
             except Exception as e:
                 # Log unexpected errors but continue
-                import logging
-                logger = logging.getLogger(__name__)
                 logger.debug(f"RMSE prediction failed for user {row.userId}, movie {row.movieId}: {e}")
                 continue
         
@@ -231,6 +250,9 @@ class ItemKNNRecommender(BaseRecommender):
     
     def _predict_rating(self, user_id: int, movie_id: int) -> float:
         """Internal rating prediction logic"""
+        # Ensure matrix is in subscriptable format (COO doesn't support slicing)
+        self._ensure_csr_matrix()
+        
         # Check if movie is in our valid set
         if movie_id not in self.valid_items or movie_id not in self.movie_mapper:
             return self.global_mean
@@ -408,6 +430,9 @@ class ItemKNNRecommender(BaseRecommender):
     
     def _batch_predict_ratings(self, user_id: int, candidate_movies: set) -> List[Dict]:
         """Optimized vectorized prediction for Item KNN"""
+        # Ensure matrix is in subscriptable format (COO doesn't support slicing)
+        self._ensure_csr_matrix()
+        
         predictions = []
         
         # Get user's rating profile if they exist
@@ -435,21 +460,14 @@ class ItemKNNRecommender(BaseRecommender):
                 movie_id = self.movie_inv_mapper[movie_idx]
                 user_ratings[movie_idx] = rating
         
-        # Double-check: count should match what's in ratings_df for this user
-        actual_count = len(self.ratings_df[self.ratings_df['userId'] == user_id])
-        matrix_count = len(user_ratings)
-        
-        if matrix_count != actual_count:
-            # Count mismatch indicates the user was looking up wrong index
-            print(f"    ⚠ WARNING: Rating count mismatch for user {user_id}")
-            print(f"    → ratings_df shows: {actual_count} ratings")
-            print(f"    → Matrix shows: {matrix_count} ratings")
-            print(f"    → This indicates index corruption - FIX REQUIRED")
+        # Note: We don't validate against ratings_df here because for pre-trained models,
+        # the matrix is the source of truth. The assigned ratings_df may be different
+        # from the training data that was used to build the matrix.
         
         if len(user_ratings) == 0:
             return self._get_popularity_predictions(candidate_movies, 1000)
         
-        print(f"    → User has {len(user_ratings)} ratings (verified: {actual_count} in dataset)")
+        print(f"    → User has {len(user_ratings)} ratings in model")
         print(f"    → Generating predictions for {len(candidate_movies)} candidates...")
         
         # Convert candidate movies to indices and limit for performance
@@ -535,8 +553,6 @@ class ItemKNNRecommender(BaseRecommender):
                 continue
             except Exception as e:
                 # Log unexpected errors
-                import logging
-                logger = logging.getLogger(__name__)
                 logger.debug(f"Failed to predict for movie {movie_id}: {e}")
                 continue
         
@@ -595,6 +611,9 @@ class ItemKNNRecommender(BaseRecommender):
         """Find movies similar to the given movie using item-based similarity"""
         if not self.is_trained:
             raise ValueError("Model not trained. Call fit() first.")
+        
+        # Ensure matrix is in CSR format for subscripting
+        self._ensure_csr_matrix()
         
         if not self.validate_movie_exists(item_id):
             raise ValueError(f"Movie ID {item_id} not found in dataset")
@@ -779,6 +798,9 @@ class ItemKNNRecommender(BaseRecommender):
         """
         if not self.is_trained:
             return {}
+        
+        # Ensure matrix is in CSR format for subscripting
+        self._ensure_csr_matrix()
         
         try:
             if movie_id not in self.valid_items or movie_id not in self.movie_mapper:

@@ -1,5 +1,5 @@
 """
-CineMatch V1.0.0 - Utility Functions
+CineMatch V2.1.6 - Utility Functions
 
 Explainability features (XAI) and helper functions.
 Implements F-05 (Explainable AI) and F-06 (User Taste Profile).
@@ -761,7 +761,7 @@ if __name__ == "__main__":
     """
     Test utility functions.
     """
-    print("CineMatch V1.0.0 - Utility Functions Test\n")
+    print("CineMatch V2.1.6 - Utility Functions Test\n")
     print("=" * 70)
     
     # Test genre formatting

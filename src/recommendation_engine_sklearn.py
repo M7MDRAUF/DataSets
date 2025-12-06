@@ -1,5 +1,5 @@
 """
-CineMatch V1.0.0 - Alternative Recommendation Engine (sklearn-compatible)
+CineMatch V2.1.6 - Alternative Recommendation Engine (sklearn-compatible)
 
 Core recommendation logic using sklearn-based SVD model.
 Windows-compatible alternative to scikit-surprise.
@@ -264,7 +264,7 @@ def validate_user_id(user_id: int, ratings_df: pd.DataFrame) -> Tuple[bool, str]
 
 if __name__ == "__main__":
     """Test the recommendation engine"""
-    print("CineMatch V1.0.0 - Recommendation Engine Test (sklearn)\n")
+    print("CineMatch V2.1.6 - Recommendation Engine Test (sklearn)\n")
     print("=" * 70)
     
     engine = RecommendationEngine()
