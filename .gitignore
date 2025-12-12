@@ -16,13 +16,18 @@ build/
 .mypy_cache/
 .dmypy.json
 dmypy.json
-
+.benchmarks
 # Virtual Environments
 venv/
 env/
 ENV/
 .venv
-
+final_pptx
+.final_pptx
+figures
+.figures
+PhD_report_3
+.PhD_report_3
 # ========================================
 # Data Files - INCLUDE ml-32m datasets for Streamlit Cloud
 # ========================================
