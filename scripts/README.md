@@ -199,7 +199,7 @@ start.bat
 **Solution:**
 ```bash
 # Make sure you're in project root directory
-cd C:\Users\moham\OneDrive\Documents\studying\ai_mod_project\Copilot
+cd C:\Users\moham\OneDrive\Documents\studying\ai_mod_project\CineMatch
 
 # Activate virtual environment
 venv\Scripts\activate
@@ -254,7 +254,7 @@ python src/model_training_sklearn.py
 ## 📁 Script File Locations
 
 ```
-Copilot/
+CineMatch/
 ├── start.bat                      # Quick launch (Windows)
 ├── scripts/
 │   ├── README.md                  # This file
